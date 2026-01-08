@@ -1,56 +1,25 @@
 
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { authenticatedGet, authenticatedPost } from "./api";
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const AFFIRMATIONS_KEY = "affirmations_library";
-const FAVORITES_KEY = "favorite_affirmations";
+const AFFIRMATIONS_KEY = '@affirmations_cache';
 
-export const loadAffirmationsOffline = async (): Promise<string[]> => {
+export const defaultAffirmations = [
+  "I am capable of achieving my goals",
+  "Today is full of possibilities",
+  "I choose happiness and peace",
+  "I am worthy of love and respect",
+  "I trust in my journey"
+];
+
+export async function loadAffirmationsOffline() {
   try {
-    const stored = await AsyncStorage.getItem(AFFIRMATIONS_KEY);
-    if (stored) {
-      return JSON.parse(stored);
-    }
-    
-    // TODO: Backend Integration - Fetch from API
-    // const response = await authenticatedGet("/api/affirmations/library");
-    // await AsyncStorage.setItem(AFFIRMATIONS_KEY, JSON.stringify(response.affirmations));
-    // return response.affirmations;
-    
-    // Fallback affirmations
-    const fallback = [
-      "I am capable of achieving my goals",
-      "Today is full of possibilities",
-      "I choose to be happy and grateful",
-      "I am growing stronger every day",
-      "I trust in my journey"
-    ];
-    await AsyncStorage.setItem(AFFIRMATIONS_KEY, JSON.stringify(fallback));
-    return fallback;
-  } catch (error) {
-    console.error("Error loading affirmations:", error);
-    return ["I am doing my best"];
+    const cached = await AsyncStorage.getItem(AFFIRMATIONS_KEY);
+    return cached ? JSON.parse(cached) : defaultAffirmations;
+  } catch {
+    return defaultAffirmations;
   }
-};
+}
 
-export const getRandomAffirmation = async (): Promise<string> => {
-  const affirmations = await loadAffirmationsOffline();
+export function getRandomAffirmation(affirmations: string[]) {
   return affirmations[Math.floor(Math.random() * affirmations.length)];
-};
-
-export const saveFavoriteAffirmation = async (affirmation: string): Promise<void> => {
-  try {
-    const stored = await AsyncStorage.getItem(FAVORITES_KEY);
-    const favorites = stored ? JSON.parse(stored) : [];
-    
-    if (!favorites.includes(affirmation)) {
-      favorites.push(affirmation);
-      await AsyncStorage.setItem(FAVORITES_KEY, JSON.stringify(favorites));
-      
-      // TODO: Backend Integration
-      // await authenticatedPost("/api/affirmations/favorites", { affirmation });
-    }
-  } catch (error) {
-    console.error("Error saving favorite:", error);
-  }
-};
+}

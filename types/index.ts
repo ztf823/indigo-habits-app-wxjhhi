@@ -3,7 +3,6 @@ export interface Habit {
   id: string;
   name: string;
   completed: boolean;
-  icon?: string;
 }
 
 export interface JournalEntry {
@@ -13,16 +12,4 @@ export interface JournalEntry {
   photoUri?: string;
 }
 
-export interface DayStatus {
-  date: string;
-  completed: boolean;
-  habitsCompleted: number;
-  totalHabits: number;
-}
-
-export interface Badge {
-  id: string;
-  name: string;
-  description: string;
-  earned: boolean;
-}
+export type DayStatus = 'complete' | 'incomplete' | 'none';

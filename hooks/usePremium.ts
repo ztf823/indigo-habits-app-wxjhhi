@@ -1,50 +1,32 @@
 
-import { useState, useEffect, useCallback } from "react";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { authenticatedGet } from "@/utils/api";
+import { useState, useEffect, useCallback } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const PREMIUM_KEY = "user_premium_status";
+const PRO_STATUS_KEY = '@pro_status';
 
-export const usePremium = () => {
+export function usePremium() {
   const [isPro, setIsPro] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const checkProStatus = useCallback(async () => {
     try {
-      // Check local storage first
-      const stored = await AsyncStorage.getItem(PREMIUM_KEY);
-      if (stored) {
-        setIsPro(JSON.parse(stored));
-      }
-      
-      // TODO: Backend Integration - Check with API
-      // const response = await authenticatedGet("/api/user/premium-status");
-      // setIsPro(response.isPremium);
-      // await AsyncStorage.setItem(PREMIUM_KEY, JSON.stringify(response.isPremium));
-      
-      setLoading(false);
+      const status = await AsyncStorage.getItem(PRO_STATUS_KEY);
+      setIsPro(status === 'true');
     } catch (error) {
-      console.error("Error checking premium status:", error);
+      console.error('Error checking pro status:', error);
+    } finally {
       setLoading(false);
     }
+  }, []);
+
+  const showPaywall = useCallback(async () => {
+    // Placeholder for paywall logic
+    console.log('Show paywall');
   }, []);
 
   useEffect(() => {
     checkProStatus();
   }, [checkProStatus]);
 
-  const upgradeToPro = async () => {
-    // TODO: Backend Integration - Process purchase
-    // await authenticatedPost("/api/user/purchase", { plan: "pro" });
-    setIsPro(true);
-    await AsyncStorage.setItem(PREMIUM_KEY, JSON.stringify(true));
-  };
-
-  const showPaywall = () => {
-    // TODO: Backend Integration - Show Superwall paywall
-    // For now, just upgrade directly
-    upgradeToPro();
-  };
-
-  return { isPro, loading, upgradeToPro, showPaywall, refreshStatus: checkProStatus };
-};
+  return { isPro, loading, checkProStatus, showPaywall };
+}

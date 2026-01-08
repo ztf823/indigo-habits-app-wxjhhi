@@ -18,7 +18,7 @@ import * as ImagePicker from "expo-image-picker";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { usePremium } from "@/hooks/usePremium";
 import { Habit, JournalEntry } from "@/types";
-import { getRandomAffirmation, loadAffirmationsOffline } from "@/utils/affirmations";
+import { getRandomAffirmation, loadAffirmationsOffline, defaultAffirmations } from "@/utils/affirmations";
 import { playCompletionChime, playSuccessHaptic } from "@/utils/sounds";
 import { useRouter } from "expo-router";
 
@@ -29,6 +29,7 @@ export default function HomeScreen() {
   const [showAffirmationCard, setShowAffirmationCard] = useState(false);
   const [habits, setHabits] = useState<Habit[]>([]);
   const [affirmationsUsed, setAffirmationsUsed] = useState(0);
+  const [affirmationsList, setAffirmationsList] = useState<string[]>(defaultAffirmations);
   const slideAnim = useState(new Animated.Value(-300))[0];
   const { isPro, showPaywall } = usePremium();
   const router = useRouter();
@@ -67,13 +68,15 @@ export default function HomeScreen() {
         setAffirmationsUsed(parseInt(count));
       }
 
-      // Pro status is managed by usePremium hook
-
       // Load today's affirmation
       const todayAffirmation = await AsyncStorage.getItem("todayAffirmation");
       if (todayAffirmation) {
         setAffirmation(todayAffirmation);
       }
+
+      // Load affirmations list
+      const loadedAffirmations = await loadAffirmationsOffline();
+      setAffirmationsList(loadedAffirmations);
 
       // TODO: Backend Integration - Load affirmations from backend on first launch
       // TODO: Backend Integration - Fetch user's habits from backend
@@ -87,7 +90,6 @@ export default function HomeScreen() {
   useEffect(() => {
     checkFirstTime();
     loadData();
-    loadAffirmationsOffline();
   }, [checkFirstTime, loadData]);
 
   const toggleAffirmationCard = () => {
@@ -125,7 +127,7 @@ export default function HomeScreen() {
     }
 
     // TODO: Backend Integration - Call AI affirmation generation API endpoint
-    const randomAffirmation = getRandomAffirmation();
+    const randomAffirmation = getRandomAffirmation(affirmationsList);
 
     setAffirmation(randomAffirmation);
     await AsyncStorage.setItem("todayAffirmation", randomAffirmation);
@@ -138,17 +140,26 @@ export default function HomeScreen() {
   };
 
   const addCustomAffirmation = () => {
-    Alert.prompt(
-      "Custom Affirmation",
-      "Enter your affirmation:",
-      async (text) => {
-        if (text && text.trim()) {
-          setAffirmation(text.trim());
-          await AsyncStorage.setItem("todayAffirmation", text.trim());
-          await playSuccessHaptic();
-        }
+    if (Platform.OS === 'web') {
+      const text = prompt("Enter your affirmation:");
+      if (text && text.trim()) {
+        setAffirmation(text.trim());
+        AsyncStorage.setItem("todayAffirmation", text.trim());
+        playSuccessHaptic();
       }
-    );
+    } else {
+      Alert.prompt(
+        "Custom Affirmation",
+        "Enter your affirmation:",
+        async (text) => {
+          if (text && text.trim()) {
+            setAffirmation(text.trim());
+            await AsyncStorage.setItem("todayAffirmation", text.trim());
+            await playSuccessHaptic();
+          }
+        }
+      );
+    }
   };
 
   const handleUpgrade = () => {

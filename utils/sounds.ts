@@ -1,19 +1,15 @@
 
-import { Audio } from "expo-av";
-import * as Haptics from "expo-haptics";
+import * as Haptics from 'expo-haptics';
 
-export const playCompletionChime = async () => {
+export async function playCompletionChime() {
   try {
-    const { sound } = await Audio.Sound.createAsync(
-      { uri: "https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3" },
-      { shouldPlay: true, volume: 0.5 }
-    );
-    await sound.playAsync();
+    // Play haptic feedback as a substitute for audio chime
+    await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   } catch (error) {
-    console.log("Error playing sound:", error);
+    console.log('Error playing haptic:', error);
   }
-};
+}
 
-export const playSuccessHaptic = () => {
-  Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-};
+export async function playSuccessHaptic() {
+  await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+}
