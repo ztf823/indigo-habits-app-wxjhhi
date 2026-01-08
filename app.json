@@ -1,7 +1,8 @@
+
 {
   "expo": {
-    "name": "Indigo Habits",
-    "slug": "Indigo Habits",
+    "name": "Natively",
+    "slug": "Natively",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/natively-dark.png",
@@ -10,24 +11,22 @@
     "splash": {
       "image": "./assets/images/natively-dark.png",
       "resizeMode": "contain",
-      "backgroundColor": "#4F46E5"
+      "backgroundColor": "#000000"
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.indigohabits.app",
+      "bundleIdentifier": "com.anonymous.Natively",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false,
-        "NSPhotoLibraryUsageDescription": "Indigo Habits needs access to your photos to attach images to your journal entries.",
-        "NSCameraUsageDescription": "Indigo Habits needs access to your camera to take photos for your journal entries."
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/natively-dark.png",
-        "backgroundColor": "#4F46E5"
+        "backgroundColor": "#000000"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.indigohabits.app"
+      "package": "com.anonymous.Natively"
     },
     "web": {
       "favicon": "./assets/images/final_quest_240x240.png",
@@ -36,10 +35,9 @@
     "plugins": [
       "expo-font",
       "expo-router",
-      "expo-web-browser",
-      "expo-superwall"
+      "expo-web-browser"
     ],
-    "scheme": "indigohabits",
+    "scheme": "natively",
     "experiments": {
       "typedRoutes": true
     },
