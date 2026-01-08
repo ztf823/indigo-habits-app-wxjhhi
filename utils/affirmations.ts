@@ -1,117 +1,56 @@
 
-// Top 500 affirmations for offline storage
-export const defaultAffirmations = [
-  "I am capable of achieving my goals.",
-  "Today is full of possibilities.",
-  "I choose to be happy and grateful.",
-  "I am worthy of love and respect.",
-  "I embrace challenges as opportunities to grow.",
-  "I am confident in my abilities.",
-  "I trust the journey of my life.",
-  "I am becoming the best version of myself.",
-  "I deserve success and happiness.",
-  "I am strong, resilient, and brave.",
-  "I attract positive energy into my life.",
-  "I am grateful for all that I have.",
-  "I believe in my dreams and myself.",
-  "I am in control of my thoughts and emotions.",
-  "I radiate confidence and self-assurance.",
-  "I am worthy of all the good things in my life.",
-  "I choose to focus on what I can control.",
-  "I am proud of how far I have come.",
-  "I am open to new opportunities.",
-  "I trust myself to make the right decisions.",
-  "I am deserving of rest and relaxation.",
-  "I am enough, just as I am.",
-  "I release all negative thoughts and embrace positivity.",
-  "I am surrounded by love and support.",
-  "I am creating the life I want to live.",
-  "I am patient with myself and my progress.",
-  "I celebrate my achievements, big and small.",
-  "I am worthy of my dreams coming true.",
-  "I choose to see the good in every situation.",
-  "I am grateful for my unique journey.",
-  "I trust that everything happens for a reason.",
-  "I am capable of overcoming any obstacle.",
-  "I am filled with peace and calm.",
-  "I am deserving of abundance in all areas of my life.",
-  "I am confident in my ability to succeed.",
-  "I choose to let go of what no longer serves me.",
-  "I am worthy of healthy and loving relationships.",
-  "I am grateful for the lessons life teaches me.",
-  "I am creating positive change in my life.",
-  "I trust in my ability to navigate challenges.",
-  "I am proud of my progress and growth.",
-  "I am open to receiving all the good the universe has to offer.",
-  "I am deserving of happiness and joy.",
-  "I choose to focus on solutions, not problems.",
-  "I am grateful for my body and all it does for me.",
-  "I am worthy of taking up space.",
-  "I trust my intuition to guide me.",
-  "I am capable of learning and growing every day.",
-  "I am surrounded by opportunities.",
-  "I choose to be kind to myself.",
-  // Add more affirmations to reach 500...
-  "I am resilient and can handle anything.",
-  "I am worthy of self-care and self-love.",
-  "I trust the timing of my life.",
-  "I am grateful for this moment.",
-  "I am creating a life I love.",
-  "I am deserving of peace and tranquility.",
-  "I choose to see beauty in the world around me.",
-  "I am confident in my unique path.",
-  "I am worthy of forgiveness and compassion.",
-  "I trust that I am exactly where I need to be.",
-  "I am grateful for my strengths and talents.",
-  "I am open to growth and transformation.",
-  "I am deserving of success in all my endeavors.",
-  "I choose to embrace change with grace.",
-  "I am worthy of living authentically.",
-  "I trust in my ability to create the life I desire.",
-  "I am grateful for the abundance in my life.",
-  "I am capable of achieving balance and harmony.",
-  "I am deserving of respect and dignity.",
-  "I choose to focus on progress, not perfection.",
-  "I am worthy of pursuing my passions.",
-  "I trust that I am supported by the universe.",
-  "I am grateful for the people in my life.",
-  "I am open to receiving love and kindness.",
-  "I am deserving of financial abundance.",
-  "I choose to release fear and embrace courage.",
-  "I am worthy of living a fulfilling life.",
-  "I trust in my ability to overcome challenges.",
-  "I am grateful for my resilience and strength.",
-  "I am capable of creating meaningful connections.",
-  "I am deserving of inner peace.",
-  "I choose to honor my needs and boundaries.",
-  "I am worthy of celebrating my uniqueness.",
-  "I trust that good things are coming my way.",
-  "I am grateful for the gift of today.",
-  "I am open to new experiences and adventures.",
-  "I am deserving of compassion and understanding.",
-  "I choose to let go of comparison and embrace my journey.",
-  "I am worthy of living with purpose and intention.",
-  "I trust in my ability to manifest my desires.",
-  "I am grateful for the wisdom I have gained.",
-  "I am capable of creating positive habits.",
-  "I am deserving of joy and laughter.",
-  "I choose to focus on what brings me peace.",
-  "I am worthy of expressing my true self.",
-  "I trust that I am on the right path.",
-  "I am grateful for the opportunities ahead.",
-  "I am open to healing and growth.",
-  "I am deserving of a life filled with love.",
-  "I choose to believe in my potential.",
-];
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { authenticatedGet, authenticatedPost } from "./api";
 
-export function getRandomAffirmation(): string {
-  return defaultAffirmations[
-    Math.floor(Math.random() * defaultAffirmations.length)
-  ];
-}
+const AFFIRMATIONS_KEY = "affirmations_library";
+const FAVORITES_KEY = "favorite_affirmations";
 
-export async function loadAffirmationsOffline(): Promise<void> {
-  // TODO: Backend Integration - Fetch top 500 affirmations from backend on first launch
-  // For now, we use the default affirmations array
-  console.log("Affirmations loaded offline:", defaultAffirmations.length);
-}
+export const loadAffirmationsOffline = async (): Promise<string[]> => {
+  try {
+    const stored = await AsyncStorage.getItem(AFFIRMATIONS_KEY);
+    if (stored) {
+      return JSON.parse(stored);
+    }
+    
+    // TODO: Backend Integration - Fetch from API
+    // const response = await authenticatedGet("/api/affirmations/library");
+    // await AsyncStorage.setItem(AFFIRMATIONS_KEY, JSON.stringify(response.affirmations));
+    // return response.affirmations;
+    
+    // Fallback affirmations
+    const fallback = [
+      "I am capable of achieving my goals",
+      "Today is full of possibilities",
+      "I choose to be happy and grateful",
+      "I am growing stronger every day",
+      "I trust in my journey"
+    ];
+    await AsyncStorage.setItem(AFFIRMATIONS_KEY, JSON.stringify(fallback));
+    return fallback;
+  } catch (error) {
+    console.error("Error loading affirmations:", error);
+    return ["I am doing my best"];
+  }
+};
+
+export const getRandomAffirmation = async (): Promise<string> => {
+  const affirmations = await loadAffirmationsOffline();
+  return affirmations[Math.floor(Math.random() * affirmations.length)];
+};
+
+export const saveFavoriteAffirmation = async (affirmation: string): Promise<void> => {
+  try {
+    const stored = await AsyncStorage.getItem(FAVORITES_KEY);
+    const favorites = stored ? JSON.parse(stored) : [];
+    
+    if (!favorites.includes(affirmation)) {
+      favorites.push(affirmation);
+      await AsyncStorage.setItem(FAVORITES_KEY, JSON.stringify(favorites));
+      
+      // TODO: Backend Integration
+      // await authenticatedPost("/api/affirmations/favorites", { affirmation });
+    }
+  } catch (error) {
+    console.error("Error saving favorite:", error);
+  }
+};
