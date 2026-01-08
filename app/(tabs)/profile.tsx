@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -19,31 +19,7 @@ export default function ProgressScreen() {
   const [totalDays, setTotalDays] = useState(0);
   const [calendarDays, setCalendarDays] = useState<DayStatus[]>([]);
 
-  useEffect(() => {
-    loadProgressData();
-  }, []);
-
-  const loadProgressData = async () => {
-    try {
-      // TODO: Backend Integration - Fetch user progress data from backend
-      // For now, load from AsyncStorage
-      const streak = await AsyncStorage.getItem("currentStreak");
-      if (streak) setCurrentStreak(parseInt(streak));
-
-      const longest = await AsyncStorage.getItem("longestStreak");
-      if (longest) setLongestStreak(parseInt(longest));
-
-      const total = await AsyncStorage.getItem("totalDays");
-      if (total) setTotalDays(parseInt(total));
-
-      // Generate calendar for current month
-      generateCalendar();
-    } catch (error) {
-      console.error("Error loading progress data:", error);
-    }
-  };
-
-  const generateCalendar = () => {
+  const generateCalendar = useCallback(() => {
     const today = new Date();
     const year = today.getFullYear();
     const month = today.getMonth();
@@ -62,7 +38,31 @@ export default function ProgressScreen() {
       });
     }
     setCalendarDays(days);
-  };
+  }, []);
+
+  const loadProgressData = useCallback(async () => {
+    try {
+      // TODO: Backend Integration - Fetch user progress data from backend
+      // For now, load from AsyncStorage
+      const streak = await AsyncStorage.getItem("currentStreak");
+      if (streak) setCurrentStreak(parseInt(streak));
+
+      const longest = await AsyncStorage.getItem("longestStreak");
+      if (longest) setLongestStreak(parseInt(longest));
+
+      const total = await AsyncStorage.getItem("totalDays");
+      if (total) setTotalDays(parseInt(total));
+
+      // Generate calendar for current month
+      generateCalendar();
+    } catch (error) {
+      console.error("Error loading progress data:", error);
+    }
+  }, [generateCalendar]);
+
+  useEffect(() => {
+    loadProgressData();
+  }, [loadProgressData]);
 
   const getMonthName = () => {
     const date = new Date();

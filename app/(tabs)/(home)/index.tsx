@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -33,14 +33,7 @@ export default function HomeScreen() {
   const { isPro, showPaywall } = usePremium();
   const router = useRouter();
 
-  // Load data on mount
-  useEffect(() => {
-    checkFirstTime();
-    loadData();
-    loadAffirmationsOffline();
-  }, []);
-
-  const checkFirstTime = async () => {
+  const checkFirstTime = useCallback(async () => {
     try {
       const hasSeenWelcome = await AsyncStorage.getItem("hasSeenWelcome");
       if (!hasSeenWelcome) {
@@ -49,9 +42,9 @@ export default function HomeScreen() {
     } catch (error) {
       console.error("Error checking first time:", error);
     }
-  };
+  }, [router]);
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
       // Load habits
       const savedHabits = await AsyncStorage.getItem("habits");
@@ -88,7 +81,14 @@ export default function HomeScreen() {
     } catch (error) {
       console.error("Error loading data:", error);
     }
-  };
+  }, []);
+
+  // Load data on mount
+  useEffect(() => {
+    checkFirstTime();
+    loadData();
+    loadAffirmationsOffline();
+  }, [checkFirstTime, loadData]);
 
   const toggleAffirmationCard = () => {
     if (!showAffirmationCard) {
