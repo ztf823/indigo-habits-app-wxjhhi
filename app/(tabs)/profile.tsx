@@ -1,159 +1,105 @@
 
-import React, { useState, useEffect, useCallback } from "react";
-import { View, Text, StyleSheet, ScrollView, Platform } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import React from "react";
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { IconSymbol } from "@/components/IconSymbol";
 
 export default function ProfileScreen() {
-  const [streak, setStreak] = useState<number>(0);
-  const [totalEntries, setTotalEntries] = useState<number>(0);
-
-  const loadProgressData = useCallback(async () => {
-    try {
-      const savedStreak = await AsyncStorage.getItem("streak");
-      const savedEntries = await AsyncStorage.getItem("totalEntries");
-      
-      if (savedStreak) setStreak(parseInt(savedStreak));
-      if (savedEntries) setTotalEntries(parseInt(savedEntries));
-    } catch (error) {
-      console.error("Error loading progress:", error);
-    }
-  }, []);
-
-  useEffect(() => {
-    loadProgressData();
-  }, [loadProgressData]);
-
   return (
-    <LinearGradient colors={["#4F46E5", "#06B6D4"]} style={styles.gradient}>
-      <SafeAreaView style={styles.safeArea} edges={["top"]}>
-        <ScrollView 
-          style={styles.container} 
-          contentContainerStyle={styles.contentContainer}
-          showsVerticalScrollIndicator={false}
-        >
-          <Text style={styles.title}>Your Progress</Text>
+    <LinearGradient colors={["#4F46E5", "#7C3AED", "#06B6D4"]} style={styles.container}>
+      <ScrollView contentContainerStyle={styles.scrollContent}>
+        <Text style={styles.title}>Profile</Text>
 
-          <View style={styles.statsCard}>
-            <View style={styles.statItem}>
-              <Text style={styles.statValue}>{streak}</Text>
-              <Text style={styles.statLabel}>Day Streak</Text>
-            </View>
-            <View style={styles.statDivider} />
-            <View style={styles.statItem}>
-              <Text style={styles.statValue}>{totalEntries}</Text>
-              <Text style={styles.statLabel}>Total Entries</Text>
-            </View>
+        <View style={styles.profileCard}>
+          <View style={styles.avatarContainer}>
+            <IconSymbol ios_icon_name="person.circle.fill" android_material_icon_name="account_circle" size={80} color="#4F46E5" />
           </View>
+          <Text style={styles.name}>Welcome!</Text>
+          <Text style={styles.email}>Keep building your habits</Text>
+        </View>
 
-          <View style={styles.badgesCard}>
-            <Text style={styles.sectionTitle}>Badges</Text>
-            <Text style={styles.comingSoon}>Coming soon...</Text>
-          </View>
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Settings</Text>
+          
+          <TouchableOpacity style={styles.settingItem}>
+            <IconSymbol ios_icon_name="bell.fill" android_material_icon_name="notifications" size={24} color="#6B7280" />
+            <Text style={styles.settingText}>Notifications</Text>
+            <IconSymbol ios_icon_name="chevron.right" android_material_icon_name="chevron_right" size={20} color="#9CA3AF" />
+          </TouchableOpacity>
 
-          <View style={styles.infoCard}>
-            <Text style={styles.infoText}>
-              Keep journaling daily to build your streak and unlock achievements!
-            </Text>
-          </View>
-        </ScrollView>
-      </SafeAreaView>
+          <TouchableOpacity style={styles.settingItem}>
+            <IconSymbol ios_icon_name="lock.fill" android_material_icon_name="lock" size={24} color="#6B7280" />
+            <Text style={styles.settingText}>Privacy</Text>
+            <IconSymbol ios_icon_name="chevron.right" android_material_icon_name="chevron_right" size={20} color="#9CA3AF" />
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.settingItem}>
+            <IconSymbol ios_icon_name="questionmark.circle.fill" android_material_icon_name="help" size={24} color="#6B7280" />
+            <Text style={styles.settingText}>Help & Support</Text>
+            <IconSymbol ios_icon_name="chevron.right" android_material_icon_name="chevron_right" size={20} color="#9CA3AF" />
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
     </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
-  gradient: {
-    flex: 1,
-  },
-  safeArea: {
-    flex: 1,
-  },
   container: {
     flex: 1,
   },
-  contentContainer: {
+  scrollContent: {
     padding: 20,
-    paddingTop: Platform.OS === "android" ? 20 : 0,
+    paddingTop: 60,
     paddingBottom: 120,
   },
   title: {
     fontSize: 32,
-    fontWeight: "bold",
-    color: "white",
+    fontWeight: "700",
+    color: "#FFFFFF",
     marginBottom: 24,
   },
-  statsCard: {
-    backgroundColor: "white",
+  profileCard: {
+    backgroundColor: "rgba(255, 255, 255, 0.95)",
     borderRadius: 16,
-    padding: 24,
-    flexDirection: "row",
-    justifyContent: "space-around",
+    padding: 32,
     alignItems: "center",
-    marginBottom: 20,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
+    marginBottom: 24,
   },
-  statItem: {
-    alignItems: "center",
-    flex: 1,
+  avatarContainer: {
+    marginBottom: 16,
   },
-  statDivider: {
-    width: 1,
-    height: 60,
-    backgroundColor: "#E5E7EB",
+  name: {
+    fontSize: 24,
+    fontWeight: "700",
+    color: "#1F2937",
+    marginBottom: 4,
   },
-  statValue: {
-    fontSize: 36,
-    fontWeight: "bold",
-    color: "#4F46E5",
-  },
-  statLabel: {
+  email: {
     fontSize: 14,
     color: "#6B7280",
-    marginTop: 4,
   },
-  badgesCard: {
-    backgroundColor: "white",
-    borderRadius: 16,
-    padding: 24,
-    marginBottom: 20,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
+  section: {
+    marginBottom: 24,
   },
   sectionTitle: {
     fontSize: 20,
     fontWeight: "600",
-    color: "#1F2937",
+    color: "#FFFFFF",
     marginBottom: 16,
   },
-  comingSoon: {
-    fontSize: 14,
-    color: "#9CA3AF",
-    textAlign: "center",
-    paddingVertical: 20,
+  settingItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(255, 255, 255, 0.95)",
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
   },
-  infoCard: {
-    backgroundColor: "rgba(255, 255, 255, 0.9)",
-    borderRadius: 16,
-    padding: 20,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  infoText: {
-    fontSize: 14,
-    color: "#6B7280",
-    textAlign: "center",
-    lineHeight: 20,
+  settingText: {
+    flex: 1,
+    fontSize: 16,
+    color: "#1F2937",
+    marginLeft: 12,
   },
 });
