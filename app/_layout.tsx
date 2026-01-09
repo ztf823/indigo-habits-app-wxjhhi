@@ -3,6 +3,7 @@ import { Stack } from "expo-router";
 import { useFonts } from "expo-font";
 import { StatusBar } from "expo-status-bar";
 import { WidgetProvider } from "@/contexts/WidgetContext";
+import { AuthProvider } from "@/contexts/AuthContext";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect, useState } from "react";
 import { SystemBars } from "react-native-edge-to-edge";
@@ -59,26 +60,31 @@ export default function RootLayout() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <WidgetProvider>
-        <ThemeProvider
-          value={colorScheme === "dark" ? DarkTheme : DefaultTheme}
-        >
-          <SystemBars style="light" />
-          <Stack
-            screenOptions={{
-              headerShown: false,
-              animation: "none",
-            }}
+      <AuthProvider>
+        <WidgetProvider>
+          <ThemeProvider
+            value={colorScheme === "dark" ? DarkTheme : DefaultTheme}
           >
-            <Stack.Screen name="welcome" />
-            <Stack.Screen name="(tabs)" />
-            <Stack.Screen name="modal" options={{ presentation: "modal" }} />
-            <Stack.Screen name="formsheet" options={{ presentation: "formSheet" }} />
-            <Stack.Screen name="transparent-modal" options={{ presentation: "transparentModal" }} />
-          </Stack>
-          <StatusBar style="light" />
-        </ThemeProvider>
-      </WidgetProvider>
+            <SystemBars style="light" />
+            <Stack
+              screenOptions={{
+                headerShown: false,
+                animation: "none",
+              }}
+            >
+              <Stack.Screen name="welcome" />
+              <Stack.Screen name="auth" />
+              <Stack.Screen name="auth-popup" />
+              <Stack.Screen name="auth-callback" />
+              <Stack.Screen name="(tabs)" />
+              <Stack.Screen name="modal" options={{ presentation: "modal" }} />
+              <Stack.Screen name="formsheet" options={{ presentation: "formSheet" }} />
+              <Stack.Screen name="transparent-modal" options={{ presentation: "transparentModal" }} />
+            </Stack>
+            <StatusBar style="light" />
+          </ThemeProvider>
+        </WidgetProvider>
+      </AuthProvider>
     </GestureHandlerRootView>
   );
 }

@@ -1,4 +1,3 @@
-
 {
   "expo": {
     "name": "Indigo Habits",
@@ -42,7 +41,9 @@
       "typedRoutes": true
     },
     "extra": {
-      "router": {}
+      "router": {},
+      "backendUrl": "https://wtj7b5zqhh4h7kvtqmkdaefv9jzgd8n5.app.specular.dev"
     }
-  }
+  },
+  "scheme": "Indigo Habits"
 }

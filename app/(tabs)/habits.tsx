@@ -24,6 +24,14 @@ interface Habit {
   isActive: boolean;
 }
 
+interface Affirmation {
+  id: string;
+  text: string;
+  isCustom: boolean;
+  isFavorite: boolean;
+  isRepeating: boolean;
+}
+
 const DEFAULT_HABITS = [
   { title: "Morning meditation", color: "#4F46E5" },
   { title: "Exercise", color: "#10B981" },
@@ -42,10 +50,14 @@ const COLORS = [
 ];
 
 export default function HabitsScreen() {
+  const [activeTab, setActiveTab] = useState<"habits" | "affirmations">("habits");
   const [habits, setHabits] = useState<Habit[]>([]);
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [showEditModal, setShowEditModal] = useState(false);
+  const [affirmations, setAffirmations] = useState<Affirmation[]>([]);
+  const [showAddHabitModal, setShowAddHabitModal] = useState(false);
+  const [showEditHabitModal, setShowEditHabitModal] = useState(false);
+  const [showAddAffirmationModal, setShowAddAffirmationModal] = useState(false);
   const [newHabitTitle, setNewHabitTitle] = useState("");
+  const [newAffirmationText, setNewAffirmationText] = useState("");
   const [selectedColor, setSelectedColor] = useState(COLORS[0]);
   const [editingHabit, setEditingHabit] = useState<Habit | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -53,41 +65,64 @@ export default function HabitsScreen() {
   const [backendReady, setBackendReady] = useState(false);
 
   useEffect(() => {
-    checkBackendAndLoadHabits();
-  }, []);
+    checkBackendAndLoadData();
+  }, [activeTab]);
 
-  const checkBackendAndLoadHabits = async () => {
+  const checkBackendAndLoadData = async () => {
     setIsLoading(true);
     
     if (!isBackendConfigured()) {
       console.log("[Habits] Backend not configured, using demo data");
       setBackendReady(false);
-      loadDemoHabits();
+      loadDemoData();
       setIsLoading(false);
       return;
     }
 
     setBackendReady(true);
-    await loadHabits();
+    if (activeTab === "habits") {
+      await loadHabits();
+    } else {
+      await loadAffirmations();
+    }
     setIsLoading(false);
   };
 
-  const loadDemoHabits = () => {
-    setHabits(
-      DEFAULT_HABITS.map((h, index) => ({
-        id: `demo-${index}`,
-        title: h.title,
-        color: h.color,
-        isActive: true,
-      }))
-    );
+  const loadDemoData = () => {
+    if (activeTab === "habits") {
+      setHabits(
+        DEFAULT_HABITS.map((h, index) => ({
+          id: `demo-${index}`,
+          title: h.title,
+          color: h.color,
+          isActive: true,
+        }))
+      );
+    } else {
+      setAffirmations([
+        {
+          id: "demo-1",
+          text: "I am worthy of love and respect.",
+          isCustom: true,
+          isFavorite: true,
+          isRepeating: true,
+        },
+        {
+          id: "demo-2",
+          text: "I choose to be happy and grateful today.",
+          isCustom: true,
+          isFavorite: true,
+          isRepeating: false,
+        },
+      ]);
+    }
   };
 
   const loadHabits = async () => {
     try {
       console.log("[Habits] Loading habits from backend...");
       
-      // TODO: Backend Integration - Load habits from /api/habits
+      // Load habits from backend
       const data = await authenticatedApiCall("/api/habits");
       
       if (Array.isArray(data)) {
@@ -97,8 +132,8 @@ export default function HabitsScreen() {
     } catch (error: any) {
       console.error("[Habits] Error loading habits:", error);
       
-      if (error.message?.includes("Backend URL not configured")) {
-        loadDemoHabits();
+      if (error.message?.includes("Backend URL not configured") || error.message?.includes("Authentication token not found")) {
+        loadDemoData();
       } else {
         Alert.alert(
           "Connection Error",
@@ -109,9 +144,37 @@ export default function HabitsScreen() {
     }
   };
 
+  const loadAffirmations = async () => {
+    try {
+      console.log("[Habits] Loading affirmations from backend...");
+      
+      // Load all affirmations (custom and favorites will be marked in the response)
+      const response = await authenticatedApiCall("/api/affirmations?limit=100");
+      
+      if (response.affirmations) {
+        // Filter to show only custom or favorite affirmations
+        const filtered = response.affirmations.filter(
+          (a: Affirmation) => a.isCustom || a.isFavorite
+        );
+        setAffirmations(filtered);
+        console.log("[Habits] Loaded", filtered.length, "affirmations");
+      }
+    } catch (error: any) {
+      console.error("[Habits] Error loading affirmations:", error);
+      
+      if (error.message?.includes("Backend URL not configured") || error.message?.includes("Authentication token not found")) {
+        loadDemoData();
+      }
+    }
+  };
+
   const onRefresh = async () => {
     setIsRefreshing(true);
-    await loadHabits();
+    if (activeTab === "habits") {
+      await loadHabits();
+    } else {
+      await loadAffirmations();
+    }
     setIsRefreshing(false);
   };
 
@@ -130,7 +193,7 @@ export default function HabitsScreen() {
     }
 
     try {
-      // TODO: Backend Integration - Create habit via /api/habits
+      // Create habit via backend API
       const data = await authenticatedApiCall("/api/habits", {
         method: "POST",
         body: JSON.stringify({ title, color }),
@@ -163,7 +226,7 @@ export default function HabitsScreen() {
       await createHabit(newHabitTitle.trim(), selectedColor);
       setNewHabitTitle("");
       setSelectedColor(COLORS[0]);
-      setShowAddModal(false);
+      setShowAddHabitModal(false);
     } catch (error) {
       console.error("[Habits] Failed to add habit:", error);
     }
@@ -184,7 +247,7 @@ export default function HabitsScreen() {
             : h
         )
       );
-      setShowEditModal(false);
+      setShowEditHabitModal(false);
       setEditingHabit(null);
       setNewHabitTitle("");
       Alert.alert("Success", "Habit updated! (Demo mode - won't be saved)");
@@ -192,7 +255,7 @@ export default function HabitsScreen() {
     }
 
     try {
-      // TODO: Backend Integration - Update habit via /api/habits/{id}
+      // Update habit via backend API
       const data = await authenticatedApiCall(`/api/habits/${editingHabit.id}`, {
         method: "PUT",
         body: JSON.stringify({
@@ -208,7 +271,7 @@ export default function HabitsScreen() {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
 
-      setShowEditModal(false);
+      setShowEditHabitModal(false);
       setEditingHabit(null);
       setNewHabitTitle("");
     } catch (error) {
@@ -234,7 +297,7 @@ export default function HabitsScreen() {
             }
 
             try {
-              // TODO: Backend Integration - Delete habit via /api/habits/{id}
+              // Delete habit via backend API (soft delete)
               await authenticatedApiCall(`/api/habits/${id}`, {
                 method: "DELETE",
               });
@@ -256,7 +319,114 @@ export default function HabitsScreen() {
     setEditingHabit(habit);
     setNewHabitTitle(habit.title);
     setSelectedColor(habit.color);
-    setShowEditModal(true);
+    setShowEditHabitModal(true);
+  };
+
+  const handleAddCustomAffirmation = async () => {
+    if (!newAffirmationText.trim()) {
+      Alert.alert("Error", "Please enter an affirmation");
+      return;
+    }
+
+    if (!backendReady) {
+      // Demo mode: Add locally
+      const newAffirmation: Affirmation = {
+        id: `demo-${Date.now()}`,
+        text: newAffirmationText.trim(),
+        isCustom: true,
+        isFavorite: false,
+        isRepeating: false,
+      };
+      setAffirmations((prev) => [...prev, newAffirmation]);
+      setNewAffirmationText("");
+      setShowAddAffirmationModal(false);
+      Alert.alert("Success", "Affirmation added! (Demo mode - won't be saved)");
+      return;
+    }
+
+    try {
+      // Create custom affirmation via backend API
+      const data = await authenticatedApiCall("/api/affirmations/custom", {
+        method: "POST",
+        body: JSON.stringify({ text: newAffirmationText.trim() }),
+      });
+
+      if (data?.id) {
+        setAffirmations((prev) => [...prev, data]);
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
+
+      setNewAffirmationText("");
+      setShowAddAffirmationModal(false);
+    } catch (error) {
+      console.error("[Habits] Error creating affirmation:", error);
+      Alert.alert("Error", "Failed to create affirmation. Please try again.");
+    }
+  };
+
+  const toggleAffirmationRepeating = async (affirmationId: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+
+    const affirmation = affirmations.find((a) => a.id === affirmationId);
+    if (!affirmation) return;
+
+    const newRepeating = !affirmation.isRepeating;
+
+    // Update locally first
+    setAffirmations((prev) =>
+      prev.map((a) =>
+        a.id === affirmationId ? { ...a, isRepeating: newRepeating } : a
+      )
+    );
+
+    if (backendReady) {
+      try {
+        // Toggle affirmation repeating status via backend API
+        await authenticatedApiCall(`/api/affirmations/${affirmationId}/repeat`, {
+          method: "POST",
+        });
+      } catch (error) {
+        console.error("[Habits] Error toggling repeating:", error);
+        // Revert on error
+        setAffirmations((prev) =>
+          prev.map((a) =>
+            a.id === affirmationId ? { ...a, isRepeating: !newRepeating } : a
+          )
+        );
+      }
+    }
+  };
+
+  const deleteAffirmation = async (affirmationId: string) => {
+    Alert.alert(
+      "Delete Affirmation",
+      "Are you sure you want to delete this affirmation?",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            if (!backendReady) {
+              setAffirmations((prev) => prev.filter((a) => a.id !== affirmationId));
+              return;
+            }
+
+            try {
+              // Note: The API doesn't have a delete endpoint for affirmations
+              // We can only remove them from favorites or stop repeating them
+              // For now, just remove from local state
+              setAffirmations((prev) => prev.filter((a) => a.id !== affirmationId));
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              Alert.alert("Info", "Affirmation removed from your list");
+            } catch (error) {
+              console.error("[Habits] Error deleting affirmation:", error);
+              Alert.alert("Error", "Failed to delete affirmation.");
+            }
+          },
+        },
+      ]
+    );
   };
 
   if (isLoading) {
@@ -264,7 +434,7 @@ export default function HabitsScreen() {
       <LinearGradient colors={["#4F46E5", "#7C3AED", "#87CEEB"]} style={styles.container}>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#FFF" />
-          <Text style={styles.loadingText}>Loading habits...</Text>
+          <Text style={styles.loadingText}>Loading...</Text>
         </View>
       </LinearGradient>
     );
@@ -272,6 +442,30 @@ export default function HabitsScreen() {
 
   return (
     <LinearGradient colors={["#4F46E5", "#7C3AED", "#87CEEB"]} style={styles.container}>
+      <View style={styles.header}>
+        <Text style={styles.title}>My Habits</Text>
+        
+        {/* Tab Selector */}
+        <View style={styles.tabContainer}>
+          <TouchableOpacity
+            style={[styles.tab, activeTab === "habits" && styles.activeTab]}
+            onPress={() => setActiveTab("habits")}
+          >
+            <Text style={[styles.tabText, activeTab === "habits" && styles.activeTabText]}>
+              Habits
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.tab, activeTab === "affirmations" && styles.activeTab]}
+            onPress={() => setActiveTab("affirmations")}
+          >
+            <Text style={[styles.tabText, activeTab === "affirmations" && styles.activeTabText]}>
+              Affirmations
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         refreshControl={
@@ -293,68 +487,157 @@ export default function HabitsScreen() {
           </View>
         )}
 
-        <Text style={styles.title}>My Habits</Text>
-        <Text style={styles.subtitle}>
-          {backendReady ? "Manage your daily habits" : "Demo habits - Add your own when backend is ready"}
-        </Text>
-
-        {habits.length === 0 ? (
-          <View style={styles.emptyState}>
-            <IconSymbol
-              ios_icon_name="checkmark.circle"
-              android_material_icon_name="check-circle"
-              size={64}
-              color="#FFF"
-            />
-            <Text style={styles.emptyStateText}>No habits yet</Text>
-            <Text style={styles.emptyStateSubtext}>
-              Tap the + button below to add your first habit
-            </Text>
-          </View>
-        ) : (
-          <View style={styles.habitsList}>
-            {habits.map((habit) => (
-              <View key={habit.id} style={styles.habitCard}>
-                <View style={styles.habitInfo}>
-                  <View
-                    style={[styles.colorIndicator, { backgroundColor: habit.color }]}
-                  />
-                  <Text style={styles.habitTitle}>{habit.title}</Text>
-                </View>
-                <View style={styles.habitActions}>
-                  <TouchableOpacity
-                    style={styles.actionButton}
-                    onPress={() => openEditModal(habit)}
-                  >
-                    <IconSymbol
-                      ios_icon_name="pencil"
-                      android_material_icon_name="edit"
-                      size={20}
-                      color="#4F46E5"
-                    />
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.actionButton}
-                    onPress={() => handleDeleteHabit(habit.id)}
-                  >
-                    <IconSymbol
-                      ios_icon_name="trash"
-                      android_material_icon_name="delete"
-                      size={20}
-                      color="#EF4444"
-                    />
-                  </TouchableOpacity>
-                </View>
+        {activeTab === "habits" ? (
+          <>
+            {habits.length === 0 ? (
+              <View style={styles.emptyState}>
+                <IconSymbol
+                  ios_icon_name="checkmark.circle"
+                  android_material_icon_name="check-circle"
+                  size={64}
+                  color="#FFF"
+                />
+                <Text style={styles.emptyStateText}>No habits yet</Text>
+                <Text style={styles.emptyStateSubtext}>
+                  Tap the + button below to add your first habit
+                </Text>
               </View>
-            ))}
-          </View>
+            ) : (
+              <View style={styles.itemsList}>
+                {habits.map((habit) => (
+                  <View key={habit.id} style={styles.itemCard}>
+                    <View style={styles.itemInfo}>
+                      <View
+                        style={[styles.colorIndicator, { backgroundColor: habit.color }]}
+                      />
+                      <Text style={styles.itemTitle}>{habit.title}</Text>
+                    </View>
+                    <View style={styles.itemActions}>
+                      <TouchableOpacity
+                        style={styles.actionButton}
+                        onPress={() => openEditModal(habit)}
+                      >
+                        <IconSymbol
+                          ios_icon_name="pencil"
+                          android_material_icon_name="edit"
+                          size={20}
+                          color="#4F46E5"
+                        />
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={styles.actionButton}
+                        onPress={() => handleDeleteHabit(habit.id)}
+                      >
+                        <IconSymbol
+                          ios_icon_name="trash"
+                          android_material_icon_name="delete"
+                          size={20}
+                          color="#EF4444"
+                        />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                ))}
+              </View>
+            )}
+          </>
+        ) : (
+          <>
+            <Text style={styles.subtitle}>
+              Manage custom affirmations and set them to repeat daily
+            </Text>
+            
+            {affirmations.length === 0 ? (
+              <View style={styles.emptyState}>
+                <IconSymbol
+                  ios_icon_name="sparkles"
+                  android_material_icon_name="auto-awesome"
+                  size={64}
+                  color="#FFF"
+                />
+                <Text style={styles.emptyStateText}>No custom affirmations yet</Text>
+                <Text style={styles.emptyStateSubtext}>
+                  Tap the + button to add your first affirmation
+                </Text>
+              </View>
+            ) : (
+              <View style={styles.itemsList}>
+                {affirmations.map((affirmation) => (
+                  <View key={affirmation.id} style={styles.affirmationCard}>
+                    <View style={styles.affirmationContent}>
+                      <Text style={styles.affirmationText}>{affirmation.text}</Text>
+                      <View style={styles.affirmationMeta}>
+                        {affirmation.isCustom && (
+                          <View style={styles.badge}>
+                            <Text style={styles.badgeText}>Custom</Text>
+                          </View>
+                        )}
+                        {affirmation.isFavorite && (
+                          <View style={styles.badge}>
+                            <IconSymbol
+                              ios_icon_name="star.fill"
+                              android_material_icon_name="star"
+                              size={12}
+                              color="#FFD700"
+                            />
+                            <Text style={styles.badgeText}>Favorite</Text>
+                          </View>
+                        )}
+                      </View>
+                    </View>
+                    <View style={styles.affirmationActions}>
+                      <TouchableOpacity
+                        style={[
+                          styles.repeatButton,
+                          affirmation.isRepeating && styles.repeatButtonActive,
+                        ]}
+                        onPress={() => toggleAffirmationRepeating(affirmation.id)}
+                      >
+                        <IconSymbol
+                          ios_icon_name="repeat"
+                          android_material_icon_name="repeat"
+                          size={16}
+                          color={affirmation.isRepeating ? "#FFF" : "#4F46E5"}
+                        />
+                        <Text
+                          style={[
+                            styles.repeatButtonText,
+                            affirmation.isRepeating && styles.repeatButtonTextActive,
+                          ]}
+                        >
+                          {affirmation.isRepeating ? "Daily" : "Repeat"}
+                        </Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={styles.actionButton}
+                        onPress={() => deleteAffirmation(affirmation.id)}
+                      >
+                        <IconSymbol
+                          ios_icon_name="trash"
+                          android_material_icon_name="delete"
+                          size={20}
+                          color="#EF4444"
+                        />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                ))}
+              </View>
+            )}
+          </>
         )}
       </ScrollView>
 
       {/* Add Button */}
       <TouchableOpacity
         style={styles.addButton}
-        onPress={() => setShowAddModal(true)}
+        onPress={() => {
+          if (activeTab === "habits") {
+            setShowAddHabitModal(true);
+          } else {
+            setShowAddAffirmationModal(true);
+          }
+        }}
       >
         <IconSymbol
           ios_icon_name="plus"
@@ -366,10 +649,10 @@ export default function HabitsScreen() {
 
       {/* Add Habit Modal */}
       <Modal
-        visible={showAddModal}
+        visible={showAddHabitModal}
         transparent
         animationType="slide"
-        onRequestClose={() => setShowAddModal(false)}
+        onRequestClose={() => setShowAddHabitModal(false)}
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
@@ -403,7 +686,7 @@ export default function HabitsScreen() {
               <TouchableOpacity
                 style={[styles.modalButton, styles.modalButtonCancel]}
                 onPress={() => {
-                  setShowAddModal(false);
+                  setShowAddHabitModal(false);
                   setNewHabitTitle("");
                   setSelectedColor(COLORS[0]);
                 }}
@@ -423,10 +706,10 @@ export default function HabitsScreen() {
 
       {/* Edit Habit Modal */}
       <Modal
-        visible={showEditModal}
+        visible={showEditHabitModal}
         transparent
         animationType="slide"
-        onRequestClose={() => setShowEditModal(false)}
+        onRequestClose={() => setShowEditHabitModal(false)}
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
@@ -460,7 +743,7 @@ export default function HabitsScreen() {
               <TouchableOpacity
                 style={[styles.modalButton, styles.modalButtonCancel]}
                 onPress={() => {
-                  setShowEditModal(false);
+                  setShowEditHabitModal(false);
                   setEditingHabit(null);
                   setNewHabitTitle("");
                 }}
@@ -472,6 +755,53 @@ export default function HabitsScreen() {
                 onPress={handleEditHabit}
               >
                 <Text style={[styles.modalButtonText, { color: "#FFF" }]}>Save</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Add Custom Affirmation Modal */}
+      <Modal
+        visible={showAddAffirmationModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowAddAffirmationModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Add Custom Affirmation</Text>
+            
+            <TextInput
+              style={[styles.input, styles.textArea]}
+              placeholder="Enter your affirmation..."
+              placeholderTextColor="#9CA3AF"
+              value={newAffirmationText}
+              onChangeText={setNewAffirmationText}
+              multiline
+              numberOfLines={4}
+              autoFocus
+            />
+
+            <Text style={styles.helperText}>
+              You can set this affirmation to repeat daily after adding it
+            </Text>
+
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.modalButtonCancel]}
+                onPress={() => {
+                  setShowAddAffirmationModal(false);
+                  setNewAffirmationText("");
+                }}
+              >
+                <Text style={styles.modalButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.modalButtonSave]}
+                onPress={handleAddCustomAffirmation}
+              >
+                <Text style={[styles.modalButtonText, { color: "#FFF" }]}>Add</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -496,6 +826,46 @@ const styles = StyleSheet.create({
     color: "#FFF",
     fontWeight: "500",
   },
+  header: {
+    paddingTop: 60,
+    paddingHorizontal: 20,
+    paddingBottom: 20,
+  },
+  title: {
+    fontSize: 32,
+    fontWeight: "bold",
+    color: "#FFF",
+    marginBottom: 16,
+  },
+  subtitle: {
+    fontSize: 14,
+    color: "#E0E7FF",
+    marginBottom: 16,
+    textAlign: "center",
+  },
+  tabContainer: {
+    flexDirection: "row",
+    backgroundColor: "rgba(255,255,255,0.2)",
+    borderRadius: 12,
+    padding: 4,
+  },
+  tab: {
+    flex: 1,
+    paddingVertical: 10,
+    alignItems: "center",
+    borderRadius: 8,
+  },
+  activeTab: {
+    backgroundColor: "#FFF",
+  },
+  tabText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#FFF",
+  },
+  activeTabText: {
+    color: "#4F46E5",
+  },
   scrollContent: {
     padding: 20,
     paddingBottom: 100,
@@ -515,17 +885,6 @@ const styles = StyleSheet.create({
     color: "#92400E",
     fontWeight: "500",
   },
-  title: {
-    fontSize: 32,
-    fontWeight: "bold",
-    color: "#FFF",
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: "#E0E7FF",
-    marginBottom: 24,
-  },
   emptyState: {
     alignItems: "center",
     justifyContent: "center",
@@ -543,10 +902,10 @@ const styles = StyleSheet.create({
     marginTop: 8,
     textAlign: "center",
   },
-  habitsList: {
+  itemsList: {
     gap: 12,
   },
-  habitCard: {
+  itemCard: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
@@ -559,7 +918,7 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 3,
   },
-  habitInfo: {
+  itemInfo: {
     flexDirection: "row",
     alignItems: "center",
     flex: 1,
@@ -570,18 +929,80 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     marginRight: 12,
   },
-  habitTitle: {
+  itemTitle: {
     fontSize: 16,
     fontWeight: "500",
     color: "#1F2937",
     flex: 1,
   },
-  habitActions: {
+  itemActions: {
     flexDirection: "row",
     gap: 8,
   },
   actionButton: {
     padding: 8,
+  },
+  affirmationCard: {
+    backgroundColor: "#FFF",
+    borderRadius: 12,
+    padding: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  affirmationContent: {
+    marginBottom: 12,
+  },
+  affirmationText: {
+    fontSize: 16,
+    color: "#1F2937",
+    lineHeight: 24,
+    marginBottom: 8,
+  },
+  affirmationMeta: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  badge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#E0E7FF",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    gap: 4,
+  },
+  badgeText: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: "#4F46E5",
+  },
+  affirmationActions: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  repeatButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#E0E7FF",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    gap: 6,
+  },
+  repeatButtonActive: {
+    backgroundColor: "#4F46E5",
+  },
+  repeatButtonText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#4F46E5",
+  },
+  repeatButtonTextActive: {
+    color: "#FFF",
   },
   addButton: {
     position: "absolute",
@@ -611,6 +1032,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 24,
     width: "100%",
+    maxHeight: "80%",
   },
   modalTitle: {
     fontSize: 20,
@@ -626,6 +1048,16 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     padding: 12,
     marginBottom: 16,
+  },
+  textArea: {
+    minHeight: 100,
+    textAlignVertical: "top",
+  },
+  helperText: {
+    fontSize: 13,
+    color: "#6B7280",
+    marginBottom: 16,
+    fontStyle: "italic",
   },
   colorLabel: {
     fontSize: 14,

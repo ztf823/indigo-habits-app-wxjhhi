@@ -136,19 +136,19 @@ export default function TabLayout() {
         scrollEnabled={true}
         offscreenPageLimit={1}
       >
-        <View key="0" collapsable={false}>
+        <View key="0" collapsable={false} style={{ flex: 1 }}>
           <Stack.Screen name="(home)" options={{ headerShown: false }} />
         </View>
-        <View key="1" collapsable={false}>
+        <View key="1" collapsable={false} style={{ flex: 1 }}>
           <Stack.Screen name="habits" options={{ headerShown: false }} />
         </View>
-        <View key="2" collapsable={false}>
+        <View key="2" collapsable={false} style={{ flex: 1 }}>
           <Stack.Screen name="history" options={{ headerShown: false }} />
         </View>
-        <View key="3" collapsable={false}>
+        <View key="3" collapsable={false} style={{ flex: 1 }}>
           <Stack.Screen name="progress" options={{ headerShown: false }} />
         </View>
-        <View key="4" collapsable={false}>
+        <View key="4" collapsable={false} style={{ flex: 1 }}>
           <Stack.Screen name="profile" options={{ headerShown: false }} />
         </View>
       </PagerView>

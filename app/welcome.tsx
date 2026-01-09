@@ -19,11 +19,11 @@ export default function WelcomeScreen() {
   const handleGetStarted = async () => {
     try {
       await AsyncStorage.setItem("hasSeenWelcome", "true");
-      router.replace("/(tabs)/(home)/");
+      router.replace("/auth");
     } catch (error) {
       console.error("Error saving welcome status:", error);
       // Navigate anyway even if storage fails
-      router.replace("/(tabs)/(home)/");
+      router.replace("/auth");
     }
   };
 

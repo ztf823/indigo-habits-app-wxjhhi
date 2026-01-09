@@ -98,7 +98,7 @@ export default function ProgressScreen() {
     try {
       console.log("[Progress] Loading progress from backend...");
       
-      // TODO: Backend Integration - Load progress data from /api/progress
+      // Load progress data from backend
       const data = await authenticatedApiCall("/api/progress");
       
       if (data) {
@@ -117,7 +117,7 @@ export default function ProgressScreen() {
     } catch (error: any) {
       console.error("[Progress] Error loading progress:", error);
       
-      if (error.message?.includes("Backend URL not configured")) {
+      if (error.message?.includes("Backend URL not configured") || error.message?.includes("Authentication token not found")) {
         loadDemoData();
       }
     }

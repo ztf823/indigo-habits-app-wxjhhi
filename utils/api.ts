@@ -31,6 +31,9 @@ import * as SecureStore from "expo-secure-store";
 export const BACKEND_URL = Constants.expoConfig?.extra?.backendUrl || "";
 export const API_URL = BACKEND_URL; // Alias for compatibility
 
+// Log backend URL for debugging
+console.log("[API] Backend URL configured:", BACKEND_URL || "NOT CONFIGURED");
+
 /**
  * Bearer token storage key
  */
@@ -213,19 +216,15 @@ export const authenticatedApiCall = async <T = any>(
 ): Promise<T> => {
   const token = await getBearerToken();
 
-  // For now, make unauthenticated calls if no token
-  // TODO: Backend Integration - Once authentication is set up, uncomment the check below
-  /*
   if (!token) {
     throw new Error("Authentication token not found. Please sign in.");
   }
-  */
 
   return apiCall<T>(endpoint, {
     ...options,
     headers: {
       ...options?.headers,
-      ...(token && { Authorization: `Bearer ${token}` }),
+      Authorization: `Bearer ${token}`,
     },
   });
 };
