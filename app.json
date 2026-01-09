@@ -1,3 +1,4 @@
+
 {
   "expo": {
     "name": "Indigo Habits",
@@ -43,6 +44,5 @@
     "extra": {
       "router": {}
     }
-  },
-  "scheme": "Indigo Habits"
+  }
 }

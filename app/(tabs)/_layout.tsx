@@ -2,13 +2,18 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { Stack } from 'expo-router';
 import { View, Platform } from 'react-native';
-import PagerView from 'react-native-pager-view';
 import FloatingTabBar, { TabBarItem } from '@/components/FloatingTabBar';
 import { useRouter, usePathname } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 
+// Conditionally import PagerView only for native platforms
+let PagerView: any = null;
+if (Platform.OS !== 'web') {
+  PagerView = require('react-native-pager-view').default;
+}
+
 export default function TabLayout() {
-  const pagerRef = useRef<PagerView>(null);
+  const pagerRef = useRef<any>(null);
   const router = useRouter();
   const pathname = usePathname();
   const [currentPage, setCurrentPage] = useState(0);
