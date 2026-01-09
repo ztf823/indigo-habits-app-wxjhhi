@@ -1,10 +1,8 @@
 
-import * as ImagePicker from "expo-image-picker";
-import { LinearGradient } from "expo-linear-gradient";
-import { authenticatedApiCall, isBackendConfigured } from "@/utils/api";
-import React, { useState, useEffect } from "react";
-import * as Haptics from "expo-haptics";
 import { IconSymbol } from "@/components/IconSymbol";
+import * as ImagePicker from "expo-image-picker";
+import { authenticatedApiCall, isBackendConfigured } from "@/utils/api";
+import { LinearGradient } from "expo-linear-gradient";
 import {
   View,
   Text,
@@ -16,7 +14,18 @@ import {
   Alert,
   Modal,
   ActivityIndicator,
+  FlatList,
+  Dimensions,
 } from "react-native";
+import * as Haptics from "expo-haptics";
+import React, { useState, useEffect, useRef } from "react";
+
+interface Affirmation {
+  id: string;
+  text: string;
+  isCustom: boolean;
+  isFavorite?: boolean;
+}
 
 interface Habit {
   id: string;
@@ -25,249 +34,145 @@ interface Habit {
   color: string;
 }
 
-interface CustomAffirmation {
-  id: string;
-  text: string;
-  isFavorite: boolean;
-}
+const { width } = Dimensions.get("window");
+const CARD_WIDTH = width - 80;
 
 export default function HomeScreen() {
-  const [affirmation, setAffirmation] = useState("Your affirmation today.");
+  const [selectedAffirmation, setSelectedAffirmation] = useState<Affirmation | null>(null);
+  const [dailyAffirmations, setDailyAffirmations] = useState<Affirmation[]>([]);
+  const [favorites, setFavorites] = useState<Affirmation[]>([]);
   const [habits, setHabits] = useState<Habit[]>([]);
   const [journalText, setJournalText] = useState("");
   const [photoUri, setPhotoUri] = useState<string | null>(null);
-  const [showAffirmationModal, setShowAffirmationModal] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [showFavoritesModal, setShowFavoritesModal] = useState(false);
-  const [customAffirmationText, setCustomAffirmationText] = useState("");
-  const [favorites, setFavorites] = useState<CustomAffirmation[]>([]);
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
-  const [backendReady, setBackendReady] = useState(false);
+  const [showCustomModal, setShowCustomModal] = useState(false);
+  const [customText, setCustomText] = useState("");
+  const [generating, setGenerating] = useState(false);
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const flatListRef = useRef<FlatList>(null);
 
   useEffect(() => {
-    checkBackendAndLoadData();
+    loadData();
   }, []);
-
-  const checkBackendAndLoadData = async () => {
-    setIsLoading(true);
-    
-    // Check if backend is configured
-    if (!isBackendConfigured()) {
-      console.log("[Home] Backend not configured yet");
-      setBackendReady(false);
-      setIsLoading(false);
-      
-      // Load demo data for UI testing
-      loadDemoData();
-      return;
-    }
-
-    setBackendReady(true);
-    await loadData();
-    setIsLoading(false);
-  };
-
-  const loadDemoData = () => {
-    // Demo affirmation
-    setAffirmation("I am capable of achieving my goals and creating positive change in my life.");
-    
-    // Demo habits
-    setHabits([
-      { id: "1", title: "Morning meditation", completed: false, color: "#4F46E5" },
-      { id: "2", title: "Exercise", completed: false, color: "#10B981" },
-      { id: "3", title: "Read 10 pages", completed: false, color: "#F59E0B" },
-    ]);
-
-    // Demo favorites
-    setFavorites([
-      { id: "1", text: "I am worthy of love and respect.", isFavorite: true },
-      { id: "2", text: "Every day is a new opportunity to grow.", isFavorite: true },
-    ]);
-  };
 
   const loadData = async () => {
     try {
-      console.log("[Home] Loading data from backend...");
+      setLoading(true);
       
-      // TODO: Backend Integration - Load daily affirmation from /api/affirmations/daily
-      const affirmationData = await authenticatedApiCall("/api/affirmations/daily");
-      if (affirmationData?.text) {
-        setAffirmation(affirmationData.text);
-      }
+      // TODO: Backend Integration - Load favorites from API
+      const favResponse = await authenticatedApiCall("/api/affirmations/favorites");
+      const favData = await favResponse.json();
+      setFavorites(favData.affirmations || []);
 
-      // TODO: Backend Integration - Load habits from /api/habits
-      const habitsData = await authenticatedApiCall("/api/habits");
-      if (Array.isArray(habitsData)) {
-        const today = new Date().toISOString().split("T")[0];
-        
-        // TODO: Backend Integration - Load habit completions from /api/habits/completions
-        const completionsData = await authenticatedApiCall(
-          `/api/habits/completions?startDate=${today}&endDate=${today}`
-        );
-        
-        const completionsMap = new Map(
-          completionsData.completions?.map((c: any) => [c.habitId, c.completed]) || []
-        );
+      // TODO: Backend Integration - Load daily affirmations (backend prioritizes favorites)
+      const dailyResponse = await authenticatedApiCall("/api/affirmations?limit=5");
+      const dailyData = await dailyResponse.json();
+      setDailyAffirmations(dailyData.affirmations || []);
 
-        setHabits(
-          habitsData
-            .filter((h) => h.isActive)
-            .map((h) => ({
-              id: h.id,
-              title: h.title,
-              completed: completionsMap.get(h.id) || false,
-              color: h.color,
-            }))
-        );
-      }
-
-      // TODO: Backend Integration - Load favorite affirmations from /api/affirmations/favorites
-      const favoritesData = await authenticatedApiCall("/api/affirmations/favorites");
-      if (favoritesData?.affirmations) {
-        setFavorites(
-          favoritesData.affirmations.map((a: any) => ({
-            id: a.id,
-            text: a.text,
-            isFavorite: true,
-          }))
-        );
-      }
-    } catch (error: any) {
-      console.error("[Home] Error loading data:", error);
-      
-      // Show user-friendly error message
-      if (error.message?.includes("Backend URL not configured")) {
-        console.log("[Home] Backend not ready, using demo data");
-        loadDemoData();
-      } else {
-        Alert.alert(
-          "Connection Error",
-          "Unable to load your data. Please check your internet connection and try again.",
-          [{ text: "OK" }]
-        );
-      }
+      // TODO: Backend Integration - Load habits from API
+      const habitsResponse = await authenticatedApiCall("/api/habits");
+      const habitsData = await habitsResponse.json();
+      setHabits(habitsData || []);
+    } catch (error) {
+      console.error("Error loading data:", error);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const toggleHabit = async (habitId: string) => {
+  const toggleFavorite = async (affirmation: Affirmation) => {
     try {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       
-      const habit = habits.find((h) => h.id === habitId);
-      if (!habit) return;
-
-      const newCompleted = !habit.completed;
-      
-      // Optimistic update
-      setHabits((prev) =>
-        prev.map((h) => (h.id === habitId ? { ...h, completed: newCompleted } : h))
-      );
-
-      if (!backendReady) {
-        console.log("[Home] Demo mode: Habit toggled locally");
-        return;
+      if (affirmation.isFavorite) {
+        // TODO: Backend Integration - Remove from favorites via API
+        await authenticatedApiCall(`/api/affirmations/${affirmation.id}/favorite`, {
+          method: "DELETE",
+        });
+        setFavorites(favorites.filter(f => f.id !== affirmation.id));
+        
+        // Update the affirmation in daily list
+        setDailyAffirmations(dailyAffirmations.map(a => 
+          a.id === affirmation.id ? { ...a, isFavorite: false } : a
+        ));
+      } else {
+        // Add to favorites (check limit)
+        if (favorites.length >= 5) {
+          Alert.alert("Limit Reached", "Free users can save up to 5 favorites. Upgrade to Pro for unlimited!");
+          return;
+        }
+        
+        // TODO: Backend Integration - Add to favorites via API
+        await authenticatedApiCall(`/api/affirmations/${affirmation.id}/favorite`, {
+          method: "POST",
+        });
+        
+        const updatedAffirmation = { ...affirmation, isFavorite: true };
+        setFavorites([...favorites, updatedAffirmation]);
+        
+        // Update the affirmation in daily list
+        setDailyAffirmations(dailyAffirmations.map(a => 
+          a.id === affirmation.id ? updatedAffirmation : a
+        ));
       }
-
-      // TODO: Backend Integration - Update habit completion via /api/habits/{habitId}/complete
-      await authenticatedApiCall(`/api/habits/${habitId}/complete`, {
-        method: "POST",
-        body: JSON.stringify({ completed: newCompleted }),
-      });
-      
-      console.log("[Home] Habit completion saved to backend");
     } catch (error) {
-      console.error("[Home] Error toggling habit:", error);
-      
-      // Revert optimistic update on error
-      setHabits((prev) =>
-        prev.map((h) => (h.id === habitId ? { ...h, completed: !h.completed } : h))
-      );
-      
-      Alert.alert("Error", "Failed to update habit. Please try again.");
+      console.error("Error toggling favorite:", error);
+      Alert.alert("Error", "Failed to update favorites");
     }
+  };
+
+  const selectAffirmation = (affirmation: Affirmation) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setSelectedAffirmation(affirmation);
   };
 
   const generateAffirmation = async () => {
-    if (!backendReady) {
-      Alert.alert(
-        "Backend Not Ready",
-        "The backend is still being set up. This feature will be available soon!"
-      );
-      return;
-    }
-
     try {
-      setIsGenerating(true);
+      setGenerating(true);
       
-      // TODO: Backend Integration - Generate affirmation via /api/affirmations/generate
-      const data = await authenticatedApiCall("/api/affirmations/generate", {
+      // TODO: Backend Integration - Generate affirmation via AI API
+      const response = await authenticatedApiCall("/api/affirmations/generate", {
         method: "POST",
         body: JSON.stringify({}),
       });
+      const data = await response.json();
       
-      if (data?.text) {
-        setAffirmation(data.text);
+      if (response.ok) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        setShowAffirmationModal(false);
-      }
-    } catch (error: any) {
-      console.error("[Home] Error generating affirmation:", error);
-      
-      if (error.message?.includes("limit")) {
-        Alert.alert("Limit Reached", "Upgrade to Pro for unlimited affirmations!");
+        setDailyAffirmations([data, ...dailyAffirmations.slice(0, 4)]);
+        setSelectedAffirmation(data);
       } else {
-        Alert.alert("Error", "Failed to generate affirmation. Please try again.");
+        Alert.alert("Limit Reached", data.message || "Free users get 5 generations. Upgrade to Pro!");
       }
+    } catch (error) {
+      console.error("Error generating affirmation:", error);
+      Alert.alert("Error", "Failed to generate affirmation");
     } finally {
-      setIsGenerating(false);
+      setGenerating(false);
     }
   };
 
   const saveCustomAffirmation = async () => {
-    if (!customAffirmationText.trim()) {
-      Alert.alert("Error", "Please enter an affirmation");
-      return;
-    }
-
-    if (!backendReady) {
-      // Demo mode: Just set the affirmation locally
-      setAffirmation(customAffirmationText.trim());
-      setCustomAffirmationText("");
-      setShowAffirmationModal(false);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert("Success", "Affirmation set! (Backend not ready - changes won't be saved)");
-      return;
-    }
+    if (!customText.trim()) return;
 
     try {
-      // TODO: Backend Integration - Save custom affirmation via /api/affirmations/custom
-      const data = await authenticatedApiCall("/api/affirmations/custom", {
+      // TODO: Backend Integration - Save custom affirmation to API
+      const response = await authenticatedApiCall("/api/affirmations/custom", {
         method: "POST",
-        body: JSON.stringify({ text: customAffirmationText.trim() }),
+        body: JSON.stringify({ text: customText.trim() }),
       });
+      const data = await response.json();
       
-      if (data?.text) {
-        setAffirmation(data.text);
-        setCustomAffirmationText("");
-        setShowAffirmationModal(false);
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      }
-    } catch (error: any) {
-      console.error("[Home] Error saving custom affirmation:", error);
-      
-      if (error.message?.includes("limit")) {
-        Alert.alert("Limit Reached", "Upgrade to Pro for unlimited custom affirmations!");
-      } else {
-        Alert.alert("Error", "Failed to save affirmation. Please try again.");
-      }
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setDailyAffirmations([data, ...dailyAffirmations.slice(0, 4)]);
+      setSelectedAffirmation(data);
+      setCustomText("");
+      setShowCustomModal(false);
+    } catch (error) {
+      console.error("Error saving custom affirmation:", error);
+      Alert.alert("Error", "Failed to save custom affirmation");
     }
-  };
-
-  const selectFavorite = (favorite: CustomAffirmation) => {
-    setAffirmation(favorite.text);
-    setShowFavoritesModal(false);
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
   };
 
   const pickImage = async () => {
@@ -280,31 +185,19 @@ export default function HomeScreen() {
 
     if (!result.canceled) {
       setPhotoUri(result.assets[0].uri);
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     }
   };
 
   const saveJournalEntry = async () => {
-    if (!journalText.trim()) {
-      Alert.alert("Error", "Please write something in your journal");
-      return;
-    }
-
-    if (!backendReady) {
-      Alert.alert(
-        "Backend Not Ready",
-        "The backend is still being set up. Your entry cannot be saved yet, but you can still use the app to test the interface!",
-        [{ text: "OK" }]
-      );
+    if (!journalText.trim() && !photoUri) {
+      Alert.alert("Empty Entry", "Please add some text or a photo");
       return;
     }
 
     try {
-      setIsSaving(true);
+      let uploadedPhotoUrl = null;
       
-      let photoUrl = null;
       if (photoUri) {
-        // TODO: Backend Integration - Upload photo via /api/upload/photo
         const formData = new FormData();
         formData.append("photo", {
           uri: photoUri,
@@ -312,295 +205,295 @@ export default function HomeScreen() {
           name: "journal-photo.jpg",
         } as any);
 
+        // TODO: Backend Integration - Upload photo to storage
         const uploadResponse = await authenticatedApiCall("/api/upload/photo", {
           method: "POST",
           body: formData,
-          headers: {
-            "Content-Type": "multipart/form-data",
-          },
         });
-        
-        photoUrl = uploadResponse.url;
+        const uploadData = await uploadResponse.json();
+        uploadedPhotoUrl = uploadData.url;
       }
 
-      // TODO: Backend Integration - Save journal entry via /api/journal-entries
+      // TODO: Backend Integration - Save journal entry to API
       await authenticatedApiCall("/api/journal-entries", {
         method: "POST",
         body: JSON.stringify({
-          content: journalText.trim(),
-          photoUrl,
+          content: journalText,
+          photoUrl: uploadedPhotoUrl,
         }),
       });
 
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert("Success", "Journal entry saved!");
-      
       setJournalText("");
       setPhotoUri(null);
     } catch (error) {
-      console.error("[Home] Error saving journal entry:", error);
-      Alert.alert("Error", "Failed to save journal entry. Please try again.");
-    } finally {
-      setIsSaving(false);
+      console.error("Error saving journal entry:", error);
+      Alert.alert("Error", "Failed to save journal entry");
     }
   };
 
-  const getCurrentDate = () => {
-    const date = new Date();
-    return date.toLocaleDateString("en-US", {
-      weekday: "long",
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-    });
+  const renderAffirmationCard = ({ item, index }: { item: Affirmation; index: number }) => {
+    const isSelected = selectedAffirmation?.id === item.id;
+    
+    return (
+      <TouchableOpacity
+        activeOpacity={0.9}
+        onPress={() => selectAffirmation(item)}
+        style={[styles.affirmationCard, isSelected && styles.selectedCard]}
+      >
+        <View style={styles.cardHeader}>
+          <Text style={styles.cardLabel}>Daily Affirmation {index + 1}</Text>
+          <TouchableOpacity onPress={() => toggleFavorite(item)}>
+            <IconSymbol
+              ios_icon_name={item.isFavorite ? "star.fill" : "star"}
+              android_material_icon_name={item.isFavorite ? "star" : "star-border"}
+              size={20}
+              color={item.isFavorite ? "#FFD700" : "#999"}
+            />
+          </TouchableOpacity>
+        </View>
+        <Text style={styles.affirmationText}>{item.text}</Text>
+        {isSelected && (
+          <View style={styles.selectedBadge}>
+            <IconSymbol 
+              ios_icon_name="checkmark.circle.fill" 
+              android_material_icon_name="check-circle"
+              size={16} 
+              color="#4CAF50" 
+            />
+            <Text style={styles.selectedText}>Selected for today</Text>
+          </View>
+        )}
+      </TouchableOpacity>
+    );
   };
 
-  if (isLoading) {
+  if (loading) {
     return (
-      <LinearGradient colors={["#4F46E5", "#7C3AED", "#87CEEB"]} style={styles.container}>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#FFF" />
-          <Text style={styles.loadingText}>Loading your habits...</Text>
-        </View>
+      <LinearGradient colors={["#4A148C", "#1E88E5"]} style={styles.container}>
+        <ActivityIndicator size="large" color="#fff" />
       </LinearGradient>
     );
   }
 
   return (
-    <LinearGradient colors={["#4F46E5", "#7C3AED", "#87CEEB"]} style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        {/* Backend Status Banner */}
-        {!backendReady && (
-          <View style={styles.demoBanner}>
-            <IconSymbol
-              ios_icon_name="info.circle"
-              android_material_icon_name="info"
-              size={20}
-              color="#F59E0B"
+    <LinearGradient colors={["#4A148C", "#1E88E5"]} style={styles.container}>
+      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+        {/* Header */}
+        <View style={styles.header}>
+          <Text style={styles.date}>
+            {new Date().toLocaleDateString("en-US", { 
+              weekday: "long", 
+              month: "long", 
+              day: "numeric" 
+            })}
+          </Text>
+          <TouchableOpacity onPress={() => setShowFavoritesModal(true)}>
+            <IconSymbol 
+              ios_icon_name="star.fill" 
+              android_material_icon_name="star" 
+              size={24} 
+              color="#FFD700" 
             />
-            <Text style={styles.demoBannerText}>
-              Demo Mode - Backend is being set up. Some features are limited.
-            </Text>
-          </View>
-        )}
-
-        {/* Date Header */}
-        <Text style={styles.dateText}>{getCurrentDate()}</Text>
-
-        {/* Affirmation Card */}
-        <View style={styles.affirmationCard}>
-          <Text style={styles.affirmationTitle}>Your affirmation today</Text>
-          <Text style={styles.affirmationText}>{affirmation}</Text>
-          <View style={styles.affirmationButtons}>
-            <TouchableOpacity
-              style={styles.affirmationButton}
-              onPress={() => setShowAffirmationModal(true)}
-            >
-              <Text style={styles.affirmationButtonText}>Add custom</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.affirmationButton}
-              onPress={generateAffirmation}
-              disabled={isGenerating}
-            >
-              {isGenerating ? (
-                <ActivityIndicator size="small" color="#4F46E5" />
-              ) : (
-                <Text style={styles.affirmationButtonText}>Generate one</Text>
-              )}
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.affirmationButton}
-              onPress={() => setShowFavoritesModal(true)}
-            >
-              <IconSymbol
-                ios_icon_name="star.fill"
-                android_material_icon_name="star"
-                size={20}
-                color="#FFD700"
-              />
-            </TouchableOpacity>
-          </View>
+          </TouchableOpacity>
         </View>
 
-        {/* Habits Strip */}
-        <View style={styles.habitsStrip}>
-          {habits.length === 0 ? (
-            <View style={styles.emptyState}>
-              <IconSymbol
-                ios_icon_name="checkmark.circle"
-                android_material_icon_name="check-circle"
-                size={48}
-                color="#9CA3AF"
+        {/* Daily Affirmations Carousel */}
+        <View style={styles.affirmationsSection}>
+          <Text style={styles.sectionTitle}>Your Affirmations Today</Text>
+          
+          {dailyAffirmations.length > 0 ? (
+            <>
+              <FlatList
+                ref={flatListRef}
+                data={dailyAffirmations}
+                renderItem={renderAffirmationCard}
+                keyExtractor={(item) => item.id}
+                horizontal
+                pagingEnabled
+                showsHorizontalScrollIndicator={false}
+                snapToInterval={CARD_WIDTH + 16}
+                decelerationRate="fast"
+                contentContainerStyle={styles.carouselContainer}
+                onMomentumScrollEnd={(e) => {
+                  const index = Math.round(e.nativeEvent.contentOffset.x / (CARD_WIDTH + 16));
+                  setCurrentIndex(index);
+                }}
               />
-              <Text style={styles.emptyStateText}>No habits yet</Text>
-              <Text style={styles.emptyStateSubtext}>
-                Go to the Habits tab to add your first habit!
+              
+              {/* Pagination Dots */}
+              <View style={styles.pagination}>
+                {dailyAffirmations.map((_, index) => (
+                  <View
+                    key={index}
+                    style={[styles.dot, currentIndex === index && styles.activeDot]}
+                  />
+                ))}
+              </View>
+            </>
+          ) : (
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyStateText}>
+                No affirmations yet. Generate or add a custom one to get started!
               </Text>
             </View>
-          ) : (
-            habits.map((habit) => (
-              <TouchableOpacity
-                key={habit.id}
-                style={[
-                  styles.habitItem,
-                  habit.completed && styles.habitItemCompleted,
-                ]}
-                onPress={() => toggleHabit(habit.id)}
-              >
-                <IconSymbol
-                  ios_icon_name={habit.completed ? "checkmark.circle.fill" : "circle"}
-                  android_material_icon_name={habit.completed ? "check-circle" : "radio-button-unchecked"}
-                  size={24}
-                  color={habit.completed ? "#10B981" : "#9CA3AF"}
-                />
-                <Text style={styles.habitText}>{habit.title}</Text>
-              </TouchableOpacity>
-            ))
           )}
+
+          {/* Action Buttons */}
+          <View style={styles.actionButtons}>
+            <TouchableOpacity
+              style={styles.actionButton}
+              onPress={() => setShowCustomModal(true)}
+            >
+              <IconSymbol 
+                ios_icon_name="plus.circle" 
+                android_material_icon_name="add-circle" 
+                size={20} 
+                color="#fff" 
+              />
+              <Text style={styles.actionButtonText}>Add Custom</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.actionButton, generating && styles.disabledButton]}
+              onPress={generateAffirmation}
+              disabled={generating}
+            >
+              {generating ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <>
+                  <IconSymbol 
+                    ios_icon_name="sparkles" 
+                    android_material_icon_name="auto-awesome" 
+                    size={20} 
+                    color="#fff" 
+                  />
+                  <Text style={styles.actionButtonText}>Generate</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Journal Entry */}
-        <View style={styles.journalCard}>
-          <View style={styles.journalHeader}>
-            <Text style={styles.journalTitle}>Journal Entry</Text>
-            <TouchableOpacity onPress={pickImage}>
-              <IconSymbol
-                ios_icon_name="camera.fill"
-                android_material_icon_name="camera"
-                size={24}
-                color="#9CA3AF"
-              />
-            </TouchableOpacity>
-          </View>
-          
-          {photoUri && (
-            <View style={styles.photoContainer}>
-              <Image source={{ uri: photoUri }} style={styles.journalPhoto} />
-              <TouchableOpacity
-                style={styles.removePhotoButton}
-                onPress={() => setPhotoUri(null)}
-              >
-                <IconSymbol
-                  ios_icon_name="xmark.circle.fill"
-                  android_material_icon_name="cancel"
-                  size={24}
-                  color="#EF4444"
-                />
-              </TouchableOpacity>
-            </View>
-          )}
-          
+        <View style={styles.journalSection}>
           <TextInput
             style={styles.journalInput}
-            placeholder="Write your thoughts..."
-            placeholderTextColor="#9CA3AF"
+            placeholder="How are you feeling today?"
+            placeholderTextColor="#999"
             multiline
             value={journalText}
             onChangeText={setJournalText}
           />
-          
-          <TouchableOpacity
-            style={[styles.saveButton, (!journalText.trim() || isSaving) && styles.saveButtonDisabled]}
-            onPress={saveJournalEntry}
-            disabled={!journalText.trim() || isSaving}
-          >
-            {isSaving ? (
-              <ActivityIndicator size="small" color="#FFF" />
-            ) : (
+          {photoUri && (
+            <Image source={{ uri: photoUri }} style={styles.journalPhoto} />
+          )}
+          <View style={styles.journalActions}>
+            <TouchableOpacity onPress={pickImage}>
+              <IconSymbol 
+                ios_icon_name="camera" 
+                android_material_icon_name="camera-alt" 
+                size={24} 
+                color="#666" 
+              />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.saveButton} onPress={saveJournalEntry}>
               <Text style={styles.saveButtonText}>Save Entry</Text>
-            )}
-          </TouchableOpacity>
-        </View>
-      </ScrollView>
-
-      {/* Affirmation Modal */}
-      <Modal
-        visible={showAffirmationModal}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setShowAffirmationModal(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Add Custom Affirmation</Text>
-            <TextInput
-              style={styles.modalInput}
-              placeholder="Enter your affirmation..."
-              placeholderTextColor="#9CA3AF"
-              multiline
-              value={customAffirmationText}
-              onChangeText={setCustomAffirmationText}
-              autoFocus
-            />
-            <View style={styles.modalButtons}>
-              <TouchableOpacity
-                style={[styles.modalButton, styles.modalButtonCancel]}
-                onPress={() => {
-                  setShowAffirmationModal(false);
-                  setCustomAffirmationText("");
-                }}
-              >
-                <Text style={styles.modalButtonText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.modalButton, styles.modalButtonSave]}
-                onPress={saveCustomAffirmation}
-              >
-                <Text style={[styles.modalButtonText, { color: "#FFF" }]}>Save</Text>
-              </TouchableOpacity>
-            </View>
+            </TouchableOpacity>
           </View>
         </View>
-      </Modal>
+      </ScrollView>
 
       {/* Favorites Modal */}
       <Modal
         visible={showFavoritesModal}
-        transparent
         animationType="slide"
+        transparent
         onRequestClose={() => setShowFavoritesModal(false)}
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Favorite Affirmations</Text>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>
+                Favorite Affirmations ({favorites.length}/5)
+              </Text>
+              <TouchableOpacity onPress={() => setShowFavoritesModal(false)}>
+                <IconSymbol 
+                  ios_icon_name="xmark.circle.fill" 
+                  android_material_icon_name="cancel" 
+                  size={28} 
+                  color="#666" 
+                />
+              </TouchableOpacity>
+            </View>
             <ScrollView style={styles.favoritesList}>
               {favorites.length === 0 ? (
-                <View style={styles.emptyFavorites}>
-                  <IconSymbol
-                    ios_icon_name="star"
-                    android_material_icon_name="star-border"
-                    size={48}
-                    color="#9CA3AF"
-                  />
-                  <Text style={styles.emptyFavoritesText}>No favorites yet</Text>
-                  <Text style={styles.emptyFavoritesSubtext}>
-                    Save your favorite affirmations to access them quickly!
-                  </Text>
-                </View>
+                <Text style={styles.emptyText}>
+                  No favorites yet. Tap the star on any affirmation to save it!
+                </Text>
               ) : (
                 favorites.map((fav) => (
                   <TouchableOpacity
                     key={fav.id}
                     style={styles.favoriteItem}
-                    onPress={() => selectFavorite(fav)}
+                    onPress={() => {
+                      selectAffirmation(fav);
+                      setShowFavoritesModal(false);
+                    }}
                   >
-                    <IconSymbol
-                      ios_icon_name="star.fill"
-                      android_material_icon_name="star"
-                      size={20}
-                      color="#FFD700"
-                    />
                     <Text style={styles.favoriteText}>{fav.text}</Text>
+                    <TouchableOpacity onPress={() => toggleFavorite(fav)}>
+                      <IconSymbol 
+                        ios_icon_name="star.fill" 
+                        android_material_icon_name="star" 
+                        size={20} 
+                        color="#FFD700" 
+                      />
+                    </TouchableOpacity>
                   </TouchableOpacity>
                 ))
               )}
             </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Custom Affirmation Modal */}
+      <Modal
+        visible={showCustomModal}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setShowCustomModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Add Custom Affirmation</Text>
+              <TouchableOpacity onPress={() => setShowCustomModal(false)}>
+                <IconSymbol 
+                  ios_icon_name="xmark.circle.fill" 
+                  android_material_icon_name="cancel" 
+                  size={28} 
+                  color="#666" 
+                />
+              </TouchableOpacity>
+            </View>
+            <TextInput
+              style={styles.customInput}
+              placeholder="Enter your affirmation..."
+              placeholderTextColor="#999"
+              multiline
+              value={customText}
+              onChangeText={setCustomText}
+              autoFocus
+            />
             <TouchableOpacity
-              style={[styles.modalButton, styles.modalButtonCancel]}
-              onPress={() => setShowFavoritesModal(false)}
+              style={[styles.saveCustomButton, !customText.trim() && styles.disabledButton]}
+              onPress={saveCustomAffirmation}
+              disabled={!customText.trim()}
             >
-              <Text style={styles.modalButtonText}>Close</Text>
+              <Text style={styles.saveButtonText}>Save Affirmation</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -613,272 +506,233 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  loadingText: {
-    marginTop: 16,
-    fontSize: 16,
-    color: "#FFF",
-    fontWeight: "500",
-  },
-  scrollContent: {
-    padding: 20,
-    paddingBottom: 100,
-  },
-  demoBanner: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#FEF3C7",
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 16,
-    gap: 8,
-  },
-  demoBannerText: {
-    flex: 1,
-    fontSize: 13,
-    color: "#92400E",
-    fontWeight: "500",
-  },
-  dateText: {
-    fontSize: 14,
-    color: "#FFF",
-    textAlign: "right",
-    marginBottom: 20,
-    fontWeight: "500",
-  },
-  affirmationCard: {
-    backgroundColor: "#FFF",
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 20,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  affirmationTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#374151",
-    marginBottom: 12,
-  },
-  affirmationText: {
-    fontSize: 18,
-    color: "#1F2937",
-    marginBottom: 16,
-    lineHeight: 26,
-  },
-  affirmationButtons: {
-    flexDirection: "row",
-    gap: 10,
-  },
-  affirmationButton: {
-    flex: 1,
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    backgroundColor: "#F3F4F6",
-    borderRadius: 8,
-    alignItems: "center",
-    justifyContent: "center",
-    minHeight: 40,
-  },
-  affirmationButtonText: {
-    fontSize: 14,
-    fontWeight: "500",
-    color: "#4F46E5",
-  },
-  habitsStrip: {
-    marginBottom: 20,
-  },
-  habitItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#FFF",
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 10,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  habitItemCompleted: {
-    backgroundColor: "#F0FDF4",
-  },
-  habitText: {
-    fontSize: 16,
-    color: "#374151",
-    marginLeft: 12,
-    fontWeight: "500",
+  scrollView: {
     flex: 1,
   },
-  emptyState: {
-    backgroundColor: "#FFF",
-    borderRadius: 12,
-    padding: 32,
-    alignItems: "center",
-  },
-  emptyStateText: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#374151",
-    marginTop: 12,
-  },
-  emptyStateSubtext: {
-    fontSize: 14,
-    color: "#9CA3AF",
-    marginTop: 8,
-    textAlign: "center",
-  },
-  journalCard: {
-    backgroundColor: "#FFF",
-    borderRadius: 16,
-    padding: 20,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  journalHeader: {
+  header: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 16,
+    paddingHorizontal: 20,
+    paddingTop: 60,
+    paddingBottom: 20,
   },
-  journalTitle: {
-    fontSize: 18,
+  date: {
+    fontSize: 16,
+    color: "#fff",
     fontWeight: "600",
-    color: "#1F2937",
   },
-  photoContainer: {
-    position: "relative",
+  affirmationsSection: {
+    marginBottom: 24,
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: "#fff",
     marginBottom: 16,
+    paddingHorizontal: 20,
+  },
+  carouselContainer: {
+    paddingHorizontal: 20,
+  },
+  affirmationCard: {
+    width: CARD_WIDTH,
+    backgroundColor: "#fff",
+    borderRadius: 16,
+    padding: 20,
+    marginRight: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  selectedCard: {
+    borderWidth: 2,
+    borderColor: "#4CAF50",
+  },
+  cardHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  cardLabel: {
+    fontSize: 12,
+    color: "#999",
+    fontWeight: "600",
+    textTransform: "uppercase",
+  },
+  affirmationText: {
+    fontSize: 18,
+    color: "#333",
+    lineHeight: 26,
+    fontWeight: "500",
+  },
+  selectedBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: "#eee",
+  },
+  selectedText: {
+    fontSize: 12,
+    color: "#4CAF50",
+    marginLeft: 6,
+    fontWeight: "600",
+  },
+  pagination: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    marginTop: 16,
+  },
+  dot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: "rgba(255,255,255,0.3)",
+    marginHorizontal: 4,
+  },
+  activeDot: {
+    backgroundColor: "#fff",
+    width: 24,
+  },
+  emptyState: {
+    paddingHorizontal: 40,
+    paddingVertical: 40,
+    alignItems: "center",
+  },
+  emptyStateText: {
+    fontSize: 14,
+    color: "#fff",
+    textAlign: "center",
+    opacity: 0.8,
+  },
+  actionButtons: {
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: 12,
+    marginTop: 16,
+    paddingHorizontal: 20,
+  },
+  actionButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(255,255,255,0.2)",
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 24,
+    gap: 8,
+  },
+  actionButtonText: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  disabledButton: {
+    opacity: 0.5,
+  },
+  journalSection: {
+    backgroundColor: "#fff",
+    borderRadius: 16,
+    marginHorizontal: 20,
+    padding: 20,
+    marginBottom: 100,
+  },
+  journalInput: {
+    fontSize: 16,
+    color: "#333",
+    minHeight: 120,
+    textAlignVertical: "top",
   },
   journalPhoto: {
     width: "100%",
     height: 200,
     borderRadius: 12,
+    marginTop: 12,
   },
-  removePhotoButton: {
-    position: "absolute",
-    top: 8,
-    right: 8,
-    backgroundColor: "#FFF",
-    borderRadius: 12,
-  },
-  journalInput: {
-    fontSize: 16,
-    color: "#374151",
-    minHeight: 150,
-    textAlignVertical: "top",
-    marginBottom: 16,
+  journalActions: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: 16,
   },
   saveButton: {
-    backgroundColor: "#4F46E5",
-    borderRadius: 12,
-    paddingVertical: 14,
-    alignItems: "center",
-  },
-  saveButtonDisabled: {
-    backgroundColor: "#9CA3AF",
-    opacity: 0.6,
+    backgroundColor: "#4A148C",
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 24,
   },
   saveButtonText: {
-    fontSize: 16,
+    color: "#fff",
+    fontSize: 14,
     fontWeight: "600",
-    color: "#FFF",
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 20,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "flex-end",
   },
   modalContent: {
-    backgroundColor: "#FFF",
-    borderRadius: 16,
+    backgroundColor: "#fff",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
     padding: 24,
-    width: "100%",
     maxHeight: "80%",
+  },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 20,
   },
   modalTitle: {
     fontSize: 20,
-    fontWeight: "600",
-    color: "#1F2937",
-    marginBottom: 16,
-  },
-  modalInput: {
-    fontSize: 16,
-    color: "#374151",
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    borderRadius: 8,
-    padding: 12,
-    minHeight: 100,
-    textAlignVertical: "top",
-    marginBottom: 16,
-  },
-  modalButtons: {
-    flexDirection: "row",
-    gap: 12,
-  },
-  modalButton: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 8,
-    alignItems: "center",
-  },
-  modalButtonCancel: {
-    backgroundColor: "#F3F4F6",
-  },
-  modalButtonSave: {
-    backgroundColor: "#4F46E5",
-  },
-  modalButtonText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#374151",
+    fontWeight: "700",
+    color: "#333",
   },
   favoritesList: {
-    maxHeight: 300,
-    marginBottom: 16,
+    maxHeight: 400,
+  },
+  emptyText: {
+    fontSize: 14,
+    color: "#999",
+    textAlign: "center",
+    marginTop: 20,
   },
   favoriteItem: {
     flexDirection: "row",
+    justifyContent: "space-between",
     alignItems: "center",
     padding: 16,
-    backgroundColor: "#F9FAFB",
-    borderRadius: 8,
-    marginBottom: 8,
-    gap: 12,
+    backgroundColor: "#f5f5f5",
+    borderRadius: 12,
+    marginBottom: 12,
   },
   favoriteText: {
     flex: 1,
-    fontSize: 16,
-    color: "#374151",
-  },
-  emptyFavorites: {
-    alignItems: "center",
-    padding: 32,
-  },
-  emptyFavoritesText: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#374151",
-    marginTop: 12,
-  },
-  emptyFavoritesSubtext: {
     fontSize: 14,
-    color: "#9CA3AF",
-    marginTop: 8,
-    textAlign: "center",
+    color: "#333",
+    marginRight: 12,
+  },
+  customInput: {
+    fontSize: 16,
+    color: "#333",
+    borderWidth: 1,
+    borderColor: "#ddd",
+    borderRadius: 12,
+    padding: 16,
+    minHeight: 120,
+    textAlignVertical: "top",
+    marginBottom: 16,
+  },
+  saveCustomButton: {
+    backgroundColor: "#4A148C",
+    paddingVertical: 16,
+    borderRadius: 24,
+    alignItems: "center",
   },
 });
