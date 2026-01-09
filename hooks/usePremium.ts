@@ -1,32 +1,34 @@
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-
-const PRO_STATUS_KEY = '@pro_status';
 
 export function usePremium() {
   const [isPro, setIsPro] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  const checkProStatus = useCallback(async () => {
+  useEffect(() => {
+    checkProStatus();
+  }, []);
+
+  const checkProStatus = async () => {
     try {
-      const status = await AsyncStorage.getItem(PRO_STATUS_KEY);
-      setIsPro(status === 'true');
+      const proStatus = await AsyncStorage.getItem('isPro');
+      setIsPro(proStatus === 'true');
     } catch (error) {
       console.error('Error checking pro status:', error);
     } finally {
       setLoading(false);
     }
-  }, []);
+  };
 
-  const showPaywall = useCallback(async () => {
-    // Placeholder for paywall logic
-    console.log('Show paywall');
-  }, []);
+  const upgradeToPro = async () => {
+    try {
+      await AsyncStorage.setItem('isPro', 'true');
+      setIsPro(true);
+    } catch (error) {
+      console.error('Error upgrading to pro:', error);
+    }
+  };
 
-  useEffect(() => {
-    checkProStatus();
-  }, [checkProStatus]);
-
-  return { isPro, loading, checkProStatus, showPaywall };
+  return { isPro, loading, upgradeToPro, checkProStatus };
 }

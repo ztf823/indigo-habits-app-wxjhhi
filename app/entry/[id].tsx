@@ -1,5 +1,6 @@
 
-import React, { useState, useEffect } from "react";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { IconSymbol } from "@/components/IconSymbol";
 import {
   View,
   Text,
@@ -7,13 +8,13 @@ import {
   ScrollView,
   Image,
   ActivityIndicator,
+  TouchableOpacity,
   Platform,
 } from "react-native";
-import { Stack, useLocalSearchParams, useRouter } from "expo-router";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
-import { IconSymbol } from "@/components/IconSymbol";
 import { BACKEND_URL } from "@/utils/api";
+import React, { useState, useEffect } from "react";
+import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 
 interface EntryDetail {
   id: string;
@@ -29,27 +30,27 @@ export default function EntryDetailScreen() {
   const router = useRouter();
   const [entry, setEntry] = useState<EntryDetail | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    loadEntry();
+    if (id) {
+      loadEntry();
+    }
   }, [id]);
 
   const loadEntry = async () => {
     try {
-      // TODO: Backend Integration - Fetch entry details from /api/journal-entries/:id
-      const response = await fetch(`${BACKEND_URL}/api/journal-entries/${id}`);
+      setError(null);
+      // TODO: Backend Integration - Fetch entry details from /api/journal/entries/:id
+      const response = await fetch(`${BACKEND_URL}/journal/entries/${id}`);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
       const data = await response.json();
-      
-      setEntry({
-        id: data.id,
-        content: data.content,
-        affirmation: data.affirmation || "No affirmation",
-        photoUrl: data.photoUrl,
-        habits: data.habits || [],
-        createdAt: data.createdAt,
-      });
+      setEntry(data);
     } catch (error) {
-      console.error("Failed to load entry:", error);
+      console.error('Error loading entry:', error);
+      setError('Failed to load entry. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -57,47 +58,74 @@ export default function EntryDetailScreen() {
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
-    return date.toLocaleDateString("en-US", {
-      weekday: "long",
-      year: "numeric",
-      month: "long",
-      day: "numeric",
+    return date.toLocaleDateString('en-US', { 
+      weekday: 'long', 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric' 
     });
   };
 
   if (loading) {
     return (
       <>
-        <Stack.Screen
-          options={{
-            headerShown: true,
-            title: "Entry",
-            headerBackTitle: "Back",
-          }}
-        />
-        <LinearGradient colors={["#4F46E5", "#7DD3FC"]} style={styles.container}>
-          <SafeAreaView style={styles.safeArea}>
-            <ActivityIndicator size="large" color="#fff" />
+        <Stack.Screen options={{ headerShown: false }} />
+        <LinearGradient colors={['#4F46E5', '#06B6D4']} style={styles.container}>
+          <SafeAreaView style={styles.safeArea} edges={['top']}>
+            <View style={styles.header}>
+              <TouchableOpacity onPress={() => router.back()} activeOpacity={0.7}>
+                <IconSymbol 
+                  ios_icon_name="chevron.left" 
+                  android_material_icon_name="arrow-back" 
+                  size={24} 
+                  color="#fff" 
+                />
+              </TouchableOpacity>
+              <Text style={styles.headerTitle}>Entry Details</Text>
+              <View style={{ width: 24 }} />
+            </View>
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color="#fff" />
+            </View>
           </SafeAreaView>
         </LinearGradient>
       </>
     );
   }
 
-  if (!entry) {
+  if (error || !entry) {
     return (
       <>
-        <Stack.Screen
-          options={{
-            headerShown: true,
-            title: "Entry",
-            headerBackTitle: "Back",
-          }}
-        />
-        <LinearGradient colors={["#4F46E5", "#7DD3FC"]} style={styles.container}>
-          <SafeAreaView style={styles.safeArea}>
-            <View style={styles.emptyState}>
-              <Text style={styles.emptyText}>Entry not found</Text>
+        <Stack.Screen options={{ headerShown: false }} />
+        <LinearGradient colors={['#4F46E5', '#06B6D4']} style={styles.container}>
+          <SafeAreaView style={styles.safeArea} edges={['top']}>
+            <View style={styles.header}>
+              <TouchableOpacity onPress={() => router.back()} activeOpacity={0.7}>
+                <IconSymbol 
+                  ios_icon_name="chevron.left" 
+                  android_material_icon_name="arrow-back" 
+                  size={24} 
+                  color="#fff" 
+                />
+              </TouchableOpacity>
+              <Text style={styles.headerTitle}>Entry Details</Text>
+              <View style={{ width: 24 }} />
+            </View>
+            <View style={styles.errorContainer}>
+              <IconSymbol
+                ios_icon_name="exclamationmark.triangle"
+                android_material_icon_name="error"
+                size={64}
+                color="rgba(255, 255, 255, 0.5)"
+              />
+              <Text style={styles.errorText}>{error || 'Entry not found'}</Text>
+              <TouchableOpacity 
+                style={styles.retryButton} 
+                onPress={loadEntry}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.retryButtonText}>Try Again</Text>
+              </TouchableOpacity>
             </View>
           </SafeAreaView>
         </LinearGradient>
@@ -107,95 +135,44 @@ export default function EntryDetailScreen() {
 
   return (
     <>
-      <Stack.Screen
-        options={{
-          headerShown: true,
-          title: formatDate(entry.createdAt),
-          headerBackTitle: "Back",
-        }}
-      />
-      <LinearGradient colors={["#4F46E5", "#7DD3FC"]} style={styles.container}>
-        <SafeAreaView style={styles.safeArea} edges={["bottom"]}>
-          <ScrollView
+      <Stack.Screen options={{ headerShown: false }} />
+      <LinearGradient colors={['#4F46E5', '#06B6D4']} style={styles.container}>
+        <SafeAreaView style={styles.safeArea} edges={['top']}>
+          <View style={styles.header}>
+            <TouchableOpacity onPress={() => router.back()} activeOpacity={0.7}>
+              <IconSymbol 
+                ios_icon_name="chevron.left" 
+                android_material_icon_name="arrow-back" 
+                size={24} 
+                color="#fff" 
+              />
+            </TouchableOpacity>
+            <Text style={styles.headerTitle}>Entry Details</Text>
+            <View style={{ width: 24 }} />
+          </View>
+          <ScrollView 
             style={styles.scrollView}
-            contentContainerStyle={styles.contentContainer}
+            contentContainerStyle={styles.scrollContent}
           >
-            {/* Affirmation Section */}
-            <View style={styles.section}>
-              <View style={styles.sectionHeader}>
-                <IconSymbol
-                  ios_icon_name="sparkles"
-                  android_material_icon_name="auto-awesome"
-                  size={20}
-                  color="#4F46E5"
-                />
-                <Text style={styles.sectionTitle}>Affirmation</Text>
-              </View>
-              <View style={styles.affirmationBox}>
-                <Text style={styles.affirmationText}>{entry.affirmation}</Text>
-              </View>
-            </View>
-
-            {/* Habits Section */}
-            {entry.habits.length > 0 && (
-              <View style={styles.section}>
-                <View style={styles.sectionHeader}>
-                  <IconSymbol
-                    ios_icon_name="checkmark.circle"
-                    android_material_icon_name="check-circle"
-                    size={20}
-                    color="#10B981"
-                  />
-                  <Text style={styles.sectionTitle}>Habits</Text>
-                </View>
-                <View style={styles.habitsContainer}>
-                  {entry.habits.map((habit, index) => (
-                    <View key={index} style={styles.habitItem}>
-                      <IconSymbol
-                        ios_icon_name={
-                          habit.completed ? "checkmark.circle.fill" : "circle"
-                        }
-                        android_material_icon_name={
-                          habit.completed ? "check-circle" : "radio-button-unchecked"
-                        }
-                        size={20}
-                        color={habit.completed ? "#10B981" : "#D1D5DB"}
-                      />
-                      <Text
-                        style={[
-                          styles.habitName,
-                          !habit.completed && styles.habitIncomplete,
-                        ]}
-                      >
-                        {habit.name}
-                      </Text>
-                    </View>
-                  ))}
-                </View>
-              </View>
-            )}
-
-            {/* Photo Section */}
+            <Text style={styles.date}>{formatDate(entry.createdAt)}</Text>
+            <Text style={styles.affirmation}>{entry.affirmation}</Text>
             {entry.photoUrl && (
-              <View style={styles.section}>
-                <Image source={{ uri: entry.photoUrl }} style={styles.photo} />
-              </View>
+              <Image source={{ uri: entry.photoUrl }} style={styles.photo} />
             )}
-
-            {/* Journal Entry Section */}
-            <View style={styles.section}>
-              <View style={styles.sectionHeader}>
-                <IconSymbol
-                  ios_icon_name="book.closed"
-                  android_material_icon_name="book"
-                  size={20}
-                  color="#6B7280"
-                />
-                <Text style={styles.sectionTitle}>Journal Entry</Text>
-              </View>
-              <View style={styles.contentBox}>
-                <Text style={styles.contentText}>{entry.content}</Text>
-              </View>
+            <Text style={styles.content}>{entry.content}</Text>
+            <View style={styles.habitsSection}>
+              <Text style={styles.habitsTitle}>Habits</Text>
+              {entry.habits.map((habit, index) => (
+                <View key={index} style={styles.habitRow}>
+                  <IconSymbol
+                    ios_icon_name={habit.completed ? "checkmark.circle.fill" : "xmark.circle.fill"}
+                    android_material_icon_name={habit.completed ? "check-circle" : "cancel"}
+                    size={24}
+                    color={habit.completed ? "#10B981" : "#EF4444"}
+                  />
+                  <Text style={styles.habitName}>{habit.name}</Text>
+                </View>
+              ))}
             </View>
           </ScrollView>
         </SafeAreaView>
@@ -211,81 +188,94 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
   },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#fff',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 40,
+  },
+  errorText: {
+    fontSize: 18,
+    color: '#fff',
+    textAlign: 'center',
+    marginTop: 16,
+    marginBottom: 24,
+  },
+  retryButton: {
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  retryButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
   scrollView: {
     flex: 1,
   },
-  contentContainer: {
-    padding: 20,
+  scrollContent: {
+    paddingHorizontal: 20,
     paddingBottom: 40,
   },
-  emptyState: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    padding: 40,
-  },
-  emptyText: {
-    fontSize: 18,
-    color: "#fff",
-    textAlign: "center",
-  },
-  section: {
-    marginBottom: 24,
-  },
-  sectionHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
+  date: {
+    fontSize: 14,
+    color: '#E0E0E0',
     marginBottom: 12,
   },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#fff",
-  },
-  affirmationBox: {
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    padding: 16,
-  },
-  affirmationText: {
-    fontSize: 16,
-    fontStyle: "italic",
-    color: "#4F46E5",
-    lineHeight: 24,
-  },
-  habitsContainer: {
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    padding: 16,
-    gap: 12,
-  },
-  habitItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-  },
-  habitName: {
-    fontSize: 15,
-    color: "#374151",
-  },
-  habitIncomplete: {
-    color: "#9CA3AF",
-    textDecorationLine: "line-through",
+  affirmation: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#fff',
+    marginBottom: 16,
   },
   photo: {
-    width: "100%",
-    height: 300,
+    width: '100%',
+    height: 200,
     borderRadius: 12,
+    marginBottom: 16,
   },
-  contentBox: {
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    padding: 16,
-  },
-  contentText: {
-    fontSize: 15,
-    color: "#374151",
+  content: {
+    fontSize: 16,
+    color: '#fff',
     lineHeight: 24,
+    marginBottom: 24,
+  },
+  habitsSection: {
+    marginBottom: 24,
+  },
+  habitsTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#fff',
+    marginBottom: 12,
+  },
+  habitRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 8,
+  },
+  habitName: {
+    fontSize: 16,
+    color: '#fff',
   },
 });

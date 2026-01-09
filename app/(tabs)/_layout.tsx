@@ -14,7 +14,7 @@ export default function TabLayout() {
     {
       name: 'history',
       route: '/(tabs)/history',
-      icon: 'book',
+      icon: 'history',
       label: 'History',
     },
     {
