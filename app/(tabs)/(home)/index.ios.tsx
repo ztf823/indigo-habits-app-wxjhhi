@@ -13,6 +13,7 @@ import {
   Alert,
   Modal,
 } from "react-native";
+import { Stack } from "expo-router";
 import { IconSymbol } from "@/components/IconSymbol";
 import * as Haptics from "expo-haptics";
 import { LinearGradient } from "expo-linear-gradient";
@@ -57,7 +58,6 @@ export default function HomeScreen() {
       if (savedHabits) {
         setHabits(JSON.parse(savedHabits));
       } else {
-        // Default habits
         const defaultHabits: Habit[] = [
           { id: "1", name: "Morning meditation", completed: false, color: "#4F46E5" },
           { id: "2", name: "Exercise", completed: false, color: "#06B6D4" },
@@ -73,7 +73,6 @@ export default function HomeScreen() {
       if (savedFavorites) setFavorites(JSON.parse(savedFavorites));
       if (savedPro) setIsPro(savedPro === "true");
 
-      // Load offline affirmations
       const offline = await loadAffirmationsOffline();
       setOfflineAffirmations(offline);
 
@@ -96,9 +95,7 @@ export default function HomeScreen() {
       setHabits(updatedHabits);
       await AsyncStorage.setItem("habits", JSON.stringify(updatedHabits));
       
-      if (Platform.OS !== "web") {
-        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      }
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
       // TODO: Backend Integration - Update habit completion status via /api/habits/complete
     } catch (error) {
@@ -108,19 +105,15 @@ export default function HomeScreen() {
 
   const generateAffirmation = async () => {
     try {
-      // Check if user has favorites
       if (favorites.length > 0) {
         const randomFavorite = favorites[Math.floor(Math.random() * favorites.length)];
         setAffirmation(randomFavorite.text);
       } else {
-        // Use offline affirmations
         const randomAffirmation = getRandomAffirmation(offlineAffirmations);
         setAffirmation(randomAffirmation);
       }
       
-      if (Platform.OS !== "web") {
-        await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      }
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
       // TODO: Backend Integration - Generate affirmation via /api/affirmations/generate
     } catch (error) {
@@ -135,7 +128,6 @@ export default function HomeScreen() {
         return;
       }
 
-      // Check limit for free users
       if (!isPro && favorites.length >= 5) {
         Alert.alert(
           "Limit Reached",
@@ -162,9 +154,7 @@ export default function HomeScreen() {
       setCustomText("");
       setShowCustomModal(false);
 
-      if (Platform.OS !== "web") {
-        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      }
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
       // TODO: Backend Integration - Save custom affirmation via /api/affirmations/custom
     } catch (error) {
@@ -224,177 +214,180 @@ export default function HomeScreen() {
   };
 
   return (
-    <LinearGradient colors={["#4F46E5", "#06B6D4"]} style={styles.gradient}>
-      <ScrollView 
-        style={styles.container} 
-        contentContainerStyle={styles.contentContainer}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Affirmation Card */}
-        <View style={styles.affirmationCard}>
-          <Text style={styles.affirmationTitle}>Your affirmation today</Text>
-          <Text style={styles.affirmationText}>{affirmation}</Text>
-          
-          <View style={styles.affirmationButtons}>
-            <TouchableOpacity 
-              style={styles.affirmationButton} 
-              onPress={() => setShowCustomModal(true)}
-              activeOpacity={0.7}
-            >
-              <IconSymbol
-                ios_icon_name="plus.circle"
-                android_material_icon_name="add-circle"
-                size={16}
-                color="#fff"
-              />
-              <Text style={styles.affirmationButtonText}>Add custom</Text>
-            </TouchableOpacity>
+    <>
+      <Stack.Screen options={{ title: "Journal", headerLargeTitle: true }} />
+      <LinearGradient colors={["#4F46E5", "#06B6D4"]} style={styles.gradient}>
+        <ScrollView 
+          style={styles.container} 
+          contentContainerStyle={styles.contentContainer}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Affirmation Card */}
+          <View style={styles.affirmationCard}>
+            <Text style={styles.affirmationTitle}>Your affirmation today</Text>
+            <Text style={styles.affirmationText}>{affirmation}</Text>
             
-            <TouchableOpacity 
-              style={[styles.affirmationButton, styles.generateButton]} 
-              onPress={generateAffirmation}
-              activeOpacity={0.7}
-            >
-              <IconSymbol
-                ios_icon_name="sparkles"
-                android_material_icon_name="auto-awesome"
-                size={16}
-                color="#fff"
-              />
-              <Text style={styles.affirmationButtonText}>Generate</Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* Favorites List */}
-          {favorites.length > 0 && (
-            <View style={styles.favoritesSection}>
-              <Text style={styles.favoritesTitle}>
-                Favorites ({favorites.length}/{isPro ? "∞" : "5"})
-              </Text>
-              {favorites.map((fav) => (
-                <View key={fav.id} style={styles.favoriteItem}>
-                  <TouchableOpacity
-                    style={styles.favoriteTextContainer}
-                    onPress={() => setAffirmation(fav.text)}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={styles.favoriteText} numberOfLines={1}>
-                      {fav.text}
-                    </Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    onPress={() => removeFavorite(fav.id)}
-                    activeOpacity={0.7}
-                  >
-                    <IconSymbol
-                      ios_icon_name="trash"
-                      android_material_icon_name="delete"
-                      size={18}
-                      color="#EF4444"
-                    />
-                  </TouchableOpacity>
-                </View>
-              ))}
-            </View>
-          )}
-        </View>
-
-        {/* Habits Strip */}
-        <View style={styles.habitsStrip}>
-          {habits.map((habit) => (
-            <TouchableOpacity
-              key={habit.id}
-              style={[
-                styles.habitItem,
-                habit.completed && styles.habitItemCompleted,
-              ]}
-              onPress={() => toggleHabit(habit.id)}
-              activeOpacity={0.7}
-            >
-              <IconSymbol
-                ios_icon_name={habit.completed ? "checkmark.circle.fill" : "circle"}
-                android_material_icon_name={habit.completed ? "check-circle" : "radio-button-unchecked"}
-                size={24}
-                color={habit.completed ? "#10B981" : "#9CA3AF"}
-              />
-              <Text style={[styles.habitText, habit.completed && styles.habitTextCompleted]}>
-                {habit.name}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-
-        {/* Journal Entry Box */}
-        <View style={styles.journalBox}>
-          <View style={styles.journalHeader}>
-            <Text style={styles.dateStamp}>{getCurrentDate()}</Text>
-            <TouchableOpacity onPress={pickImage} activeOpacity={0.7}>
-              <IconSymbol
-                ios_icon_name="camera.fill"
-                android_material_icon_name="photo-camera"
-                size={24}
-                color="#6B7280"
-              />
-            </TouchableOpacity>
-          </View>
-          {photoUri && <Image source={{ uri: photoUri }} style={styles.journalPhoto} />}
-          <TextInput
-            style={styles.journalInput}
-            placeholder="How was your day?"
-            placeholderTextColor="#9CA3AF"
-            multiline
-            value={journalEntry}
-            onChangeText={saveJournalEntry}
-            textAlignVertical="top"
-          />
-        </View>
-      </ScrollView>
-
-      {/* Custom Affirmation Modal */}
-      <Modal
-        visible={showCustomModal}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={() => setShowCustomModal(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Add Custom Affirmation</Text>
-              <TouchableOpacity
-                onPress={() => setShowCustomModal(false)}
+            <View style={styles.affirmationButtons}>
+              <TouchableOpacity 
+                style={styles.affirmationButton} 
+                onPress={() => setShowCustomModal(true)}
                 activeOpacity={0.7}
               >
                 <IconSymbol
-                  ios_icon_name="xmark.circle.fill"
-                  android_material_icon_name="cancel"
-                  size={28}
-                  color="#9CA3AF"
+                  ios_icon_name="plus.circle"
+                  android_material_icon_name="add-circle"
+                  size={16}
+                  color="#fff"
+                />
+                <Text style={styles.affirmationButtonText}>Add custom</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={[styles.affirmationButton, styles.generateButton]} 
+                onPress={generateAffirmation}
+                activeOpacity={0.7}
+              >
+                <IconSymbol
+                  ios_icon_name="sparkles"
+                  android_material_icon_name="auto-awesome"
+                  size={16}
+                  color="#fff"
+                />
+                <Text style={styles.affirmationButtonText}>Generate</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Favorites List */}
+            {favorites.length > 0 && (
+              <View style={styles.favoritesSection}>
+                <Text style={styles.favoritesTitle}>
+                  Favorites ({favorites.length}/{isPro ? "∞" : "5"})
+                </Text>
+                {favorites.map((fav) => (
+                  <View key={fav.id} style={styles.favoriteItem}>
+                    <TouchableOpacity
+                      style={styles.favoriteTextContainer}
+                      onPress={() => setAffirmation(fav.text)}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={styles.favoriteText} numberOfLines={1}>
+                        {fav.text}
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => removeFavorite(fav.id)}
+                      activeOpacity={0.7}
+                    >
+                      <IconSymbol
+                        ios_icon_name="trash"
+                        android_material_icon_name="delete"
+                        size={18}
+                        color="#EF4444"
+                      />
+                    </TouchableOpacity>
+                  </View>
+                ))}
+              </View>
+            )}
+          </View>
+
+          {/* Habits Strip */}
+          <View style={styles.habitsStrip}>
+            {habits.map((habit) => (
+              <TouchableOpacity
+                key={habit.id}
+                style={[
+                  styles.habitItem,
+                  habit.completed && styles.habitItemCompleted,
+                ]}
+                onPress={() => toggleHabit(habit.id)}
+                activeOpacity={0.7}
+              >
+                <IconSymbol
+                  ios_icon_name={habit.completed ? "checkmark.circle.fill" : "circle"}
+                  android_material_icon_name={habit.completed ? "check-circle" : "radio-button-unchecked"}
+                  size={24}
+                  color={habit.completed ? "#10B981" : "#9CA3AF"}
+                />
+                <Text style={[styles.habitText, habit.completed && styles.habitTextCompleted]}>
+                  {habit.name}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          {/* Journal Entry Box */}
+          <View style={styles.journalBox}>
+            <View style={styles.journalHeader}>
+              <Text style={styles.dateStamp}>{getCurrentDate()}</Text>
+              <TouchableOpacity onPress={pickImage} activeOpacity={0.7}>
+                <IconSymbol
+                  ios_icon_name="camera.fill"
+                  android_material_icon_name="photo-camera"
+                  size={24}
+                  color="#6B7280"
                 />
               </TouchableOpacity>
             </View>
-            
+            {photoUri && <Image source={{ uri: photoUri }} style={styles.journalPhoto} />}
             <TextInput
-              style={styles.modalInput}
-              placeholder="Enter your affirmation..."
+              style={styles.journalInput}
+              placeholder="How was your day?"
               placeholderTextColor="#9CA3AF"
               multiline
-              value={customText}
-              onChangeText={setCustomText}
-              autoFocus
+              value={journalEntry}
+              onChangeText={saveJournalEntry}
+              textAlignVertical="top"
             />
-            
-            <TouchableOpacity
-              style={styles.modalButton}
-              onPress={saveCustomAffirmation}
-              activeOpacity={0.7}
-            >
-              <Text style={styles.modalButtonText}>Save to Favorites</Text>
-            </TouchableOpacity>
           </View>
-        </View>
-      </Modal>
-    </LinearGradient>
+        </ScrollView>
+
+        {/* Custom Affirmation Modal */}
+        <Modal
+          visible={showCustomModal}
+          animationType="slide"
+          transparent={true}
+          onRequestClose={() => setShowCustomModal(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Add Custom Affirmation</Text>
+                <TouchableOpacity
+                  onPress={() => setShowCustomModal(false)}
+                  activeOpacity={0.7}
+                >
+                  <IconSymbol
+                    ios_icon_name="xmark.circle.fill"
+                    android_material_icon_name="cancel"
+                    size={28}
+                    color="#9CA3AF"
+                  />
+                </TouchableOpacity>
+              </View>
+              
+              <TextInput
+                style={styles.modalInput}
+                placeholder="Enter your affirmation..."
+                placeholderTextColor="#9CA3AF"
+                multiline
+                value={customText}
+                onChangeText={setCustomText}
+                autoFocus
+              />
+              
+              <TouchableOpacity
+                style={styles.modalButton}
+                onPress={saveCustomAffirmation}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.modalButtonText}>Save to Favorites</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+      </LinearGradient>
+    </>
   );
 }
 
@@ -407,7 +400,6 @@ const styles = StyleSheet.create({
   },
   contentContainer: {
     padding: 20,
-    paddingTop: Platform.OS === "android" ? 60 : 80,
     paddingBottom: 120,
   },
   affirmationCard: {
@@ -551,7 +543,7 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     padding: 24,
-    paddingBottom: Platform.OS === "ios" ? 40 : 24,
+    paddingBottom: 40,
   },
   modalHeader: {
     flexDirection: "row",

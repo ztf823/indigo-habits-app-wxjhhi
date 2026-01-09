@@ -1,3 +1,4 @@
+
 /**
  * API Utilities Template
  *
@@ -28,6 +29,7 @@ import * as SecureStore from "expo-secure-store";
  * It is set automatically when the backend is deployed
  */
 export const BACKEND_URL = Constants.expoConfig?.extra?.backendUrl || "";
+export const API_URL = BACKEND_URL; // Alias for compatibility
 
 /**
  * Bearer token storage key
