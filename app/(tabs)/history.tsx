@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from "react";
+import { authenticatedApiCall } from "@/utils/api";
 import {
   View,
   Text,
@@ -9,23 +9,22 @@ import {
   ActivityIndicator,
   RefreshControl,
 } from "react-native";
-import { LinearGradient } from "expo-linear-gradient";
 import { IconSymbol } from "@/components/IconSymbol";
-import { authenticatedApiCall } from "@/utils/api";
+import { LinearGradient } from "expo-linear-gradient";
+import React, { useState, useEffect } from "react";
 import { useRouter } from "expo-router";
 
 interface HistoryEntry {
   id: string;
-  date: string;
-  affirmation: string;
-  habits: { name: string; completed: boolean }[];
-  snippet: string;
+  content: string;
+  photoUrl?: string;
+  createdAt: string;
 }
 
 export default function HistoryScreen() {
+  const [entries, setEntries] = useState<HistoryEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [entries, setEntries] = useState<HistoryEntry[]>([]);
   const router = useRouter();
 
   useEffect(() => {
@@ -34,26 +33,10 @@ export default function HistoryScreen() {
 
   const loadHistory = async () => {
     try {
-      console.log("[HistoryScreen] Loading history...");
-      
-      // TODO: Backend Integration - Fetch journal entries from /api/journal-entries endpoint
-      const response = await authenticatedApiCall(`/api/journal-entries`, {
-        method: "GET",
-      });
-      
-      console.log("[HistoryScreen] History response:", response);
-      
-      if (response?.entries) {
-        setEntries(response.entries.map((entry: any) => ({
-          id: entry.id,
-          date: entry.createdAt,
-          affirmation: entry.affirmation || "No affirmation",
-          habits: entry.habits || [],
-          snippet: entry.content ? (entry.content.substring(0, 100) + (entry.content.length > 100 ? "..." : "")) : "No content",
-        })));
-      }
+      const data = await authenticatedApiCall("/api/journal-entries?limit=50");
+      setEntries(data.entries);
     } catch (error) {
-      console.error("[HistoryScreen] Error loading history:", error);
+      console.error("Error loading history:", error);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -72,7 +55,6 @@ export default function HistoryScreen() {
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     return date.toLocaleDateString("en-US", {
-      weekday: "short",
       month: "short",
       day: "numeric",
       year: "numeric",
@@ -81,69 +63,63 @@ export default function HistoryScreen() {
 
   if (loading) {
     return (
-      <LinearGradient colors={["#4F46E5", "#7C3AED", "#06B6D4"]} style={styles.container}>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#FFFFFF" />
-          <Text style={styles.loadingText}>Loading history...</Text>
-        </View>
-      </LinearGradient>
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#6366F1" />
+      </View>
     );
   }
 
   return (
-    <LinearGradient colors={["#4F46E5", "#7C3AED", "#06B6D4"]} style={styles.container}>
+    <LinearGradient colors={["#6366F1", "#87CEEB"]} style={styles.container}>
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#FFFFFF" />
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
       >
-        <Text style={styles.title}>History</Text>
+        <Text style={styles.title}>Journal History</Text>
 
         {entries.length === 0 ? (
           <View style={styles.emptyState}>
-            <IconSymbol ios_icon_name="book" android_material_icon_name="menu_book" size={64} color="#FFFFFF" />
-            <Text style={styles.emptyText}>No entries yet</Text>
-            <Text style={styles.emptySubtext}>Start journaling to see your history</Text>
+            <IconSymbol 
+              ios_icon_name="book.closed" 
+              android_material_icon_name="menu-book" 
+              size={64} 
+              color="#E0E7FF" 
+            />
+            <Text style={styles.emptyText}>No journal entries yet</Text>
+            <Text style={styles.emptySubtext}>
+              Start writing to see your history
+            </Text>
           </View>
         ) : (
-          entries.map((entry) => (
-            <TouchableOpacity
-              key={entry.id}
-              style={styles.entryCard}
-              onPress={() => viewEntry(entry.id)}
-            >
-              <Text style={styles.entryDate}>{formatDate(entry.date)}</Text>
-              
-              <View style={styles.affirmationSection}>
-                <IconSymbol ios_icon_name="sparkles" android_material_icon_name="auto_awesome" size={16} color="#F59E0B" />
-                <Text style={styles.affirmationText}>{entry.affirmation}</Text>
-              </View>
-
-              {entry.habits && entry.habits.length > 0 && (
-                <View style={styles.habitsSection}>
-                  {entry.habits.map((habit, index) => (
-                    <View key={index} style={styles.habitItem}>
-                      <IconSymbol
-                        ios_icon_name={habit.completed ? "checkmark.circle.fill" : "xmark.circle.fill"}
-                        android_material_icon_name={habit.completed ? "check_circle" : "cancel"}
-                        size={16}
-                        color={habit.completed ? "#10B981" : "#EF4444"}
-                      />
-                      <Text style={styles.habitName}>{habit.name}</Text>
-                    </View>
-                  ))}
+          <View style={styles.entriesList}>
+            {entries.map((entry) => (
+              <TouchableOpacity
+                key={entry.id}
+                style={styles.entryCard}
+                onPress={() => viewEntry(entry.id)}
+              >
+                <View style={styles.entryHeader}>
+                  <Text style={styles.entryDate}>{formatDate(entry.createdAt)}</Text>
+                  {entry.photoUrl && (
+                    <IconSymbol 
+                      ios_icon_name="photo" 
+                      android_material_icon_name="photo" 
+                      size={16} 
+                      color="#6366F1" 
+                    />
+                  )}
                 </View>
-              )}
-
-              <Text style={styles.entrySnippet}>{entry.snippet}</Text>
-
-              <View style={styles.viewMore}>
-                <Text style={styles.viewMoreText}>View Full Entry</Text>
-                <IconSymbol ios_icon_name="chevron.right" android_material_icon_name="chevron_right" size={16} color="#4F46E5" />
-              </View>
-            </TouchableOpacity>
-          ))
+                <Text style={styles.entrySnippet} numberOfLines={3}>
+                  {entry.content}
+                </Text>
+                <View style={styles.entryFooter}>
+                  <Text style={styles.readMore}>Read more →</Text>
+                </View>
+              </TouchableOpacity>
+            ))}
+          </View>
         )}
       </ScrollView>
     </LinearGradient>
@@ -159,91 +135,70 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  loadingText: {
-    marginTop: 16,
-    fontSize: 16,
-    color: "#FFFFFF",
-  },
   scrollContent: {
     padding: 20,
-    paddingTop: 60,
-    paddingBottom: 120,
+    paddingBottom: 100,
   },
   title: {
-    fontSize: 32,
+    fontSize: 28,
     fontWeight: "700",
-    color: "#FFFFFF",
+    color: "#FFF",
     marginBottom: 24,
   },
   emptyState: {
     alignItems: "center",
-    marginTop: 100,
+    justifyContent: "center",
+    paddingVertical: 60,
   },
   emptyText: {
     fontSize: 20,
     fontWeight: "600",
-    color: "#FFFFFF",
+    color: "#FFF",
     marginTop: 16,
   },
   emptySubtext: {
-    fontSize: 14,
-    color: "rgba(255, 255, 255, 0.7)",
+    fontSize: 16,
+    color: "#E0E7FF",
     marginTop: 8,
   },
+  entriesList: {
+    gap: 16,
+  },
   entryCard: {
-    backgroundColor: "rgba(255, 255, 255, 0.95)",
+    backgroundColor: "#FFF",
     borderRadius: 16,
-    padding: 20,
-    marginBottom: 16,
+    padding: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  entryHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 12,
   },
   entryDate: {
     fontSize: 14,
     fontWeight: "600",
-    color: "#4F46E5",
-    marginBottom: 12,
-  },
-  affirmationSection: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 12,
-    padding: 12,
-    backgroundColor: "#FEF3C7",
-    borderRadius: 8,
-  },
-  affirmationText: {
-    fontSize: 14,
-    color: "#92400E",
-    marginLeft: 8,
-    flex: 1,
-  },
-  habitsSection: {
-    marginBottom: 12,
-  },
-  habitItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 6,
-  },
-  habitName: {
-    fontSize: 14,
-    color: "#6B7280",
-    marginLeft: 8,
+    color: "#6366F1",
   },
   entrySnippet: {
-    fontSize: 14,
+    fontSize: 16,
     color: "#1F2937",
-    lineHeight: 20,
-    marginBottom: 12,
+    lineHeight: 24,
   },
-  viewMore: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "flex-end",
+  entryFooter: {
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: "#E5E7EB",
   },
-  viewMoreText: {
+  readMore: {
     fontSize: 14,
+    color: "#6366F1",
     fontWeight: "600",
-    color: "#4F46E5",
-    marginRight: 4,
   },
 });

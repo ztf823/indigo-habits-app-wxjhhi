@@ -1,5 +1,8 @@
 
-import React, { useState, useEffect } from "react";
+import { authenticatedApiCall } from "@/utils/api";
+import * as Haptics from "expo-haptics";
+import { IconSymbol } from "@/components/IconSymbol";
+import { LinearGradient } from "expo-linear-gradient";
 import {
   View,
   Text,
@@ -12,10 +15,7 @@ import {
   ActivityIndicator,
   RefreshControl,
 } from "react-native";
-import { LinearGradient } from "expo-linear-gradient";
-import { IconSymbol } from "@/components/IconSymbol";
-import { authenticatedApiCall } from "@/utils/api";
-import * as Haptics from "expo-haptics";
+import React, { useState, useEffect } from "react";
 
 interface Habit {
   id: string;
@@ -25,24 +25,25 @@ interface Habit {
 }
 
 const DEFAULT_HABITS = [
-  { title: "Morning meditation", color: "#8B5CF6" },
+  { title: "Morning meditation", color: "#6366F1" },
   { title: "Exercise", color: "#10B981" },
-  { title: "Read 10 pages", color: "#3B82F6" },
+  { title: "Read 10 pages", color: "#F59E0B" },
 ];
 
 const COLORS = [
-  "#4F46E5", "#8B5CF6", "#10B981", "#3B82F6", 
-  "#F59E0B", "#EF4444", "#EC4899", "#06B6D4"
+  "#6366F1", "#10B981", "#F59E0B", "#EF4444", "#8B5CF6", 
+  "#EC4899", "#14B8A6", "#F97316"
 ];
 
 export default function HabitsScreen() {
   const [habits, setHabits] = useState<Habit[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
   const [newHabitTitle, setNewHabitTitle] = useState("");
   const [selectedColor, setSelectedColor] = useState(COLORS[0]);
   const [editingHabit, setEditingHabit] = useState<Habit | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     loadHabits();
@@ -50,99 +51,82 @@ export default function HabitsScreen() {
 
   const loadHabits = async () => {
     try {
-      console.log("[HabitsScreen] Loading habits...");
+      const data = await authenticatedApiCall("/api/habits");
+      const activeHabits = data.filter((h: Habit) => h.isActive);
       
-      // TODO: Backend Integration - Fetch habits from /api/habits endpoint
-      const response = await authenticatedApiCall(`/api/habits`, {
-        method: "GET",
-      });
-      
-      console.log("[HabitsScreen] Habits response:", response);
-      
-      if (response && Array.isArray(response)) {
-        if (response.length === 0) {
-          // Initialize with default habits
-          console.log("[HabitsScreen] No habits found, creating defaults...");
-          for (const habit of DEFAULT_HABITS) {
-            await createHabit(habit.title, habit.color);
-          }
-          // Reload after creating defaults
-          const newResponse = await authenticatedApiCall(`/api/habits`, {
-            method: "GET",
-          });
-          setHabits(newResponse || []);
-        } else {
-          setHabits(response);
+      if (activeHabits.length === 0) {
+        // Create default habits on first launch
+        for (const habit of DEFAULT_HABITS) {
+          await createHabit(habit.title, habit.color);
         }
+        const newData = await authenticatedApiCall("/api/habits");
+        setHabits(newData.filter((h: Habit) => h.isActive));
+      } else {
+        setHabits(activeHabits);
       }
     } catch (error) {
-      console.error("[HabitsScreen] Error loading habits:", error);
-      Alert.alert("Error", "Failed to load habits. Please try again.");
+      console.error("Error loading habits:", error);
+      Alert.alert("Error", "Failed to load habits");
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
   };
 
-  const createHabit = async (title: string, color: string = "#4F46E5") => {
-    if (!title.trim()) {
-      Alert.alert("Error", "Please enter a habit name");
-      return;
-    }
-
+  const createHabit = async (title: string, color: string) => {
     try {
-      console.log("[HabitsScreen] Creating habit:", title, color);
-      
-      // TODO: Backend Integration - Create habit via /api/habits endpoint
-      const response = await authenticatedApiCall(`/api/habits`, {
+      await authenticatedApiCall("/api/habits", {
         method: "POST",
-        body: JSON.stringify({ title: title.trim(), color }),
+        body: JSON.stringify({ title, color }),
       });
-
-      console.log("[HabitsScreen] Create response:", response);
-
-      if (response) {
-        loadHabits();
-        setNewHabitTitle("");
-        setSelectedColor(COLORS[0]);
-        setShowAddModal(false);
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      }
-    } catch (error) {
-      console.error("[HabitsScreen] Error creating habit:", error);
-      Alert.alert("Error", "Failed to create habit. Please try again.");
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (error: any) {
+      console.error("Error creating habit:", error);
+      throw error;
     }
   };
 
-  const updateHabit = async (id: string, title: string) => {
-    if (!title.trim()) {
+  const handleAddHabit = async () => {
+    if (!newHabitTitle.trim()) {
       Alert.alert("Error", "Please enter a habit name");
       return;
     }
 
     try {
-      console.log("[HabitsScreen] Updating habit:", id, title);
-      
-      // TODO: Backend Integration - Update habit via /api/habits/:id endpoint
-      const response = await authenticatedApiCall(`/api/habits/${id}`, {
-        method: "PUT",
-        body: JSON.stringify({ title: title.trim() }),
-      });
-
-      console.log("[HabitsScreen] Update response:", response);
-
-      if (response) {
-        loadHabits();
-        setEditingHabit(null);
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      }
-    } catch (error) {
-      console.error("[HabitsScreen] Error updating habit:", error);
-      Alert.alert("Error", "Failed to update habit. Please try again.");
+      await createHabit(newHabitTitle, selectedColor);
+      setNewHabitTitle("");
+      setSelectedColor(COLORS[0]);
+      setShowAddModal(false);
+      loadHabits();
+    } catch (error: any) {
+      Alert.alert("Error", error.message || "Failed to create habit");
     }
   };
 
-  const deleteHabit = async (id: string) => {
+  const handleEditHabit = async () => {
+    if (!editingHabit || !newHabitTitle.trim()) return;
+
+    try {
+      await authenticatedApiCall(`/api/habits/${editingHabit.id}`, {
+        method: "PUT",
+        body: JSON.stringify({ 
+          title: newHabitTitle,
+          color: selectedColor,
+        }),
+      });
+      
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setShowEditModal(false);
+      setEditingHabit(null);
+      setNewHabitTitle("");
+      loadHabits();
+    } catch (error: any) {
+      console.error("Error updating habit:", error);
+      Alert.alert("Error", error.message || "Failed to update habit");
+    }
+  };
+
+  const handleDeleteHabit = async (id: string) => {
     Alert.alert(
       "Delete Habit",
       "Are you sure you want to delete this habit?",
@@ -153,23 +137,26 @@ export default function HabitsScreen() {
           style: "destructive",
           onPress: async () => {
             try {
-              console.log("[HabitsScreen] Deleting habit:", id);
-              
-              // TODO: Backend Integration - Delete habit via /api/habits/:id endpoint
               await authenticatedApiCall(`/api/habits/${id}`, {
                 method: "DELETE",
               });
-              
+              await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
               loadHabits();
-              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-            } catch (error) {
-              console.error("[HabitsScreen] Error deleting habit:", error);
-              Alert.alert("Error", "Failed to delete habit. Please try again.");
+            } catch (error: any) {
+              console.error("Error deleting habit:", error);
+              Alert.alert("Error", error.message || "Failed to delete habit");
             }
           },
         },
       ]
     );
+  };
+
+  const openEditModal = (habit: Habit) => {
+    setEditingHabit(habit);
+    setNewHabitTitle(habit.title);
+    setSelectedColor(habit.color);
+    setShowEditModal(true);
   };
 
   const onRefresh = () => {
@@ -179,95 +166,90 @@ export default function HabitsScreen() {
 
   if (loading) {
     return (
-      <LinearGradient colors={["#4F46E5", "#7C3AED", "#06B6D4"]} style={styles.container}>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#FFFFFF" />
-          <Text style={styles.loadingText}>Loading habits...</Text>
-        </View>
-      </LinearGradient>
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#6366F1" />
+      </View>
     );
   }
 
   return (
-    <LinearGradient colors={["#4F46E5", "#7C3AED", "#06B6D4"]} style={styles.container}>
-      <ScrollView 
+    <LinearGradient colors={["#6366F1", "#87CEEB"]} style={styles.container}>
+      <ScrollView
         contentContainerStyle={styles.scrollContent}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#FFFFFF" />
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
       >
-        <Text style={styles.title}>Manage Habits</Text>
-        <Text style={styles.subtitle}>Customize your daily tasks</Text>
+        <Text style={styles.title}>Manage Your Habits</Text>
+        <Text style={styles.subtitle}>
+          Customize your daily habits to track
+        </Text>
 
-        {habits.map((habit) => (
-          <View key={habit.id} style={styles.habitCard}>
-            {editingHabit?.id === habit.id ? (
-              <View style={styles.editContainer}>
-                <TextInput
-                  style={styles.editInput}
-                  value={editingHabit.title}
-                  onChangeText={(text) =>
-                    setEditingHabit({ ...editingHabit, title: text })
-                  }
-                  autoFocus
+        <View style={styles.habitsList}>
+          {habits.map((habit) => (
+            <View key={habit.id} style={styles.habitCard}>
+              <View style={styles.habitInfo}>
+                <View
+                  style={[styles.colorDot, { backgroundColor: habit.color }]}
                 />
+                <Text style={styles.habitTitle}>{habit.title}</Text>
+              </View>
+              <View style={styles.habitActions}>
                 <TouchableOpacity
-                  onPress={() => updateHabit(habit.id, editingHabit.title)}
-                  style={styles.iconButton}
+                  onPress={() => openEditModal(habit)}
+                  style={styles.actionButton}
                 >
-                  <IconSymbol ios_icon_name="checkmark" android_material_icon_name="check" size={24} color="#10B981" />
+                  <IconSymbol 
+                    ios_icon_name="pencil" 
+                    android_material_icon_name="edit" 
+                    size={20} 
+                    color="#6366F1" 
+                  />
                 </TouchableOpacity>
                 <TouchableOpacity
-                  onPress={() => setEditingHabit(null)}
-                  style={styles.iconButton}
+                  onPress={() => handleDeleteHabit(habit.id)}
+                  style={styles.actionButton}
                 >
-                  <IconSymbol ios_icon_name="xmark" android_material_icon_name="close" size={24} color="#EF4444" />
+                  <IconSymbol 
+                    ios_icon_name="trash" 
+                    android_material_icon_name="delete" 
+                    size={20} 
+                    color="#EF4444" 
+                  />
                 </TouchableOpacity>
               </View>
-            ) : (
-              <>
-                <View style={styles.habitInfo}>
-                  <View
-                    style={[styles.colorDot, { backgroundColor: habit.color }]}
-                  />
-                  <Text style={styles.habitTitle}>{habit.title}</Text>
-                </View>
-                <View style={styles.habitActions}>
-                  <TouchableOpacity
-                    onPress={() => setEditingHabit(habit)}
-                    style={styles.iconButton}
-                  >
-                    <IconSymbol ios_icon_name="pencil" android_material_icon_name="edit" size={20} color="#6B7280" />
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    onPress={() => deleteHabit(habit.id)}
-                    style={styles.iconButton}
-                  >
-                    <IconSymbol ios_icon_name="trash" android_material_icon_name="delete" size={20} color="#EF4444" />
-                  </TouchableOpacity>
-                </View>
-              </>
-            )}
-          </View>
-        ))}
+            </View>
+          ))}
+        </View>
 
         <TouchableOpacity
           style={styles.addButton}
           onPress={() => setShowAddModal(true)}
         >
-          <IconSymbol ios_icon_name="plus.circle.fill" android_material_icon_name="add_circle" size={24} color="#FFFFFF" />
+          <IconSymbol 
+            ios_icon_name="plus.circle.fill" 
+            android_material_icon_name="add-circle" 
+            size={24} 
+            color="#FFF" 
+          />
           <Text style={styles.addButtonText}>Add New Habit</Text>
         </TouchableOpacity>
       </ScrollView>
 
-      <Modal visible={showAddModal} transparent animationType="slide">
+      {/* Add Habit Modal */}
+      <Modal
+        visible={showAddModal}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setShowAddModal(false)}
+      >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Add New Habit</Text>
             
             <TextInput
               style={styles.input}
-              placeholder="Enter habit name..."
+              placeholder="Habit name"
               placeholderTextColor="#9CA3AF"
               value={newHabitTitle}
               onChangeText={setNewHabitTitle}
@@ -284,30 +266,88 @@ export default function HabitsScreen() {
                     selectedColor === color && styles.colorOptionSelected,
                   ]}
                   onPress={() => setSelectedColor(color)}
-                >
-                  {selectedColor === color && (
-                    <IconSymbol ios_icon_name="checkmark" android_material_icon_name="check" size={16} color="#FFFFFF" />
-                  )}
-                </TouchableOpacity>
+                />
               ))}
             </View>
 
-            <TouchableOpacity
-              style={styles.modalButton}
-              onPress={() => createHabit(newHabitTitle, selectedColor)}
-            >
-              <Text style={styles.modalButtonText}>Add Habit</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.modalButton, styles.cancelButton]}
-              onPress={() => {
-                setShowAddModal(false);
-                setNewHabitTitle("");
-                setSelectedColor(COLORS[0]);
-              }}
-            >
-              <Text style={styles.cancelButtonText}>Cancel</Text>
-            </TouchableOpacity>
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.modalButtonCancel]}
+                onPress={() => {
+                  setShowAddModal(false);
+                  setNewHabitTitle("");
+                  setSelectedColor(COLORS[0]);
+                }}
+              >
+                <Text style={styles.modalButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.modalButtonSave]}
+                onPress={handleAddHabit}
+              >
+                <Text style={[styles.modalButtonText, styles.modalButtonTextSave]}>
+                  Add
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Edit Habit Modal */}
+      <Modal
+        visible={showEditModal}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setShowEditModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Edit Habit</Text>
+            
+            <TextInput
+              style={styles.input}
+              placeholder="Habit name"
+              placeholderTextColor="#9CA3AF"
+              value={newHabitTitle}
+              onChangeText={setNewHabitTitle}
+            />
+
+            <Text style={styles.colorLabel}>Choose a color:</Text>
+            <View style={styles.colorPicker}>
+              {COLORS.map((color) => (
+                <TouchableOpacity
+                  key={color}
+                  style={[
+                    styles.colorOption,
+                    { backgroundColor: color },
+                    selectedColor === color && styles.colorOptionSelected,
+                  ]}
+                  onPress={() => setSelectedColor(color)}
+                />
+              ))}
+            </View>
+
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.modalButtonCancel]}
+                onPress={() => {
+                  setShowEditModal(false);
+                  setEditingHabit(null);
+                  setNewHabitTitle("");
+                }}
+              >
+                <Text style={styles.modalButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.modalButtonSave]}
+                onPress={handleEditHabit}
+              >
+                <Text style={[styles.modalButtonText, styles.modalButtonTextSave]}>
+                  Save
+                </Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </Modal>
@@ -324,121 +364,105 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  loadingText: {
-    marginTop: 16,
-    fontSize: 16,
-    color: "#FFFFFF",
-  },
   scrollContent: {
     padding: 20,
-    paddingTop: 60,
-    paddingBottom: 120,
+    paddingBottom: 100,
   },
   title: {
-    fontSize: 32,
+    fontSize: 28,
     fontWeight: "700",
-    color: "#FFFFFF",
+    color: "#FFF",
     marginBottom: 8,
   },
   subtitle: {
     fontSize: 16,
-    color: "rgba(255, 255, 255, 0.8)",
+    color: "#E0E7FF",
+    marginBottom: 24,
+  },
+  habitsList: {
+    gap: 12,
     marginBottom: 24,
   },
   habitCard: {
+    backgroundColor: "#FFF",
+    borderRadius: 12,
+    padding: 16,
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    backgroundColor: "rgba(255, 255, 255, 0.95)",
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
   },
   habitInfo: {
     flexDirection: "row",
     alignItems: "center",
+    gap: 12,
     flex: 1,
   },
   colorDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    marginRight: 12,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
   },
   habitTitle: {
     fontSize: 16,
     fontWeight: "500",
     color: "#1F2937",
+    flex: 1,
   },
   habitActions: {
     flexDirection: "row",
     gap: 12,
   },
-  iconButton: {
-    padding: 4,
-  },
-  editContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    flex: 1,
-    gap: 8,
-  },
-  editInput: {
-    flex: 1,
-    fontSize: 16,
-    color: "#1F2937",
-    borderBottomWidth: 1,
-    borderBottomColor: "#D1D5DB",
-    paddingVertical: 4,
+  actionButton: {
+    padding: 8,
   },
   addButton: {
+    backgroundColor: "#6366F1",
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "rgba(255, 255, 255, 0.2)",
-    borderRadius: 16,
-    padding: 20,
-    marginTop: 12,
-    borderWidth: 2,
-    borderColor: "rgba(255, 255, 255, 0.3)",
-    borderStyle: "dashed",
+    padding: 16,
+    borderRadius: 12,
+    gap: 8,
   },
   addButtonText: {
+    color: "#FFF",
     fontSize: 16,
     fontWeight: "600",
-    color: "#FFFFFF",
-    marginLeft: 8,
   },
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0, 0, 0, 0.5)",
     justifyContent: "center",
     alignItems: "center",
+    padding: 20,
   },
   modalContent: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 20,
+    backgroundColor: "#FFF",
+    borderRadius: 16,
     padding: 24,
-    width: "85%",
+    width: "100%",
   },
   modalTitle: {
     fontSize: 20,
     fontWeight: "700",
     color: "#1F2937",
-    marginBottom: 20,
-    textAlign: "center",
+    marginBottom: 16,
   },
   input: {
     borderWidth: 1,
-    borderColor: "#D1D5DB",
+    borderColor: "#E5E7EB",
     borderRadius: 12,
-    padding: 16,
-    marginBottom: 16,
+    padding: 12,
     fontSize: 16,
+    marginBottom: 16,
   },
   colorLabel: {
     fontSize: 14,
-    fontWeight: "600",
     color: "#6B7280",
     marginBottom: 12,
   },
@@ -446,38 +470,39 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 12,
-    marginBottom: 20,
+    marginBottom: 24,
   },
   colorOption: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    justifyContent: "center",
-    alignItems: "center",
   },
   colorOptionSelected: {
     borderWidth: 3,
     borderColor: "#1F2937",
   },
+  modalButtons: {
+    flexDirection: "row",
+    gap: 12,
+  },
   modalButton: {
-    backgroundColor: "#4F46E5",
+    flex: 1,
+    paddingVertical: 14,
     borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
+    alignItems: "center",
   },
-  modalButtonText: {
-    color: "#FFFFFF",
-    fontSize: 16,
-    fontWeight: "600",
-    textAlign: "center",
-  },
-  cancelButton: {
+  modalButtonCancel: {
     backgroundColor: "#F3F4F6",
   },
-  cancelButtonText: {
-    color: "#6B7280",
+  modalButtonSave: {
+    backgroundColor: "#6366F1",
+  },
+  modalButtonText: {
     fontSize: 16,
     fontWeight: "600",
-    textAlign: "center",
+    color: "#6B7280",
+  },
+  modalButtonTextSave: {
+    color: "#FFF",
   },
 });

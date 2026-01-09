@@ -2,9 +2,6 @@
 import React from 'react';
 import { Stack } from 'expo-router';
 import FloatingTabBar, { TabBarItem } from '@/components/FloatingTabBar';
-import { Dimensions } from 'react-native';
-
-const { width: screenWidth } = Dimensions.get('window');
 
 export default function TabLayout() {
   const tabs: TabBarItem[] = [
@@ -12,12 +9,12 @@ export default function TabLayout() {
       name: '(home)',
       route: '/(tabs)/(home)/',
       icon: 'home',
-      label: 'Home',
+      label: 'Journal',
     },
     {
       name: 'progress',
       route: '/(tabs)/progress',
-      icon: 'show_chart',
+      icon: 'show-chart',
       label: 'Progress',
     },
     {
@@ -29,7 +26,7 @@ export default function TabLayout() {
     {
       name: 'habits',
       route: '/(tabs)/habits',
-      icon: 'checklist',
+      icon: 'check-circle',
       label: 'Habits',
     },
     {
@@ -48,17 +45,13 @@ export default function TabLayout() {
           animation: 'none',
         }}
       >
-        <Stack.Screen key="home" name="(home)" />
-        <Stack.Screen key="progress" name="progress" />
-        <Stack.Screen key="history" name="history" />
-        <Stack.Screen key="habits" name="habits" />
-        <Stack.Screen key="profile" name="profile" />
+        <Stack.Screen name="(home)" />
+        <Stack.Screen name="progress" />
+        <Stack.Screen name="history" />
+        <Stack.Screen name="habits" />
+        <Stack.Screen name="profile" />
       </Stack>
-      <FloatingTabBar 
-        tabs={tabs} 
-        containerWidth={screenWidth * 0.95}
-        bottomMargin={16}
-      />
+      <FloatingTabBar tabs={tabs} />
     </>
   );
 }
