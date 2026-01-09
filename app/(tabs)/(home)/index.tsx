@@ -15,8 +15,9 @@ import {
   Platform,
   Alert,
   Modal,
+  ActivityIndicator,
 } from "react-native";
-import { BACKEND_URL } from "@/utils/api";
+import { authenticatedApiCall, BACKEND_URL } from "@/utils/api";
 import * as ImagePicker from "expo-image-picker";
 
 interface Habit {
@@ -42,6 +43,8 @@ export default function HomeScreen() {
   const [showCustomInput, setShowCustomInput] = useState(false);
   const [favorites, setFavorites] = useState<CustomAffirmation[]>([]);
   const [showFavorites, setShowFavorites] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [loadingData, setLoadingData] = useState(true);
 
   useEffect(() => {
     loadData();
@@ -49,33 +52,77 @@ export default function HomeScreen() {
 
   const loadData = async () => {
     try {
+      setLoadingData(true);
+      console.log("[HomeScreen] Loading data from backend...");
+
       // Load habits from backend
-      const response = await fetch(`${BACKEND_URL}/api/habits`);
-      if (response.ok) {
-        const habitsData = await response.json();
-        setHabits(habitsData.map((h: any) => ({
+      // TODO: Backend Integration - Fetch habits from /api/habits endpoint
+      const habitsResponse = await authenticatedApiCall(`/api/habits`, {
+        method: "GET",
+      });
+      
+      console.log("[HomeScreen] Habits response:", habitsResponse);
+      
+      if (habitsResponse && Array.isArray(habitsResponse)) {
+        // Get today's completions
+        const today = new Date().toISOString().split('T')[0];
+        const completionsResponse = await authenticatedApiCall(`/api/habits/completions?date=${today}`, {
+          method: "GET",
+        });
+        
+        const completedIds = new Set(
+          completionsResponse?.completions?.map((c: any) => c.habitId) || []
+        );
+
+        setHabits(habitsResponse.map((h: any) => ({
           id: h.id,
           name: h.title,
-          completed: false,
-          color: h.color
+          completed: completedIds.has(h.id),
+          color: h.color || "#4F46E5"
         })));
       }
 
       // Load daily affirmation from backend
-      const affResponse = await fetch(`${BACKEND_URL}/api/affirmations/daily`);
-      if (affResponse.ok) {
-        const affData = await affResponse.json();
-        setAffirmation(affData.text);
+      // TODO: Backend Integration - Fetch daily affirmation from /api/affirmations/daily endpoint
+      try {
+        const affResponse = await authenticatedApiCall(`/api/affirmations/daily`, {
+          method: "GET",
+        });
+        console.log("[HomeScreen] Affirmation response:", affResponse);
+        
+        if (affResponse?.affirmation) {
+          setAffirmation(affResponse.affirmation.text);
+        } else {
+          setAffirmation("Tap to set your daily affirmation");
+        }
+      } catch (error) {
+        console.log("[HomeScreen] No daily affirmation yet, using default");
+        setAffirmation("Tap to set your daily affirmation");
       }
 
       // Load favorites from backend
-      const favResponse = await fetch(`${BACKEND_URL}/api/affirmations/favorites`);
-      if (favResponse.ok) {
-        const favData = await favResponse.json();
-        setFavorites(favData.affirmations || []);
+      // TODO: Backend Integration - Fetch favorite affirmations from /api/affirmations/favorites endpoint
+      try {
+        const favResponse = await authenticatedApiCall(`/api/affirmations/favorites`, {
+          method: "GET",
+        });
+        console.log("[HomeScreen] Favorites response:", favResponse);
+        
+        if (favResponse?.affirmations) {
+          setFavorites(favResponse.affirmations.map((a: any) => ({
+            id: a.id,
+            text: a.text,
+            isFavorite: true
+          })));
+        }
+      } catch (error) {
+        console.log("[HomeScreen] Error loading favorites:", error);
       }
     } catch (error) {
-      console.error("Error loading data:", error);
+      console.error("[HomeScreen] Error loading data:", error);
+      Alert.alert("Error", "Failed to load data. Please try again.");
+    } finally {
+      setLoadingData(false);
     }
   };
 
@@ -85,71 +132,120 @@ export default function HomeScreen() {
 
     const newCompleted = !habit.completed;
     
-    try {
-      await fetch(`${BACKEND_URL}/api/habits/${habitId}/complete`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ completed: newCompleted })
-      });
+    // Optimistically update UI
+    setHabits(habits.map(h => 
+      h.id === habitId ? { ...h, completed: newCompleted } : h
+    ));
 
-      setHabits(habits.map(h => 
-        h.id === habitId ? { ...h, completed: newCompleted } : h
-      ));
+    try {
+      // TODO: Backend Integration - Mark habit as complete/incomplete via /api/habits/:id/complete endpoint
+      const today = new Date().toISOString().split('T')[0];
+      
+      if (newCompleted) {
+        await authenticatedApiCall(`/api/habits/${habitId}/complete`, {
+          method: "POST",
+          body: JSON.stringify({ date: today })
+        });
+      } else {
+        // Remove completion
+        await authenticatedApiCall(`/api/habits/${habitId}/complete`, {
+          method: "DELETE",
+          body: JSON.stringify({ date: today })
+        });
+      }
 
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     } catch (error) {
-      console.error("Error toggling habit:", error);
+      console.error("[HomeScreen] Error toggling habit:", error);
+      // Revert on error
+      setHabits(habits.map(h => 
+        h.id === habitId ? { ...h, completed: !newCompleted } : h
+      ));
+      Alert.alert("Error", "Failed to update habit. Please try again.");
     }
   };
 
   const generateAffirmation = async () => {
     try {
-      const response = await fetch(`${BACKEND_URL}/api/affirmations/generate`, {
+      setIsGenerating(true);
+      console.log("[HomeScreen] Generating affirmation...");
+      
+      // TODO: Backend Integration - Generate affirmation via /api/affirmations/generate endpoint
+      const response = await authenticatedApiCall(`/api/affirmations/generate`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" }
+        body: JSON.stringify({})
       });
 
-      if (response.ok) {
-        const data = await response.json();
-        setAffirmation(data.text);
+      console.log("[HomeScreen] Generated affirmation:", response);
+
+      if (response?.affirmation) {
+        setAffirmation(response.affirmation.text);
         setShowAffirmationCard(false);
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      } else {
+        throw new Error("No affirmation returned");
       }
     } catch (error) {
-      console.error("Error generating affirmation:", error);
+      console.error("[HomeScreen] Error generating affirmation:", error);
+      Alert.alert("Error", "Failed to generate affirmation. Please try again.");
+    } finally {
+      setIsGenerating(false);
     }
   };
 
   const saveCustomAffirmation = async () => {
-    if (!customAffirmationText.trim()) return;
+    if (!customAffirmationText.trim()) {
+      Alert.alert("Error", "Please enter an affirmation");
+      return;
+    }
 
     try {
-      const response = await fetch(`${BACKEND_URL}/api/affirmations/custom`, {
+      console.log("[HomeScreen] Saving custom affirmation...");
+      
+      // TODO: Backend Integration - Save custom affirmation via /api/affirmations/custom endpoint
+      const response = await authenticatedApiCall(`/api/affirmations/custom`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: customAffirmationText })
+        body: JSON.stringify({ text: customAffirmationText.trim() })
       });
 
-      if (response.ok) {
-        const data = await response.json();
-        setAffirmation(data.text);
+      console.log("[HomeScreen] Custom affirmation saved:", response);
+
+      if (response?.affirmation) {
+        setAffirmation(response.affirmation.text);
         setCustomAffirmationText("");
         setShowCustomInput(false);
         setShowAffirmationCard(false);
-        loadData();
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        loadData(); // Reload to get updated favorites
       }
     } catch (error) {
-      console.error("Error saving custom affirmation:", error);
+      console.error("[HomeScreen] Error saving custom affirmation:", error);
+      Alert.alert("Error", "Failed to save affirmation. Please try again.");
     }
+  };
+
+  const selectFavorite = async (favorite: CustomAffirmation) => {
+    setAffirmation(favorite.text);
+    setShowFavorites(false);
+    setShowAffirmationCard(false);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   };
 
   const removeFavorite = async (id: string) => {
     try {
-      await fetch(`${BACKEND_URL}/api/affirmations/${id}/favorite`, {
-        method: "POST"
+      console.log("[HomeScreen] Removing favorite:", id);
+      
+      // TODO: Backend Integration - Toggle favorite status via /api/affirmations/:id/favorite endpoint
+      await authenticatedApiCall(`/api/affirmations/${id}/favorite`, {
+        method: "POST",
+        body: JSON.stringify({})
       });
-      loadData();
+      
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      loadData(); // Reload favorites
     } catch (error) {
-      console.error("Error removing favorite:", error);
+      console.error("[HomeScreen] Error removing favorite:", error);
+      Alert.alert("Error", "Failed to remove favorite. Please try again.");
     }
   };
 
@@ -163,6 +259,7 @@ export default function HomeScreen() {
 
     if (!result.canceled) {
       setPhotoUri(result.assets[0].uri);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
   };
 
@@ -170,22 +267,30 @@ export default function HomeScreen() {
     if (!text.trim()) return;
 
     try {
-      await fetch(`${BACKEND_URL}/api/journal-entries`, {
+      console.log("[HomeScreen] Saving journal entry...");
+      
+      // TODO: Backend Integration - Save journal entry via /api/journal-entries endpoint
+      await authenticatedApiCall(`/api/journal-entries`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           content: text,
           photoUrl: photoUri,
           affirmation: affirmation,
-          habits: habits
+          habits: habits.map(h => ({
+            id: h.id,
+            name: h.name,
+            completed: h.completed
+          }))
         })
       });
 
       setJournalText("");
       setPhotoUri(null);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert("Success", "Journal entry saved!");
     } catch (error) {
-      console.error("Error saving journal:", error);
+      console.error("[HomeScreen] Error saving journal:", error);
+      Alert.alert("Error", "Failed to save journal entry. Please try again.");
     }
   };
 
@@ -198,6 +303,17 @@ export default function HomeScreen() {
       day: "numeric"
     });
   };
+
+  if (loadingData) {
+    return (
+      <LinearGradient colors={["#4F46E5", "#7C3AED", "#06B6D4"]} style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#FFFFFF" />
+          <Text style={styles.loadingText}>Loading your habits...</Text>
+        </View>
+      </LinearGradient>
+    );
+  }
 
   return (
     <LinearGradient colors={["#4F46E5", "#7C3AED", "#06B6D4"]} style={styles.container}>
@@ -213,21 +329,30 @@ export default function HomeScreen() {
 
         {/* Habits Strip */}
         <View style={styles.habitsContainer}>
-          {habits.map((habit) => (
-            <TouchableOpacity
-              key={habit.id}
-              style={[styles.habitItem, habit.completed && styles.habitCompleted]}
-              onPress={() => toggleHabit(habit.id)}
-            >
-              <Text style={styles.habitText}>{habit.name}</Text>
-              <IconSymbol
-                ios_icon_name={habit.completed ? "checkmark.circle.fill" : "xmark.circle.fill"}
-                android_material_icon_name={habit.completed ? "check_circle" : "cancel"}
-                size={24}
-                color={habit.completed ? "#10B981" : "#EF4444"}
-              />
-            </TouchableOpacity>
-          ))}
+          {habits.length === 0 ? (
+            <View style={styles.emptyHabits}>
+              <Text style={styles.emptyHabitsText}>No habits yet. Add some in the Habits tab!</Text>
+            </View>
+          ) : (
+            habits.map((habit) => (
+              <TouchableOpacity
+                key={habit.id}
+                style={[styles.habitItem, habit.completed && styles.habitCompleted]}
+                onPress={() => toggleHabit(habit.id)}
+              >
+                <View style={styles.habitLeft}>
+                  <View style={[styles.habitColorDot, { backgroundColor: habit.color }]} />
+                  <Text style={styles.habitText}>{habit.name}</Text>
+                </View>
+                <IconSymbol
+                  ios_icon_name={habit.completed ? "checkmark.circle.fill" : "circle"}
+                  android_material_icon_name={habit.completed ? "check_circle" : "radio_button_unchecked"}
+                  size={28}
+                  color={habit.completed ? "#10B981" : "#9CA3AF"}
+                />
+              </TouchableOpacity>
+            ))
+          )}
         </View>
 
         {/* Journal Entry Box */}
@@ -240,7 +365,15 @@ export default function HomeScreen() {
           </View>
 
           {photoUri && (
-            <Image source={{ uri: photoUri }} style={styles.journalPhoto} />
+            <View style={styles.photoContainer}>
+              <Image source={{ uri: photoUri }} style={styles.journalPhoto} />
+              <TouchableOpacity 
+                style={styles.removePhotoButton}
+                onPress={() => setPhotoUri(null)}
+              >
+                <IconSymbol ios_icon_name="xmark.circle.fill" android_material_icon_name="cancel" size={24} color="#EF4444" />
+              </TouchableOpacity>
+            </View>
           )}
 
           <TextInput
@@ -263,24 +396,42 @@ export default function HomeScreen() {
             
             <TouchableOpacity
               style={styles.modalButton}
-              onPress={() => setShowCustomInput(true)}
+              onPress={() => {
+                setShowAffirmationCard(false);
+                setShowCustomInput(true);
+              }}
             >
+              <IconSymbol ios_icon_name="pencil" android_material_icon_name="edit" size={20} color="#FFFFFF" />
               <Text style={styles.modalButtonText}>Add Custom</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={styles.modalButton}
+              style={[styles.modalButton, styles.generateButton]}
               onPress={generateAffirmation}
+              disabled={isGenerating}
             >
-              <Text style={styles.modalButtonText}>Generate One</Text>
+              {isGenerating ? (
+                <ActivityIndicator color="#FFFFFF" />
+              ) : (
+                <>
+                  <IconSymbol ios_icon_name="sparkles" android_material_icon_name="auto_awesome" size={20} color="#FFFFFF" />
+                  <Text style={styles.modalButtonText}>Generate One</Text>
+                </>
+              )}
             </TouchableOpacity>
 
-            <TouchableOpacity
-              style={styles.modalButton}
-              onPress={() => setShowFavorites(true)}
-            >
-              <Text style={styles.modalButtonText}>View Favorites ({favorites.length})</Text>
-            </TouchableOpacity>
+            {favorites.length > 0 && (
+              <TouchableOpacity
+                style={[styles.modalButton, styles.favoritesButton]}
+                onPress={() => {
+                  setShowAffirmationCard(false);
+                  setShowFavorites(true);
+                }}
+              >
+                <IconSymbol ios_icon_name="heart.fill" android_material_icon_name="favorite" size={20} color="#FFFFFF" />
+                <Text style={styles.modalButtonText}>View Favorites ({favorites.length})</Text>
+              </TouchableOpacity>
+            )}
 
             <TouchableOpacity
               style={[styles.modalButton, styles.cancelButton]}
@@ -300,11 +451,17 @@ export default function HomeScreen() {
             <TextInput
               style={styles.customInput}
               placeholder="Enter your affirmation..."
+              placeholderTextColor="#9CA3AF"
               value={customAffirmationText}
               onChangeText={setCustomAffirmationText}
               multiline
+              autoFocus
             />
-            <TouchableOpacity style={styles.modalButton} onPress={saveCustomAffirmation}>
+            <TouchableOpacity 
+              style={styles.modalButton} 
+              onPress={saveCustomAffirmation}
+              disabled={!customAffirmationText.trim()}
+            >
               <Text style={styles.modalButtonText}>Save</Text>
             </TouchableOpacity>
             <TouchableOpacity
@@ -326,14 +483,22 @@ export default function HomeScreen() {
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Favorite Affirmations</Text>
             <ScrollView style={styles.favoritesList}>
-              {favorites.map((fav) => (
-                <View key={fav.id} style={styles.favoriteItem}>
-                  <Text style={styles.favoriteText}>{fav.text}</Text>
-                  <TouchableOpacity onPress={() => removeFavorite(fav.id)}>
-                    <IconSymbol ios_icon_name="trash" android_material_icon_name="delete" size={20} color="#EF4444" />
+              {favorites.length === 0 ? (
+                <Text style={styles.emptyFavoritesText}>No favorites yet. Create custom affirmations to add them!</Text>
+              ) : (
+                favorites.map((fav) => (
+                  <TouchableOpacity 
+                    key={fav.id} 
+                    style={styles.favoriteItem}
+                    onPress={() => selectFavorite(fav)}
+                  >
+                    <Text style={styles.favoriteText}>{fav.text}</Text>
+                    <TouchableOpacity onPress={() => removeFavorite(fav.id)}>
+                      <IconSymbol ios_icon_name="trash" android_material_icon_name="delete" size={20} color="#EF4444" />
+                    </TouchableOpacity>
                   </TouchableOpacity>
-                </View>
-              ))}
+                ))
+              )}
             </ScrollView>
             <TouchableOpacity
               style={[styles.modalButton, styles.cancelButton]}
@@ -351,6 +516,16 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: "#FFFFFF",
   },
   scrollContent: {
     padding: 20,
@@ -377,9 +552,21 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "600",
     color: "#1F2937",
+    lineHeight: 26,
   },
   habitsContainer: {
     marginBottom: 20,
+  },
+  emptyHabits: {
+    backgroundColor: "rgba(255, 255, 255, 0.9)",
+    borderRadius: 12,
+    padding: 20,
+    alignItems: "center",
+  },
+  emptyHabitsText: {
+    fontSize: 14,
+    color: "#6B7280",
+    textAlign: "center",
   },
   habitItem: {
     flexDirection: "row",
@@ -391,7 +578,18 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   habitCompleted: {
-    backgroundColor: "rgba(16, 185, 129, 0.1)",
+    backgroundColor: "rgba(16, 185, 129, 0.15)",
+  },
+  habitLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+  },
+  habitColorDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    marginRight: 12,
   },
   habitText: {
     fontSize: 16,
@@ -413,12 +611,23 @@ const styles = StyleSheet.create({
   dateText: {
     fontSize: 14,
     color: "#6B7280",
+    fontWeight: "500",
+  },
+  photoContainer: {
+    position: "relative",
+    marginBottom: 16,
   },
   journalPhoto: {
     width: "100%",
     height: 200,
     borderRadius: 12,
-    marginBottom: 16,
+  },
+  removePhotoButton: {
+    position: "absolute",
+    top: 8,
+    right: 8,
+    backgroundColor: "rgba(255, 255, 255, 0.9)",
+    borderRadius: 12,
   },
   journalInput: {
     fontSize: 16,
@@ -451,6 +660,16 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  },
+  generateButton: {
+    backgroundColor: "#F59E0B",
+  },
+  favoritesButton: {
+    backgroundColor: "#EF4444",
   },
   modalButtonText: {
     color: "#FFFFFF",
@@ -475,10 +694,18 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     minHeight: 100,
     textAlignVertical: "top",
+    fontSize: 16,
+    color: "#1F2937",
   },
   favoritesList: {
     maxHeight: 300,
     marginBottom: 16,
+  },
+  emptyFavoritesText: {
+    fontSize: 14,
+    color: "#6B7280",
+    textAlign: "center",
+    padding: 20,
   },
   favoriteItem: {
     flexDirection: "row",
@@ -492,5 +719,6 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 14,
     color: "#1F2937",
+    marginRight: 12,
   },
 });

@@ -1,6 +1,6 @@
 
 /**
- * API Utilities Template
+ * API Utilities
  *
  * Provides utilities for making API calls to the backend.
  * Automatically reads backend URL from app.json configuration.
@@ -33,9 +33,8 @@ export const API_URL = BACKEND_URL; // Alias for compatibility
 
 /**
  * Bearer token storage key
- * TODO: Replace "your-app" with actual app name to match auth-client.ts
  */
-const BEARER_TOKEN_KEY = "your-app_bearer_token";
+const BEARER_TOKEN_KEY = "indigo_habits_bearer_token";
 
 /**
  * Check if backend is properly configured
@@ -61,6 +60,36 @@ export const getBearerToken = async (): Promise<string | null> => {
   } catch (error) {
     console.error("[API] Error retrieving bearer token:", error);
     return null;
+  }
+};
+
+/**
+ * Store bearer token in platform-specific storage
+ */
+export const setBearerToken = async (token: string): Promise<void> => {
+  try {
+    if (Platform.OS === "web") {
+      localStorage.setItem(BEARER_TOKEN_KEY, token);
+    } else {
+      await SecureStore.setItemAsync(BEARER_TOKEN_KEY, token);
+    }
+  } catch (error) {
+    console.error("[API] Error storing bearer token:", error);
+  }
+};
+
+/**
+ * Clear bearer token from storage
+ */
+export const clearBearerToken = async (): Promise<void> => {
+  try {
+    if (Platform.OS === "web") {
+      localStorage.removeItem(BEARER_TOKEN_KEY);
+    } else {
+      await SecureStore.deleteItemAsync(BEARER_TOKEN_KEY);
+    }
+  } catch (error) {
+    console.error("[API] Error clearing bearer token:", error);
   }
 };
 
@@ -92,13 +121,22 @@ export const apiCall = async <T = any>(
       },
     });
 
-    if (!response.ok) {
+    // Handle different response types
+    const contentType = response.headers.get("content-type");
+    let data;
+    
+    if (contentType && contentType.includes("application/json")) {
+      data = await response.json();
+    } else {
       const text = await response.text();
-      console.error("[API] Error response:", response.status, text);
-      throw new Error(`API error: ${response.status} - ${text}`);
+      data = text ? { message: text } : {};
     }
 
-    const data = await response.json();
+    if (!response.ok) {
+      console.error("[API] Error response:", response.status, data);
+      throw new Error(data.message || `API error: ${response.status}`);
+    }
+
     console.log("[API] Success:", data);
     return data;
   } catch (error) {
@@ -175,15 +213,19 @@ export const authenticatedApiCall = async <T = any>(
 ): Promise<T> => {
   const token = await getBearerToken();
 
+  // For now, make unauthenticated calls if no token
+  // TODO: Backend Integration - Once authentication is set up, uncomment the check below
+  /*
   if (!token) {
     throw new Error("Authentication token not found. Please sign in.");
   }
+  */
 
   return apiCall<T>(endpoint, {
     ...options,
     headers: {
       ...options?.headers,
-      Authorization: `Bearer ${token}`,
+      ...(token && { Authorization: `Bearer ${token}` }),
     },
   });
 };

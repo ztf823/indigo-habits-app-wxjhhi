@@ -1,6 +1,5 @@
 
-import { SafeAreaView } from "react-native-safe-area-context";
-import { IconSymbol } from "@/components/IconSymbol";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -11,10 +10,11 @@ import {
   TouchableOpacity,
   Platform,
 } from "react-native";
-import { LinearGradient } from "expo-linear-gradient";
-import { BACKEND_URL } from "@/utils/api";
-import React, { useState, useEffect } from "react";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
+import { LinearGradient } from "expo-linear-gradient";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { IconSymbol } from "@/components/IconSymbol";
+import { authenticatedApiCall } from "@/utils/api";
 
 interface EntryDetail {
   id: string;
@@ -28,9 +28,8 @@ interface EntryDetail {
 export default function EntryDetailScreen() {
   const { id } = useLocalSearchParams();
   const router = useRouter();
-  const [entry, setEntry] = useState<EntryDetail | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [entry, setEntry] = useState<EntryDetail | null>(null);
 
   useEffect(() => {
     if (id) {
@@ -40,17 +39,27 @@ export default function EntryDetailScreen() {
 
   const loadEntry = async () => {
     try {
-      setError(null);
-      // TODO: Backend Integration - Fetch entry details from /api/journal/entries/:id
-      const response = await fetch(`${BACKEND_URL}/journal/entries/${id}`);
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+      console.log("[EntryDetailScreen] Loading entry:", id);
+      
+      // TODO: Backend Integration - Fetch entry details from /api/journal-entries/:id endpoint
+      const response = await authenticatedApiCall(`/api/journal-entries/${id}`, {
+        method: "GET",
+      });
+      
+      console.log("[EntryDetailScreen] Entry response:", response);
+      
+      if (response?.entry) {
+        setEntry({
+          id: response.entry.id,
+          content: response.entry.content,
+          affirmation: response.entry.affirmation || "No affirmation",
+          photoUrl: response.entry.photoUrl,
+          habits: response.entry.habits || [],
+          createdAt: response.entry.createdAt,
+        });
       }
-      const data = await response.json();
-      setEntry(data);
     } catch (error) {
-      console.error('Error loading entry:', error);
-      setError('Failed to load entry. Please try again.');
+      console.error("[EntryDetailScreen] Error loading entry:", error);
     } finally {
       setLoading(false);
     }
@@ -58,126 +67,116 @@ export default function EntryDetailScreen() {
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', { 
-      weekday: 'long', 
-      year: 'numeric', 
-      month: 'long', 
-      day: 'numeric' 
+    return date.toLocaleDateString("en-US", {
+      weekday: "long",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
     });
   };
 
   if (loading) {
     return (
-      <>
-        <Stack.Screen options={{ headerShown: false }} />
-        <LinearGradient colors={['#4F46E5', '#06B6D4']} style={styles.container}>
-          <SafeAreaView style={styles.safeArea} edges={['top']}>
-            <View style={styles.header}>
-              <TouchableOpacity onPress={() => router.back()} activeOpacity={0.7}>
-                <IconSymbol 
-                  ios_icon_name="chevron.left" 
-                  android_material_icon_name="arrow-back" 
-                  size={24} 
-                  color="#fff" 
-                />
-              </TouchableOpacity>
-              <Text style={styles.headerTitle}>Entry Details</Text>
-              <View style={{ width: 24 }} />
-            </View>
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color="#fff" />
-            </View>
-          </SafeAreaView>
-        </LinearGradient>
-      </>
+      <LinearGradient colors={["#4F46E5", "#7C3AED", "#06B6D4"]} style={styles.container}>
+        <Stack.Screen
+          options={{
+            headerShown: true,
+            title: "Entry Details",
+            headerStyle: { backgroundColor: "#4F46E5" },
+            headerTintColor: "#FFFFFF",
+            headerBackTitle: "Back",
+          }}
+        />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#FFFFFF" />
+          <Text style={styles.loadingText}>Loading entry...</Text>
+        </View>
+      </LinearGradient>
     );
   }
 
-  if (error || !entry) {
+  if (!entry) {
     return (
-      <>
-        <Stack.Screen options={{ headerShown: false }} />
-        <LinearGradient colors={['#4F46E5', '#06B6D4']} style={styles.container}>
-          <SafeAreaView style={styles.safeArea} edges={['top']}>
-            <View style={styles.header}>
-              <TouchableOpacity onPress={() => router.back()} activeOpacity={0.7}>
-                <IconSymbol 
-                  ios_icon_name="chevron.left" 
-                  android_material_icon_name="arrow-back" 
-                  size={24} 
-                  color="#fff" 
-                />
-              </TouchableOpacity>
-              <Text style={styles.headerTitle}>Entry Details</Text>
-              <View style={{ width: 24 }} />
-            </View>
-            <View style={styles.errorContainer}>
-              <IconSymbol
-                ios_icon_name="exclamationmark.triangle"
-                android_material_icon_name="error"
-                size={64}
-                color="rgba(255, 255, 255, 0.5)"
-              />
-              <Text style={styles.errorText}>{error || 'Entry not found'}</Text>
-              <TouchableOpacity 
-                style={styles.retryButton} 
-                onPress={loadEntry}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.retryButtonText}>Try Again</Text>
-              </TouchableOpacity>
-            </View>
-          </SafeAreaView>
-        </LinearGradient>
-      </>
+      <LinearGradient colors={["#4F46E5", "#7C3AED", "#06B6D4"]} style={styles.container}>
+        <Stack.Screen
+          options={{
+            headerShown: true,
+            title: "Entry Details",
+            headerStyle: { backgroundColor: "#4F46E5" },
+            headerTintColor: "#FFFFFF",
+            headerBackTitle: "Back",
+          }}
+        />
+        <View style={styles.errorContainer}>
+          <IconSymbol ios_icon_name="exclamationmark.triangle" android_material_icon_name="error" size={64} color="#FFFFFF" />
+          <Text style={styles.errorText}>Entry not found</Text>
+          <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+            <Text style={styles.backButtonText}>Go Back</Text>
+          </TouchableOpacity>
+        </View>
+      </LinearGradient>
     );
   }
 
   return (
-    <>
-      <Stack.Screen options={{ headerShown: false }} />
-      <LinearGradient colors={['#4F46E5', '#06B6D4']} style={styles.container}>
-        <SafeAreaView style={styles.safeArea} edges={['top']}>
-          <View style={styles.header}>
-            <TouchableOpacity onPress={() => router.back()} activeOpacity={0.7}>
-              <IconSymbol 
-                ios_icon_name="chevron.left" 
-                android_material_icon_name="arrow-back" 
-                size={24} 
-                color="#fff" 
-              />
-            </TouchableOpacity>
-            <Text style={styles.headerTitle}>Entry Details</Text>
-            <View style={{ width: 24 }} />
+    <LinearGradient colors={["#4F46E5", "#7C3AED", "#06B6D4"]} style={styles.container}>
+      <Stack.Screen
+        options={{
+          headerShown: true,
+          title: "Entry Details",
+          headerStyle: { backgroundColor: "#4F46E5" },
+          headerTintColor: "#FFFFFF",
+          headerBackTitle: "Back",
+        }}
+      />
+      <ScrollView contentContainerStyle={styles.scrollContent}>
+        <View style={styles.card}>
+          <Text style={styles.date}>{formatDate(entry.createdAt)}</Text>
+
+          {/* Affirmation Section */}
+          <View style={styles.affirmationSection}>
+            <View style={styles.affirmationHeader}>
+              <IconSymbol ios_icon_name="sparkles" android_material_icon_name="auto_awesome" size={20} color="#F59E0B" />
+              <Text style={styles.affirmationLabel}>Daily Affirmation</Text>
+            </View>
+            <Text style={styles.affirmationText}>{entry.affirmation}</Text>
           </View>
-          <ScrollView 
-            style={styles.scrollView}
-            contentContainerStyle={styles.scrollContent}
-          >
-            <Text style={styles.date}>{formatDate(entry.createdAt)}</Text>
-            <Text style={styles.affirmation}>{entry.affirmation}</Text>
-            {entry.photoUrl && (
-              <Image source={{ uri: entry.photoUrl }} style={styles.photo} />
-            )}
-            <Text style={styles.content}>{entry.content}</Text>
+
+          {/* Habits Section */}
+          {entry.habits && entry.habits.length > 0 && (
             <View style={styles.habitsSection}>
-              <Text style={styles.habitsTitle}>Habits</Text>
+              <Text style={styles.sectionTitle}>Habits Completed</Text>
               {entry.habits.map((habit, index) => (
-                <View key={index} style={styles.habitRow}>
+                <View key={index} style={styles.habitItem}>
                   <IconSymbol
                     ios_icon_name={habit.completed ? "checkmark.circle.fill" : "xmark.circle.fill"}
-                    android_material_icon_name={habit.completed ? "check-circle" : "cancel"}
-                    size={24}
+                    android_material_icon_name={habit.completed ? "check_circle" : "cancel"}
+                    size={20}
                     color={habit.completed ? "#10B981" : "#EF4444"}
                   />
-                  <Text style={styles.habitName}>{habit.name}</Text>
+                  <Text style={[styles.habitName, !habit.completed && styles.habitIncomplete]}>
+                    {habit.name}
+                  </Text>
                 </View>
               ))}
             </View>
-          </ScrollView>
-        </SafeAreaView>
-      </LinearGradient>
-    </>
+          )}
+
+          {/* Photo Section */}
+          {entry.photoUrl && (
+            <View style={styles.photoSection}>
+              <Image source={{ uri: entry.photoUrl }} style={styles.photo} />
+            </View>
+          )}
+
+          {/* Journal Content */}
+          <View style={styles.contentSection}>
+            <Text style={styles.sectionTitle}>Journal Entry</Text>
+            <Text style={styles.content}>{entry.content}</Text>
+          </View>
+        </View>
+      </ScrollView>
+    </LinearGradient>
   );
 }
 
@@ -185,97 +184,114 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  safeArea: {
-    flex: 1,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#fff',
-  },
   loadingContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: "#FFFFFF",
   },
   errorContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 40,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
   },
   errorText: {
-    fontSize: 18,
-    color: '#fff',
-    textAlign: 'center',
+    fontSize: 20,
+    fontWeight: "600",
+    color: "#FFFFFF",
     marginTop: 16,
     marginBottom: 24,
   },
-  retryButton: {
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+  backButton: {
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
     paddingHorizontal: 24,
     paddingVertical: 12,
-    borderRadius: 8,
+    borderRadius: 12,
   },
-  retryButtonText: {
-    color: '#fff',
+  backButtonText: {
     fontSize: 16,
-    fontWeight: '600',
-  },
-  scrollView: {
-    flex: 1,
+    fontWeight: "600",
+    color: "#FFFFFF",
   },
   scrollContent: {
-    paddingHorizontal: 20,
+    padding: 20,
     paddingBottom: 40,
   },
+  card: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    padding: 24,
+  },
   date: {
-    fontSize: 14,
-    color: '#E0E0E0',
-    marginBottom: 12,
-  },
-  affirmation: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: '#fff',
-    marginBottom: 16,
-  },
-  photo: {
-    width: '100%',
-    height: 200,
-    borderRadius: 12,
-    marginBottom: 16,
-  },
-  content: {
     fontSize: 16,
-    color: '#fff',
+    fontWeight: "600",
+    color: "#4F46E5",
+    marginBottom: 20,
+  },
+  affirmationSection: {
+    backgroundColor: "#FEF3C7",
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 20,
+  },
+  affirmationHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  affirmationLabel: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#92400E",
+    marginLeft: 8,
+  },
+  affirmationText: {
+    fontSize: 16,
+    color: "#78350F",
     lineHeight: 24,
-    marginBottom: 24,
   },
   habitsSection: {
-    marginBottom: 24,
+    marginBottom: 20,
   },
-  habitsTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#fff',
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#1F2937",
     marginBottom: 12,
   },
-  habitRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
+  habitItem: {
+    flexDirection: "row",
+    alignItems: "center",
     marginBottom: 8,
   },
   habitName: {
+    fontSize: 15,
+    color: "#1F2937",
+    marginLeft: 12,
+  },
+  habitIncomplete: {
+    color: "#6B7280",
+    textDecorationLine: "line-through",
+  },
+  photoSection: {
+    marginBottom: 20,
+  },
+  photo: {
+    width: "100%",
+    height: 250,
+    borderRadius: 12,
+  },
+  contentSection: {
+    marginTop: 8,
+  },
+  content: {
     fontSize: 16,
-    color: '#fff',
+    color: "#1F2937",
+    lineHeight: 24,
   },
 });

@@ -7,10 +7,11 @@ import {
   ScrollView,
   ActivityIndicator,
   TouchableOpacity,
+  RefreshControl,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { IconSymbol } from "@/components/IconSymbol";
-import { BACKEND_URL } from "@/utils/api";
+import { authenticatedApiCall } from "@/utils/api";
 
 interface StreakData {
   affirmationStreak: number;
@@ -30,6 +31,7 @@ interface Badge {
 
 export default function ProgressScreen() {
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [streaks, setStreaks] = useState<StreakData>({
     affirmationStreak: 0,
     taskStreak: 0,
@@ -45,36 +47,67 @@ export default function ProgressScreen() {
 
   const loadProgress = async () => {
     try {
-      const response = await fetch(`${BACKEND_URL}/api/progress`);
-      if (response.ok) {
-        const data = await response.json();
+      console.log("[ProgressScreen] Loading progress data...");
+      
+      // TODO: Backend Integration - Fetch progress data from /api/progress/streaks endpoint
+      const streaksResponse = await authenticatedApiCall(`/api/progress/streaks`, {
+        method: "GET",
+      });
+      
+      console.log("[ProgressScreen] Streaks response:", streaksResponse);
+      
+      if (streaksResponse) {
         setStreaks({
-          affirmationStreak: data.affirmationStreak || 0,
-          taskStreak: data.taskStreak || 0,
-          journalStreak: data.currentStreak || 0,
-          combinedStreak: data.combinedStreak || 0,
-          longestStreak: data.longestStreak || 0,
+          affirmationStreak: streaksResponse.affirmationStreak || 0,
+          taskStreak: streaksResponse.habitStreak || 0,
+          journalStreak: streaksResponse.journalStreak || 0,
+          combinedStreak: streaksResponse.combinedStreak || 0,
+          longestStreak: streaksResponse.longestStreak || 0,
         });
-        setBadges(data.badges || []);
+      }
+
+      // TODO: Backend Integration - Fetch badges from /api/progress/badges endpoint
+      const badgesResponse = await authenticatedApiCall(`/api/progress/badges`, {
+        method: "GET",
+      });
+      
+      console.log("[ProgressScreen] Badges response:", badgesResponse);
+      
+      if (badgesResponse?.badges) {
+        setBadges(badgesResponse.badges);
       }
     } catch (error) {
-      console.error("Error loading progress:", error);
+      console.error("[ProgressScreen] Error loading progress:", error);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
+  };
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    loadProgress();
   };
 
   if (loading) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#4F46E5" />
-      </View>
+      <LinearGradient colors={["#4F46E5", "#7C3AED", "#06B6D4"]} style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#FFFFFF" />
+          <Text style={styles.loadingText}>Loading progress...</Text>
+        </View>
+      </LinearGradient>
     );
   }
 
   return (
     <LinearGradient colors={["#4F46E5", "#7C3AED", "#06B6D4"]} style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      <ScrollView 
+        contentContainerStyle={styles.scrollContent}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#FFFFFF" />
+        }
+      >
         <Text style={styles.title}>Your Progress</Text>
 
         {/* Streaks Section */}
@@ -119,23 +152,30 @@ export default function ProgressScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Badges</Text>
           <View style={styles.badgesGrid}>
-            {badges.map((badge) => (
-              <View
-                key={badge.id}
-                style={[styles.badgeCard, !badge.earned && styles.badgeLocked]}
-              >
-                <Text style={styles.badgeIcon}>
-                  {badge.id === "bronze" ? "🥉" : badge.id === "silver" ? "🥈" : "🥇"}
-                </Text>
-                <Text style={styles.badgeName}>{badge.name}</Text>
-                <Text style={styles.badgeDescription}>{badge.description}</Text>
-                {badge.earned && badge.earnedAt && (
-                  <Text style={styles.badgeEarned}>
-                    Earned: {new Date(badge.earnedAt).toLocaleDateString()}
-                  </Text>
-                )}
+            {badges.length === 0 ? (
+              <View style={styles.emptyBadges}>
+                <Text style={styles.emptyBadgesText}>Keep building your streaks to earn badges!</Text>
               </View>
-            ))}
+            ) : (
+              badges.map((badge) => (
+                <View
+                  key={badge.id}
+                  style={[styles.badgeCard, !badge.earned && styles.badgeLocked]}
+                >
+                  <Text style={styles.badgeIcon}>
+                    {badge.id === "bronze" || badge.name.includes("7") ? "🥉" : 
+                     badge.id === "silver" || badge.name.includes("30") ? "🥈" : "🥇"}
+                  </Text>
+                  <Text style={styles.badgeName}>{badge.name}</Text>
+                  <Text style={styles.badgeDescription}>{badge.description}</Text>
+                  {badge.earned && badge.earnedAt && (
+                    <Text style={styles.badgeEarned}>
+                      Earned: {new Date(badge.earnedAt).toLocaleDateString()}
+                    </Text>
+                  )}
+                </View>
+              ))
+            )}
           </View>
         </View>
       </ScrollView>
@@ -151,6 +191,11 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: "#FFFFFF",
   },
   scrollContent: {
     padding: 20,
@@ -213,6 +258,18 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
     gap: 12,
   },
+  emptyBadges: {
+    width: "100%",
+    backgroundColor: "rgba(255, 255, 255, 0.9)",
+    borderRadius: 16,
+    padding: 20,
+    alignItems: "center",
+  },
+  emptyBadgesText: {
+    fontSize: 14,
+    color: "#6B7280",
+    textAlign: "center",
+  },
   badgeCard: {
     width: "48%",
     backgroundColor: "rgba(255, 255, 255, 0.95)",
@@ -232,6 +289,7 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#1F2937",
     marginBottom: 4,
+    textAlign: "center",
   },
   badgeDescription: {
     fontSize: 12,

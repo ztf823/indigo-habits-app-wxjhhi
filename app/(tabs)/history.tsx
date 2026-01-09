@@ -11,7 +11,7 @@ import {
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { IconSymbol } from "@/components/IconSymbol";
-import { BACKEND_URL } from "@/utils/api";
+import { authenticatedApiCall } from "@/utils/api";
 import { useRouter } from "expo-router";
 
 interface HistoryEntry {
@@ -34,19 +34,26 @@ export default function HistoryScreen() {
 
   const loadHistory = async () => {
     try {
-      const response = await fetch(`${BACKEND_URL}/api/journal-entries`);
-      if (response.ok) {
-        const data = await response.json();
-        setEntries(data.entries.map((entry: any) => ({
+      console.log("[HistoryScreen] Loading history...");
+      
+      // TODO: Backend Integration - Fetch journal entries from /api/journal-entries endpoint
+      const response = await authenticatedApiCall(`/api/journal-entries`, {
+        method: "GET",
+      });
+      
+      console.log("[HistoryScreen] History response:", response);
+      
+      if (response?.entries) {
+        setEntries(response.entries.map((entry: any) => ({
           id: entry.id,
           date: entry.createdAt,
           affirmation: entry.affirmation || "No affirmation",
           habits: entry.habits || [],
-          snippet: entry.content.substring(0, 100) + "...",
+          snippet: entry.content ? (entry.content.substring(0, 100) + (entry.content.length > 100 ? "..." : "")) : "No content",
         })));
       }
     } catch (error) {
-      console.error("Error loading history:", error);
+      console.error("[HistoryScreen] Error loading history:", error);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -74,9 +81,12 @@ export default function HistoryScreen() {
 
   if (loading) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#4F46E5" />
-      </View>
+      <LinearGradient colors={["#4F46E5", "#7C3AED", "#06B6D4"]} style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#FFFFFF" />
+          <Text style={styles.loadingText}>Loading history...</Text>
+        </View>
+      </LinearGradient>
     );
   }
 
@@ -110,19 +120,21 @@ export default function HistoryScreen() {
                 <Text style={styles.affirmationText}>{entry.affirmation}</Text>
               </View>
 
-              <View style={styles.habitsSection}>
-                {entry.habits.map((habit, index) => (
-                  <View key={index} style={styles.habitItem}>
-                    <IconSymbol
-                      ios_icon_name={habit.completed ? "checkmark.circle.fill" : "xmark.circle.fill"}
-                      android_material_icon_name={habit.completed ? "check_circle" : "cancel"}
-                      size={16}
-                      color={habit.completed ? "#10B981" : "#EF4444"}
-                    />
-                    <Text style={styles.habitName}>{habit.name}</Text>
-                  </View>
-                ))}
-              </View>
+              {entry.habits && entry.habits.length > 0 && (
+                <View style={styles.habitsSection}>
+                  {entry.habits.map((habit, index) => (
+                    <View key={index} style={styles.habitItem}>
+                      <IconSymbol
+                        ios_icon_name={habit.completed ? "checkmark.circle.fill" : "xmark.circle.fill"}
+                        android_material_icon_name={habit.completed ? "check_circle" : "cancel"}
+                        size={16}
+                        color={habit.completed ? "#10B981" : "#EF4444"}
+                      />
+                      <Text style={styles.habitName}>{habit.name}</Text>
+                    </View>
+                  ))}
+                </View>
+              )}
 
               <Text style={styles.entrySnippet}>{entry.snippet}</Text>
 
@@ -146,6 +158,11 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: "#FFFFFF",
   },
   scrollContent: {
     padding: 20,

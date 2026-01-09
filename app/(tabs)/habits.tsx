@@ -9,10 +9,12 @@ import {
   TextInput,
   Alert,
   Modal,
+  ActivityIndicator,
+  RefreshControl,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { IconSymbol } from "@/components/IconSymbol";
-import { BACKEND_URL } from "@/utils/api";
+import { authenticatedApiCall } from "@/utils/api";
 import * as Haptics from "expo-haptics";
 
 interface Habit {
@@ -28,10 +30,18 @@ const DEFAULT_HABITS = [
   { title: "Read 10 pages", color: "#3B82F6" },
 ];
 
+const COLORS = [
+  "#4F46E5", "#8B5CF6", "#10B981", "#3B82F6", 
+  "#F59E0B", "#EF4444", "#EC4899", "#06B6D4"
+];
+
 export default function HabitsScreen() {
   const [habits, setHabits] = useState<Habit[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
   const [newHabitTitle, setNewHabitTitle] = useState("");
+  const [selectedColor, setSelectedColor] = useState(COLORS[0]);
   const [editingHabit, setEditingHabit] = useState<Habit | null>(null);
 
   useEffect(() => {
@@ -40,58 +50,95 @@ export default function HabitsScreen() {
 
   const loadHabits = async () => {
     try {
-      const response = await fetch(`${BACKEND_URL}/api/habits`);
-      if (response.ok) {
-        const data = await response.json();
-        if (data.length === 0) {
+      console.log("[HabitsScreen] Loading habits...");
+      
+      // TODO: Backend Integration - Fetch habits from /api/habits endpoint
+      const response = await authenticatedApiCall(`/api/habits`, {
+        method: "GET",
+      });
+      
+      console.log("[HabitsScreen] Habits response:", response);
+      
+      if (response && Array.isArray(response)) {
+        if (response.length === 0) {
           // Initialize with default habits
+          console.log("[HabitsScreen] No habits found, creating defaults...");
           for (const habit of DEFAULT_HABITS) {
             await createHabit(habit.title, habit.color);
           }
-          loadHabits();
+          // Reload after creating defaults
+          const newResponse = await authenticatedApiCall(`/api/habits`, {
+            method: "GET",
+          });
+          setHabits(newResponse || []);
         } else {
-          setHabits(data);
+          setHabits(response);
         }
       }
     } catch (error) {
-      console.error("Error loading habits:", error);
+      console.error("[HabitsScreen] Error loading habits:", error);
+      Alert.alert("Error", "Failed to load habits. Please try again.");
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
     }
   };
 
   const createHabit = async (title: string, color: string = "#4F46E5") => {
+    if (!title.trim()) {
+      Alert.alert("Error", "Please enter a habit name");
+      return;
+    }
+
     try {
-      const response = await fetch(`${BACKEND_URL}/api/habits`, {
+      console.log("[HabitsScreen] Creating habit:", title, color);
+      
+      // TODO: Backend Integration - Create habit via /api/habits endpoint
+      const response = await authenticatedApiCall(`/api/habits`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title, color }),
+        body: JSON.stringify({ title: title.trim(), color }),
       });
 
-      if (response.ok) {
+      console.log("[HabitsScreen] Create response:", response);
+
+      if (response) {
         loadHabits();
         setNewHabitTitle("");
+        setSelectedColor(COLORS[0]);
         setShowAddModal(false);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
     } catch (error) {
-      console.error("Error creating habit:", error);
+      console.error("[HabitsScreen] Error creating habit:", error);
+      Alert.alert("Error", "Failed to create habit. Please try again.");
     }
   };
 
   const updateHabit = async (id: string, title: string) => {
+    if (!title.trim()) {
+      Alert.alert("Error", "Please enter a habit name");
+      return;
+    }
+
     try {
-      const response = await fetch(`${BACKEND_URL}/api/habits/${id}`, {
+      console.log("[HabitsScreen] Updating habit:", id, title);
+      
+      // TODO: Backend Integration - Update habit via /api/habits/:id endpoint
+      const response = await authenticatedApiCall(`/api/habits/${id}`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title }),
+        body: JSON.stringify({ title: title.trim() }),
       });
 
-      if (response.ok) {
+      console.log("[HabitsScreen] Update response:", response);
+
+      if (response) {
         loadHabits();
         setEditingHabit(null);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
     } catch (error) {
-      console.error("Error updating habit:", error);
+      console.error("[HabitsScreen] Error updating habit:", error);
+      Alert.alert("Error", "Failed to update habit. Please try again.");
     }
   };
 
@@ -106,13 +153,18 @@ export default function HabitsScreen() {
           style: "destructive",
           onPress: async () => {
             try {
-              await fetch(`${BACKEND_URL}/api/habits/${id}`, {
+              console.log("[HabitsScreen] Deleting habit:", id);
+              
+              // TODO: Backend Integration - Delete habit via /api/habits/:id endpoint
+              await authenticatedApiCall(`/api/habits/${id}`, {
                 method: "DELETE",
               });
+              
               loadHabits();
               Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
             } catch (error) {
-              console.error("Error deleting habit:", error);
+              console.error("[HabitsScreen] Error deleting habit:", error);
+              Alert.alert("Error", "Failed to delete habit. Please try again.");
             }
           },
         },
@@ -120,9 +172,30 @@ export default function HabitsScreen() {
     );
   };
 
+  const onRefresh = () => {
+    setRefreshing(true);
+    loadHabits();
+  };
+
+  if (loading) {
+    return (
+      <LinearGradient colors={["#4F46E5", "#7C3AED", "#06B6D4"]} style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#FFFFFF" />
+          <Text style={styles.loadingText}>Loading habits...</Text>
+        </View>
+      </LinearGradient>
+    );
+  }
+
   return (
     <LinearGradient colors={["#4F46E5", "#7C3AED", "#06B6D4"]} style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      <ScrollView 
+        contentContainerStyle={styles.scrollContent}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#FFFFFF" />
+        }
+      >
         <Text style={styles.title}>Manage Habits</Text>
         <Text style={styles.subtitle}>Customize your daily tasks</Text>
 
@@ -191,15 +264,37 @@ export default function HabitsScreen() {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Add New Habit</Text>
+            
             <TextInput
               style={styles.input}
               placeholder="Enter habit name..."
+              placeholderTextColor="#9CA3AF"
               value={newHabitTitle}
               onChangeText={setNewHabitTitle}
             />
+
+            <Text style={styles.colorLabel}>Choose a color:</Text>
+            <View style={styles.colorPicker}>
+              {COLORS.map((color) => (
+                <TouchableOpacity
+                  key={color}
+                  style={[
+                    styles.colorOption,
+                    { backgroundColor: color },
+                    selectedColor === color && styles.colorOptionSelected,
+                  ]}
+                  onPress={() => setSelectedColor(color)}
+                >
+                  {selectedColor === color && (
+                    <IconSymbol ios_icon_name="checkmark" android_material_icon_name="check" size={16} color="#FFFFFF" />
+                  )}
+                </TouchableOpacity>
+              ))}
+            </View>
+
             <TouchableOpacity
               style={styles.modalButton}
-              onPress={() => createHabit(newHabitTitle)}
+              onPress={() => createHabit(newHabitTitle, selectedColor)}
             >
               <Text style={styles.modalButtonText}>Add Habit</Text>
             </TouchableOpacity>
@@ -208,6 +303,7 @@ export default function HabitsScreen() {
               onPress={() => {
                 setShowAddModal(false);
                 setNewHabitTitle("");
+                setSelectedColor(COLORS[0]);
               }}
             >
               <Text style={styles.cancelButtonText}>Cancel</Text>
@@ -222,6 +318,16 @@ export default function HabitsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: "#FFFFFF",
   },
   scrollContent: {
     padding: 20,
@@ -329,6 +435,29 @@ const styles = StyleSheet.create({
     padding: 16,
     marginBottom: 16,
     fontSize: 16,
+  },
+  colorLabel: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#6B7280",
+    marginBottom: 12,
+  },
+  colorPicker: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 12,
+    marginBottom: 20,
+  },
+  colorOption: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  colorOptionSelected: {
+    borderWidth: 3,
+    borderColor: "#1F2937",
   },
   modalButton: {
     backgroundColor: "#4F46E5",
