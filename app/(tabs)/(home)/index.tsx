@@ -1,9 +1,10 @@
 
 import { IconSymbol } from "@/components/IconSymbol";
 import * as ImagePicker from "expo-image-picker";
-import React, { useState, useEffect } from "react";
 import { authenticatedApiCall, isBackendConfigured } from "@/utils/api";
+import * as Haptics from "expo-haptics";
 import { LinearGradient } from "expo-linear-gradient";
+import { getRandomAffirmation } from "@/utils/affirmations";
 import {
   View,
   Text,
@@ -16,7 +17,7 @@ import {
   Modal,
   ActivityIndicator,
 } from "react-native";
-import * as Haptics from "expo-haptics";
+import React, { useState, useEffect } from "react";
 
 interface Affirmation {
   id: string;
@@ -33,84 +34,78 @@ interface Habit {
 }
 
 export default function HomeScreen() {
-  const [affirmations, setAffirmations] = useState<Affirmation[]>([]);
-  const [currentAffirmation, setCurrentAffirmation] = useState<Affirmation | null>(null);
-  const [habits, setHabits] = useState<Habit[]>([]);
-  const [journalContent, setJournalContent] = useState("");
-  const [journalPhoto, setJournalPhoto] = useState<string | null>(null);
+  const [currentAffirmation, setCurrentAffirmation] = useState<string>(getRandomAffirmation());
+  const [customAffirmation, setCustomAffirmation] = useState("");
   const [showCustomModal, setShowCustomModal] = useState(false);
-  const [showFavoritesModal, setShowFavoritesModal] = useState(false);
-  const [customText, setCustomText] = useState("");
+  const [showFavorites, setShowFavorites] = useState(false);
+  const [favorites, setFavorites] = useState<Affirmation[]>([]);
+  const [habits, setHabits] = useState<Habit[]>([
+    { id: "1", title: "Morning meditation", completed: false, color: "#4CAF50" },
+    { id: "2", title: "Exercise", completed: false, color: "#2196F3" },
+    { id: "3", title: "Read 10 pages", completed: false, color: "#FF9800" },
+  ]);
+  const [journalContent, setJournalContent] = useState("");
+  const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [generating, setGenerating] = useState(false);
+  const [generatingAffirmation, setGeneratingAffirmation] = useState(false);
 
   useEffect(() => {
     loadData();
   }, []);
 
   const loadData = async () => {
-    setLoading(true);
+    if (!isBackendConfigured()) return;
+    
     try {
-      // Load affirmations
-      if (await isBackendConfigured()) {
-        try {
-          // TODO: Backend Integration - Fetch affirmations from the backend API
-          const affirmationsData = await authenticatedApiCall("/api/affirmations");
-          setAffirmations(affirmationsData.affirmations || []);
-          if (affirmationsData.affirmations?.length > 0) {
-            setCurrentAffirmation(affirmationsData.affirmations[0]);
-          }
-        } catch (error) {
-          console.error("Error loading affirmations:", error);
-        }
+      // Load favorites
+      const favResponse = await authenticatedApiCall("/api/affirmations/favorites");
+      if (favResponse.affirmations) {
+        setFavorites(favResponse.affirmations);
       }
 
       // Load habits
-      if (await isBackendConfigured()) {
-        try {
-          // TODO: Backend Integration - Fetch habits from the backend API
-          const habitsData = await authenticatedApiCall("/api/habits");
-          setHabits(habitsData.habits || []);
-        } catch (error) {
-          console.error("Error loading habits:", error);
-          // Load demo habits on error
-          setHabits([
-            { id: "1", title: "Morning meditation", completed: false, color: "#6366f1" },
-            { id: "2", title: "Exercise", completed: false, color: "#8b5cf6" },
-            { id: "3", title: "Read 10 pages", completed: false, color: "#a855f7" },
-          ]);
-        }
-      } else {
-        // Demo habits
-        setHabits([
-          { id: "1", title: "Morning meditation", completed: false, color: "#6366f1" },
-          { id: "2", title: "Exercise", completed: false, color: "#8b5cf6" },
-          { id: "3", title: "Read 10 pages", completed: false, color: "#a855f7" },
-        ]);
+      const habitsResponse = await authenticatedApiCall("/api/habits");
+      if (Array.isArray(habitsResponse)) {
+        const today = new Date().toISOString().split("T")[0];
+        const completionsResponse = await authenticatedApiCall(
+          `/api/habits/completions?startDate=${today}&endDate=${today}`
+        );
+        
+        const completedIds = new Set(
+          completionsResponse.completions
+            ?.filter((c: any) => c.completed)
+            .map((c: any) => c.habitId) || []
+        );
+
+        setHabits(
+          habitsResponse.map((h: any) => ({
+            id: h.id,
+            title: h.title,
+            completed: completedIds.has(h.id),
+            color: h.color,
+          }))
+        );
       }
     } catch (error) {
       console.error("Error loading data:", error);
-    } finally {
-      setLoading(false);
     }
   };
 
   const toggleHabit = async (habitId: string) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    const updatedHabits = habits.map((h) =>
-      h.id === habitId ? { ...h, completed: !h.completed } : h
-    );
-    setHabits(updatedHabits);
+    const habit = habits.find((h) => h.id === habitId);
+    if (!habit) return;
 
-    if (await isBackendConfigured()) {
+    const newCompleted = !habit.completed;
+    setHabits(habits.map((h) => (h.id === habitId ? { ...h, completed: newCompleted } : h)));
+
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+
+    if (isBackendConfigured()) {
       try {
-        const habit = updatedHabits.find((h) => h.id === habitId);
-        if (habit?.completed) {
-          // TODO: Backend Integration - Mark habit as complete via API
-          await authenticatedApiCall(`/api/habits/${habitId}/complete`, {
-            method: "POST",
-          });
-        }
+        await authenticatedApiCall(`/api/habits/${habitId}/complete`, {
+          method: "POST",
+          body: JSON.stringify({ completed: newCompleted }),
+        });
       } catch (error) {
         console.error("Error toggling habit:", error);
       }
@@ -118,99 +113,62 @@ export default function HomeScreen() {
   };
 
   const generateAffirmation = async () => {
-    setGenerating(true);
-    try {
-      if (await isBackendConfigured()) {
-        // TODO: Backend Integration - Generate affirmation via AI API
+    setGeneratingAffirmation(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+    if (isBackendConfigured()) {
+      try {
         const response = await authenticatedApiCall("/api/affirmations/generate", {
           method: "POST",
+          body: JSON.stringify({}),
         });
-        const newAffirmation = response.affirmation;
-        setAffirmations([newAffirmation, ...affirmations]);
-        setCurrentAffirmation(newAffirmation);
-      } else {
-        const demoAffirmations = [
-          "I am capable of achieving my goals.",
-          "Today is full of possibilities.",
-          "I choose peace and positivity.",
-          "I am worthy of love and respect.",
-          "Every day I grow stronger and wiser.",
-        ];
-        const randomText = demoAffirmations[Math.floor(Math.random() * demoAffirmations.length)];
-        const newAffirmation = {
-          id: Date.now().toString(),
-          text: randomText,
-          isCustom: false,
-          isFavorite: false,
-        };
-        setAffirmations([newAffirmation, ...affirmations]);
-        setCurrentAffirmation(newAffirmation);
+        setCurrentAffirmation(response.text);
+      } catch (error) {
+        console.error("Error generating affirmation:", error);
+        setCurrentAffirmation(getRandomAffirmation());
       }
-    } catch (error) {
-      console.error("Error generating affirmation:", error);
-      Alert.alert("Error", "Failed to generate affirmation");
-    } finally {
-      setGenerating(false);
+    } else {
+      // Offline mode - use random default
+      setCurrentAffirmation(getRandomAffirmation());
     }
+
+    setGeneratingAffirmation(false);
   };
 
   const saveCustomAffirmation = async () => {
-    if (!customText.trim()) return;
+    if (!customAffirmation.trim()) {
+      Alert.alert("Error", "Please enter an affirmation");
+      return;
+    }
 
-    try {
-      if (await isBackendConfigured()) {
-        // TODO: Backend Integration - Save custom affirmation to backend
-        const response = await authenticatedApiCall("/api/affirmations/custom", {
+    setCurrentAffirmation(customAffirmation);
+    setShowCustomModal(false);
+    setCustomAffirmation("");
+
+    if (isBackendConfigured()) {
+      try {
+        await authenticatedApiCall("/api/affirmations/custom", {
           method: "POST",
-          body: JSON.stringify({ text: customText }),
+          body: JSON.stringify({ text: customAffirmation }),
         });
-        const newAffirmation = response.affirmation;
-        setAffirmations([newAffirmation, ...affirmations]);
-        setCurrentAffirmation(newAffirmation);
-      } else {
-        const newAffirmation = {
-          id: Date.now().toString(),
-          text: customText,
-          isCustom: true,
-          isFavorite: false,
-        };
-        setAffirmations([newAffirmation, ...affirmations]);
-        setCurrentAffirmation(newAffirmation);
+      } catch (error) {
+        console.error("Error saving custom affirmation:", error);
       }
-      setCustomText("");
-      setShowCustomModal(false);
-    } catch (error) {
-      console.error("Error saving custom affirmation:", error);
-      Alert.alert("Error", "Failed to save custom affirmation");
     }
   };
 
   const toggleFavorite = async (affirmation: Affirmation) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    const favorites = affirmations.filter((a) => a.isFavorite);
-    if (!affirmation.isFavorite && favorites.length >= 5) {
-      Alert.alert("Limit Reached", "You can only have 5 favorite affirmations.");
-      return;
-    }
 
-    try {
-      if (await isBackendConfigured()) {
-        // TODO: Backend Integration - Toggle favorite status via API
+    if (isBackendConfigured()) {
+      try {
         await authenticatedApiCall(`/api/affirmations/${affirmation.id}/favorite`, {
           method: "POST",
         });
+        loadData();
+      } catch (error) {
+        console.error("Error toggling favorite:", error);
       }
-      setAffirmations(
-        affirmations.map((a) =>
-          a.id === affirmation.id ? { ...a, isFavorite: !a.isFavorite } : a
-        )
-      );
-      if (currentAffirmation?.id === affirmation.id) {
-        setCurrentAffirmation({ ...affirmation, isFavorite: !affirmation.isFavorite });
-      }
-    } catch (error) {
-      console.error("Error updating favorite:", error);
-      Alert.alert("Error", "Failed to update favorite");
     }
   };
 
@@ -219,11 +177,11 @@ export default function HomeScreen() {
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
       aspect: [4, 3],
-      quality: 1,
+      quality: 0.8,
     });
 
     if (!result.canceled) {
-      setJournalPhoto(result.assets[0].uri);
+      setPhotoUri(result.assets[0].uri);
     }
   };
 
@@ -233,139 +191,120 @@ export default function HomeScreen() {
       return;
     }
 
-    try {
-      if (await isBackendConfigured()) {
-        // TODO: Backend Integration - Save journal entry to backend
+    setLoading(true);
+
+    if (isBackendConfigured()) {
+      try {
         await authenticatedApiCall("/api/journal-entries", {
           method: "POST",
           body: JSON.stringify({
             content: journalContent,
-            photoUrl: journalPhoto,
+            photoUrl: photoUri,
           }),
         });
+
+        Alert.alert("Success", "Journal entry saved!");
+        setJournalContent("");
+        setPhotoUri(null);
+      } catch (error) {
+        console.error("Error saving journal:", error);
+        Alert.alert("Error", "Failed to save journal entry");
       }
-      Alert.alert("Success", "Journal entry saved!");
-      setJournalContent("");
-      setJournalPhoto(null);
-    } catch (error) {
-      console.error("Error saving journal entry:", error);
-      Alert.alert("Error", "Failed to save journal entry");
     }
+
+    setLoading(false);
   };
 
-  const favorites = affirmations.filter((a) => a.isFavorite);
-
   return (
-    <LinearGradient colors={["#6366f1", "#87ceeb"]} style={styles.container}>
-      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
-        {/* Affirmations Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Your Affirmation Today</Text>
-          <View style={styles.affirmationCard}>
-            {currentAffirmation ? (
-              <Text style={styles.affirmationText}>{currentAffirmation.text}</Text>
-            ) : (
-              <Text style={styles.placeholderText}>No affirmation selected</Text>
-            )}
-            <View style={styles.affirmationButtons}>
-              <TouchableOpacity
-                style={styles.affirmationButton}
-                onPress={() => setShowCustomModal(true)}
-              >
-                <Text style={styles.buttonText}>Add Custom</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.affirmationButton}
-                onPress={generateAffirmation}
-                disabled={generating}
-              >
-                {generating ? (
-                  <ActivityIndicator color="#fff" />
-                ) : (
-                  <Text style={styles.buttonText}>Generate</Text>
-                )}
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.starButton}
-                onPress={() => setShowFavoritesModal(true)}
-              >
-                <IconSymbol 
-                  ios_icon_name="star.fill" 
-                  android_material_icon_name="star" 
-                  size={24} 
-                  color="#fbbf24" 
-                />
-              </TouchableOpacity>
-            </View>
+    <LinearGradient colors={["#4B0082", "#87CEEB"]} style={styles.container}>
+      <ScrollView contentContainerStyle={styles.scrollContent}>
+        {/* Affirmation Card */}
+        <View style={styles.affirmationCard}>
+          <Text style={styles.affirmationTitle}>Your Affirmation Today</Text>
+          <Text style={styles.affirmationText}>{currentAffirmation}</Text>
+          
+          <View style={styles.affirmationButtons}>
+            <TouchableOpacity
+              style={styles.affirmationButton}
+              onPress={() => setShowCustomModal(true)}
+            >
+              <Text style={styles.affirmationButtonText}>Add Custom</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity
+              style={styles.affirmationButton}
+              onPress={generateAffirmation}
+              disabled={generatingAffirmation}
+            >
+              {generatingAffirmation ? (
+                <ActivityIndicator color="#4B0082" size="small" />
+              ) : (
+                <Text style={styles.affirmationButtonText}>Generate</Text>
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.favoriteButton}
+              onPress={() => setShowFavorites(true)}
+            >
+              <IconSymbol name="star.fill" size={24} color="#FFD700" />
+            </TouchableOpacity>
           </View>
         </View>
 
         {/* Habits Section */}
-        <View style={styles.section}>
+        <View style={styles.habitsSection}>
           <Text style={styles.sectionTitle}>Daily Habits</Text>
-          <View style={styles.habitsCard}>
-            {habits.map((habit, index) => (
-              <React.Fragment key={index}>
-              <TouchableOpacity
-                style={styles.habitItem}
-                onPress={() => toggleHabit(habit.id)}
+          {habits.map((habit) => (
+            <TouchableOpacity
+              key={habit.id}
+              style={styles.habitItem}
+              onPress={() => toggleHabit(habit.id)}
+            >
+              <View
+                style={[
+                  styles.habitCircle,
+                  habit.completed && { backgroundColor: habit.color },
+                ]}
               >
-                <View
-                  style={[
-                    styles.habitCircle,
-                    habit.completed && { backgroundColor: "#10b981", borderColor: "#10b981" },
-                  ]}
-                >
-                  {habit.completed && (
-                    <IconSymbol 
-                      ios_icon_name="checkmark" 
-                      android_material_icon_name="check" 
-                      size={16} 
-                      color="#fff" 
-                    />
-                  )}
-                </View>
-                <Text style={[styles.habitText, habit.completed && styles.habitTextCompleted]}>
-                  {habit.title}
-                </Text>
-              </TouchableOpacity>
-              </React.Fragment>
-            ))}
-          </View>
+                {habit.completed && <IconSymbol name="checkmark" size={20} color="#FFF" />}
+              </View>
+              <Text style={styles.habitTitle}>{habit.title}</Text>
+            </TouchableOpacity>
+          ))}
         </View>
 
-        {/* Journal Section */}
-        <View style={styles.section}>
+        {/* Journal Entry */}
+        <View style={styles.journalSection}>
           <View style={styles.journalHeader}>
-            <Text style={styles.sectionTitle}>Journal Entry</Text>
             <Text style={styles.dateStamp}>{new Date().toLocaleDateString()}</Text>
+            <TouchableOpacity onPress={pickImage}>
+              <IconSymbol name="camera.fill" size={24} color="#C0C0C0" />
+            </TouchableOpacity>
           </View>
-          <View style={styles.journalCard}>
-            <TextInput
-              style={styles.journalInput}
-              placeholder="Write your thoughts..."
-              placeholderTextColor="#9ca3af"
-              multiline
-              value={journalContent}
-              onChangeText={setJournalContent}
-            />
-            {journalPhoto && (
-              <Image source={{ uri: journalPhoto }} style={styles.journalPhoto} />
+
+          {photoUri && <Image source={{ uri: photoUri }} style={styles.journalPhoto} />}
+
+          <TextInput
+            style={styles.journalInput}
+            placeholder="Write your thoughts..."
+            placeholderTextColor="#999"
+            multiline
+            value={journalContent}
+            onChangeText={setJournalContent}
+          />
+
+          <TouchableOpacity
+            style={styles.saveButton}
+            onPress={saveJournalEntry}
+            disabled={loading}
+          >
+            {loading ? (
+              <ActivityIndicator color="#FFF" />
+            ) : (
+              <Text style={styles.saveButtonText}>Save Entry</Text>
             )}
-            <View style={styles.journalButtons}>
-              <TouchableOpacity style={styles.cameraButton} onPress={pickImage}>
-                <IconSymbol 
-                  ios_icon_name="camera.fill" 
-                  android_material_icon_name="camera" 
-                  size={24} 
-                  color="#6366f1" 
-                />
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.saveButton} onPress={saveJournalEntry}>
-                <Text style={styles.saveButtonText}>Save Entry</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
+          </TouchableOpacity>
         </View>
       </ScrollView>
 
@@ -377,20 +316,22 @@ export default function HomeScreen() {
             <TextInput
               style={styles.modalInput}
               placeholder="Enter your affirmation..."
-              placeholderTextColor="#9ca3af"
               multiline
-              value={customText}
-              onChangeText={setCustomText}
+              value={customAffirmation}
+              onChangeText={setCustomAffirmation}
             />
             <View style={styles.modalButtons}>
               <TouchableOpacity
-                style={styles.modalButton}
+                style={[styles.modalButton, styles.cancelButton]}
                 onPress={() => setShowCustomModal(false)}
               >
                 <Text style={styles.modalButtonText}>Cancel</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.modalButtonPrimary} onPress={saveCustomAffirmation}>
-                <Text style={styles.modalButtonTextPrimary}>Save</Text>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.saveModalButton]}
+                onPress={saveCustomAffirmation}
+              >
+                <Text style={styles.modalButtonText}>Save</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -398,39 +339,31 @@ export default function HomeScreen() {
       </Modal>
 
       {/* Favorites Modal */}
-      <Modal visible={showFavoritesModal} transparent animationType="slide">
+      <Modal visible={showFavorites} transparent animationType="slide">
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Favorite Affirmations ({favorites.length}/5)</Text>
+            <Text style={styles.modalTitle}>Favorite Affirmations</Text>
             <ScrollView style={styles.favoritesList}>
-              {favorites.map((affirmation, index) => (
-                <React.Fragment key={index}>
-                <TouchableOpacity
-                  style={styles.favoriteItem}
-                  onPress={() => {
-                    setCurrentAffirmation(affirmation);
-                    setShowFavoritesModal(false);
-                  }}
-                >
-                  <Text style={styles.favoriteText}>{affirmation.text}</Text>
-                  <TouchableOpacity onPress={() => toggleFavorite(affirmation)}>
-                    <IconSymbol 
-                      ios_icon_name="star.fill" 
-                      android_material_icon_name="star" 
-                      size={20} 
-                      color="#fbbf24" 
-                    />
-                  </TouchableOpacity>
-                </TouchableOpacity>
-                </React.Fragment>
-              ))}
-              {favorites.length === 0 && (
+              {favorites.length === 0 ? (
                 <Text style={styles.emptyText}>No favorites yet</Text>
+              ) : (
+                favorites.map((fav) => (
+                  <TouchableOpacity
+                    key={fav.id}
+                    style={styles.favoriteItem}
+                    onPress={() => {
+                      setCurrentAffirmation(fav.text);
+                      setShowFavorites(false);
+                    }}
+                  >
+                    <Text style={styles.favoriteText}>{fav.text}</Text>
+                  </TouchableOpacity>
+                ))
               )}
             </ScrollView>
             <TouchableOpacity
-              style={styles.modalButton}
-              onPress={() => setShowFavoritesModal(false)}
+              style={[styles.modalButton, styles.cancelButton]}
+              onPress={() => setShowFavorites(false)}
             >
               <Text style={styles.modalButtonText}>Close</Text>
             </TouchableOpacity>
@@ -445,179 +378,150 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  scrollView: {
-    flex: 1,
-  },
   scrollContent: {
-    paddingTop: 60,
-    paddingHorizontal: 20,
-    paddingBottom: 120,
-  },
-  section: {
-    marginBottom: 24,
-  },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: "#fff",
-    marginBottom: 12,
+    padding: 20,
+    paddingBottom: 100,
   },
   affirmationCard: {
-    backgroundColor: "#fff",
+    backgroundColor: "#FFF",
     borderRadius: 16,
     padding: 20,
+    marginBottom: 20,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 4,
   },
-  affirmationText: {
-    fontSize: 18,
-    color: "#1f2937",
-    textAlign: "center",
-    marginBottom: 16,
-    lineHeight: 26,
-  },
-  placeholderText: {
+  affirmationTitle: {
     fontSize: 16,
-    color: "#9ca3af",
-    textAlign: "center",
+    fontWeight: "600",
+    color: "#666",
+    marginBottom: 12,
+  },
+  affirmationText: {
+    fontSize: 20,
+    fontWeight: "500",
+    color: "#333",
     marginBottom: 16,
+    lineHeight: 28,
   },
   affirmationButtons: {
     flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
+    gap: 10,
   },
   affirmationButton: {
     flex: 1,
-    backgroundColor: "#6366f1",
+    backgroundColor: "#F0F0F0",
     paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 12,
-    marginHorizontal: 4,
+    borderRadius: 8,
     alignItems: "center",
   },
-  buttonText: {
-    color: "#fff",
-    fontSize: 14,
+  affirmationButtonText: {
+    color: "#4B0082",
     fontWeight: "600",
   },
-  starButton: {
-    padding: 8,
+  favoriteButton: {
+    backgroundColor: "#F0F0F0",
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    justifyContent: "center",
+    alignItems: "center",
   },
-  habitsCard: {
-    backgroundColor: "#fff",
+  habitsSection: {
+    backgroundColor: "#FFF",
     borderRadius: 16,
     padding: 20,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
+    marginBottom: 20,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#333",
+    marginBottom: 16,
   },
   habitItem: {
     flexDirection: "row",
     alignItems: "center",
     paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: "#f3f4f6",
   },
   habitCircle: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     borderWidth: 2,
-    borderColor: "#d1d5db",
+    borderColor: "#DDD",
     marginRight: 12,
-    alignItems: "center",
     justifyContent: "center",
+    alignItems: "center",
   },
-  habitText: {
+  habitTitle: {
     fontSize: 16,
-    color: "#1f2937",
+    color: "#333",
   },
-  habitTextCompleted: {
-    textDecorationLine: "line-through",
-    color: "#9ca3af",
+  journalSection: {
+    backgroundColor: "#FFF",
+    borderRadius: 16,
+    padding: 20,
   },
   journalHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 12,
+    marginBottom: 16,
   },
   dateStamp: {
     fontSize: 14,
-    color: "#fff",
-    fontWeight: "500",
-  },
-  journalCard: {
-    backgroundColor: "#fff",
-    borderRadius: 16,
-    padding: 20,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  journalInput: {
-    fontSize: 16,
-    color: "#1f2937",
-    minHeight: 120,
-    textAlignVertical: "top",
-    marginBottom: 12,
+    color: "#999",
   },
   journalPhoto: {
     width: "100%",
     height: 200,
-    borderRadius: 12,
-    marginBottom: 12,
+    borderRadius: 8,
+    marginBottom: 16,
   },
-  journalButtons: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  cameraButton: {
-    padding: 8,
+  journalInput: {
+    minHeight: 120,
+    fontSize: 16,
+    color: "#333",
+    textAlignVertical: "top",
+    marginBottom: 16,
   },
   saveButton: {
-    backgroundColor: "#6366f1",
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 12,
+    backgroundColor: "#4B0082",
+    paddingVertical: 14,
+    borderRadius: 8,
+    alignItems: "center",
   },
   saveButtonText: {
-    color: "#fff",
-    fontSize: 14,
+    color: "#FFF",
+    fontSize: 16,
     fontWeight: "600",
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    backgroundColor: "rgba(0,0,0,0.5)",
     justifyContent: "center",
     alignItems: "center",
+    padding: 20,
   },
   modalContent: {
-    backgroundColor: "#fff",
+    backgroundColor: "#FFF",
     borderRadius: 16,
     padding: 24,
-    width: "85%",
-    maxHeight: "70%",
+    width: "100%",
+    maxHeight: "80%",
   },
   modalTitle: {
     fontSize: 20,
-    fontWeight: "700",
-    color: "#1f2937",
+    fontWeight: "600",
+    color: "#333",
     marginBottom: 16,
   },
   modalInput: {
     borderWidth: 1,
-    borderColor: "#d1d5db",
-    borderRadius: 12,
+    borderColor: "#DDD",
+    borderRadius: 8,
     padding: 12,
     fontSize: 16,
     minHeight: 100,
@@ -626,57 +530,42 @@ const styles = StyleSheet.create({
   },
   modalButtons: {
     flexDirection: "row",
-    justifyContent: "space-between",
+    gap: 12,
   },
   modalButton: {
     flex: 1,
-    paddingVertical: 12,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#d1d5db",
-    marginHorizontal: 4,
+    paddingVertical: 14,
+    borderRadius: 8,
     alignItems: "center",
   },
-  modalButtonPrimary: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 12,
-    backgroundColor: "#6366f1",
-    marginHorizontal: 4,
-    alignItems: "center",
+  cancelButton: {
+    backgroundColor: "#F0F0F0",
+  },
+  saveModalButton: {
+    backgroundColor: "#4B0082",
   },
   modalButtonText: {
     fontSize: 16,
     fontWeight: "600",
-    color: "#6b7280",
-  },
-  modalButtonTextPrimary: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#fff",
+    color: "#4B0082",
   },
   favoritesList: {
-    maxHeight: 300,
+    maxHeight: 400,
     marginBottom: 16,
   },
   favoriteItem: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: "#f3f4f6",
+    borderBottomColor: "#EEE",
   },
   favoriteText: {
-    flex: 1,
-    fontSize: 14,
-    color: "#1f2937",
-    marginRight: 12,
+    fontSize: 16,
+    color: "#333",
   },
   emptyText: {
-    fontSize: 14,
-    color: "#9ca3af",
     textAlign: "center",
-    paddingVertical: 20,
+    color: "#999",
+    fontSize: 16,
+    paddingVertical: 40,
   },
 });
