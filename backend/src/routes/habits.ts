@@ -447,4 +447,63 @@ export function registerHabitsRoutes(app: App) {
       return { completions };
     }
   );
+
+  /**
+   * POST /habits/:id/favorite
+   * Toggle favorite status of a habit
+   */
+  app.fastify.post<{
+    Params: { id: string };
+  }>(
+    '/api/habits/:id/favorite',
+    {
+      schema: {
+        description: 'Toggle habit favorite status',
+        tags: ['habits'],
+        params: {
+          type: 'object',
+          required: ['id'],
+          properties: { id: { type: 'string' } },
+        },
+        response: {
+          200: {
+            type: 'object',
+            properties: {
+              id: { type: 'string' },
+              isFavorite: { type: 'boolean' },
+            },
+          },
+        },
+      },
+    },
+    async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
+      const session = await requireAuth(request, reply);
+      if (!session) return;
+
+      const { id } = request.params;
+
+      const habit = await app.db
+        .select()
+        .from(schema.habits)
+        .where(
+          and(
+            eq(schema.habits.id, id),
+            eq(schema.habits.userId, session.user.id)
+          )
+        )
+        .then((rows) => rows[0]);
+
+      if (!habit) {
+        return reply.status(404).send({ error: 'Habit not found' });
+      }
+
+      const [updated] = await app.db
+        .update(schema.habits)
+        .set({ isFavorite: !habit.isFavorite })
+        .where(eq(schema.habits.id, id))
+        .returning();
+
+      return { id: updated.id, isFavorite: updated.isFavorite };
+    }
+  );
 }

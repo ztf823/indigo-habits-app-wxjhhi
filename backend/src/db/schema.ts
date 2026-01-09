@@ -24,6 +24,7 @@ export const journalEntries = pgTable(
     content: text('content').notNull(),
     photoUrl: text('photo_url'),
     photoKey: text('photo_key'), // Storage key for uploaded photos
+    isFavorite: boolean('is_favorite').default(false).notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true })
       .defaultNow()
@@ -33,6 +34,7 @@ export const journalEntries = pgTable(
   (table) => [
     index('journal_entries_user_id_idx').on(table.userId),
     index('journal_entries_created_at_idx').on(table.createdAt),
+    index('journal_entries_is_favorite_idx').on(table.isFavorite),
   ]
 );
 
@@ -61,11 +63,13 @@ export const affirmations = pgTable(
     text: text('text').notNull(),
     isCustom: boolean('is_custom').default(false).notNull(),
     isFavorite: boolean('is_favorite').default(false).notNull(),
+    isRepeating: boolean('is_repeating').default(false).notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [
     index('affirmations_user_id_idx').on(table.userId),
     index('affirmations_is_favorite_idx').on(table.isFavorite),
+    index('affirmations_is_repeating_idx').on(table.isRepeating),
   ]
 );
 
@@ -81,12 +85,14 @@ export const habits = pgTable(
     title: text('title').notNull(),
     color: text('color').notNull(), // Hex color like #FF5733
     isActive: boolean('is_active').default(true).notNull(),
+    isFavorite: boolean('is_favorite').default(false).notNull(),
     sortOrder: integer('sort_order').default(0).notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [
     index('habits_user_id_idx').on(table.userId),
     index('habits_is_active_idx').on(table.isActive),
+    index('habits_is_favorite_idx').on(table.isFavorite),
   ]
 );
 

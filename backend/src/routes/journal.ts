@@ -303,4 +303,63 @@ export function registerJournalRoutes(app: App) {
       }
     }
   );
+
+  /**
+   * POST /journal-entries/:id/favorite
+   * Toggle favorite status of a journal entry
+   */
+  app.fastify.post<{
+    Params: { id: string };
+  }>(
+    '/api/journal-entries/:id/favorite',
+    {
+      schema: {
+        description: 'Toggle journal entry favorite status',
+        tags: ['journal'],
+        params: {
+          type: 'object',
+          required: ['id'],
+          properties: { id: { type: 'string' } },
+        },
+        response: {
+          200: {
+            type: 'object',
+            properties: {
+              id: { type: 'string' },
+              isFavorite: { type: 'boolean' },
+            },
+          },
+        },
+      },
+    },
+    async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
+      const session = await requireAuth(request, reply);
+      if (!session) return;
+
+      const { id } = request.params;
+
+      const entry = await app.db
+        .select()
+        .from(schema.journalEntries)
+        .where(
+          and(
+            eq(schema.journalEntries.id, id),
+            eq(schema.journalEntries.userId, session.user.id)
+          )
+        )
+        .then((rows) => rows[0]);
+
+      if (!entry) {
+        return reply.status(404).send({ error: 'Journal entry not found' });
+      }
+
+      const [updated] = await app.db
+        .update(schema.journalEntries)
+        .set({ isFavorite: !entry.isFavorite })
+        .where(eq(schema.journalEntries.id, id))
+        .returning();
+
+      return { id: updated.id, isFavorite: updated.isFavorite };
+    }
+  );
 }
