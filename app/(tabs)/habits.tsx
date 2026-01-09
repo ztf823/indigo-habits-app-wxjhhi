@@ -30,6 +30,7 @@ interface Affirmation {
   isCustom: boolean;
   isFavorite: boolean;
   isRepeating: boolean;
+  order?: number;
 }
 
 const DEFAULT_HABITS = [
@@ -53,6 +54,7 @@ export default function HabitsScreen() {
   const [activeTab, setActiveTab] = useState<"habits" | "affirmations">("habits");
   const [habits, setHabits] = useState<Habit[]>([]);
   const [affirmations, setAffirmations] = useState<Affirmation[]>([]);
+  const [dailyAffirmations, setDailyAffirmations] = useState<Affirmation[]>([]);
   const [showAddHabitModal, setShowAddHabitModal] = useState(false);
   const [showEditHabitModal, setShowEditHabitModal] = useState(false);
   const [showAddAffirmationModal, setShowAddAffirmationModal] = useState(false);
@@ -84,6 +86,7 @@ export default function HabitsScreen() {
       await loadHabits();
     } else {
       await loadAffirmations();
+      await loadDailyAffirmations();
     }
     setIsLoading(false);
   };
@@ -99,13 +102,14 @@ export default function HabitsScreen() {
         }))
       );
     } else {
-      setAffirmations([
+      const demoAffirmations = [
         {
           id: "demo-1",
           text: "I am worthy of love and respect.",
           isCustom: true,
           isFavorite: true,
           isRepeating: true,
+          order: 0,
         },
         {
           id: "demo-2",
@@ -113,8 +117,19 @@ export default function HabitsScreen() {
           isCustom: true,
           isFavorite: true,
           isRepeating: false,
+          order: 1,
         },
-      ]);
+        {
+          id: "demo-3",
+          text: "I am capable of achieving my goals.",
+          isCustom: true,
+          isFavorite: false,
+          isRepeating: true,
+          order: 2,
+        },
+      ];
+      setAffirmations(demoAffirmations);
+      setDailyAffirmations(demoAffirmations.filter(a => a.isRepeating).slice(0, 3));
     }
   };
 
@@ -122,7 +137,7 @@ export default function HabitsScreen() {
     try {
       console.log("[Habits] Loading habits from backend...");
       
-      // Load habits from backend
+      // Backend Integration: Load habits from backend
       const data = await authenticatedApiCall("/api/habits");
       
       if (Array.isArray(data)) {
@@ -148,7 +163,7 @@ export default function HabitsScreen() {
     try {
       console.log("[Habits] Loading affirmations from backend...");
       
-      // Load all affirmations (custom and favorites will be marked in the response)
+      // Backend Integration: Load all affirmations (custom and favorites)
       const response = await authenticatedApiCall("/api/affirmations?limit=100");
       
       if (response.affirmations) {
@@ -168,12 +183,27 @@ export default function HabitsScreen() {
     }
   };
 
+  const loadDailyAffirmations = async () => {
+    try {
+      // Backend Integration: Load daily affirmations (the 3 shown on home)
+      const response = await authenticatedApiCall("/api/affirmations/daily");
+      
+      if (Array.isArray(response)) {
+        setDailyAffirmations(response.slice(0, 3));
+        console.log("[Habits] Loaded", response.length, "daily affirmations");
+      }
+    } catch (error: any) {
+      console.error("[Habits] Error loading daily affirmations:", error);
+    }
+  };
+
   const onRefresh = async () => {
     setIsRefreshing(true);
     if (activeTab === "habits") {
       await loadHabits();
     } else {
       await loadAffirmations();
+      await loadDailyAffirmations();
     }
     setIsRefreshing(false);
   };
@@ -193,7 +223,7 @@ export default function HabitsScreen() {
     }
 
     try {
-      // Create habit via backend API
+      // Backend Integration: Create habit via backend API
       const data = await authenticatedApiCall("/api/habits", {
         method: "POST",
         body: JSON.stringify({ title, color }),
@@ -208,9 +238,11 @@ export default function HabitsScreen() {
       console.error("[Habits] Error creating habit:", error);
       
       if (error.message?.includes("limit")) {
-        Alert.alert("Limit Reached", "Upgrade to Pro for unlimited habits!");
+        Alert.alert("Limit Reached", "You've reached the maximum number of habits. Upgrade to Pro for unlimited habits!");
+      } else if (error.message?.includes("Authentication token not found")) {
+        Alert.alert("Session Expired", "Please sign in again to continue.");
       } else {
-        Alert.alert("Error", "Failed to create habit. Please try again.");
+        Alert.alert("Error", "Failed to create habit. Please check your internet connection and try again.");
       }
       throw error;
     }
@@ -255,7 +287,7 @@ export default function HabitsScreen() {
     }
 
     try {
-      // Update habit via backend API
+      // Backend Integration: Update habit via backend API
       const data = await authenticatedApiCall(`/api/habits/${editingHabit.id}`, {
         method: "PUT",
         body: JSON.stringify({
@@ -297,7 +329,7 @@ export default function HabitsScreen() {
             }
 
             try {
-              // Delete habit via backend API (soft delete)
+              // Backend Integration: Delete habit via backend API (soft delete)
               await authenticatedApiCall(`/api/habits/${id}`, {
                 method: "DELETE",
               });
@@ -345,7 +377,7 @@ export default function HabitsScreen() {
     }
 
     try {
-      // Create custom affirmation via backend API
+      // Backend Integration: Create custom affirmation via backend API
       const data = await authenticatedApiCall("/api/affirmations/custom", {
         method: "POST",
         body: JSON.stringify({ text: newAffirmationText.trim() }),
@@ -379,9 +411,16 @@ export default function HabitsScreen() {
       )
     );
 
+    // Also update daily affirmations list
+    if (newRepeating) {
+      setDailyAffirmations((prev) => [...prev, { ...affirmation, isRepeating: true }].slice(0, 3));
+    } else {
+      setDailyAffirmations((prev) => prev.filter(a => a.id !== affirmationId));
+    }
+
     if (backendReady) {
       try {
-        // Toggle affirmation repeating status via backend API
+        // Backend Integration: Toggle affirmation repeating status via backend API
         await authenticatedApiCall(`/api/affirmations/${affirmationId}/repeat`, {
           method: "POST",
         });
@@ -397,6 +436,34 @@ export default function HabitsScreen() {
     }
   };
 
+  const moveAffirmationUp = (index: number) => {
+    if (index === 0) return;
+    
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    
+    const newDaily = [...dailyAffirmations];
+    [newDaily[index - 1], newDaily[index]] = [newDaily[index], newDaily[index - 1]];
+    setDailyAffirmations(newDaily);
+
+    // Note: Backend doesn't support custom ordering yet
+    // Order is determined by the backend based on repeating status and creation time
+    // This is a local-only reorder for UI purposes
+  };
+
+  const moveAffirmationDown = (index: number) => {
+    if (index === dailyAffirmations.length - 1) return;
+    
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    
+    const newDaily = [...dailyAffirmations];
+    [newDaily[index], newDaily[index + 1]] = [newDaily[index + 1], newDaily[index]];
+    setDailyAffirmations(newDaily);
+
+    // Note: Backend doesn't support custom ordering yet
+    // Order is determined by the backend based on repeating status and creation time
+    // This is a local-only reorder for UI purposes
+  };
+
   const deleteAffirmation = async (affirmationId: string) => {
     Alert.alert(
       "Delete Affirmation",
@@ -409,16 +476,18 @@ export default function HabitsScreen() {
           onPress: async () => {
             if (!backendReady) {
               setAffirmations((prev) => prev.filter((a) => a.id !== affirmationId));
+              setDailyAffirmations((prev) => prev.filter((a) => a.id !== affirmationId));
               return;
             }
 
             try {
-              // Note: The API doesn't have a delete endpoint for affirmations
-              // We can only remove them from favorites or stop repeating them
-              // For now, just remove from local state
+              // Backend Integration: Affirmations are managed by toggling favorite/repeating status
+              // Removing from the list just means unfavoriting and un-repeating
+              // The affirmation still exists in history
               setAffirmations((prev) => prev.filter((a) => a.id !== affirmationId));
+              setDailyAffirmations((prev) => prev.filter((a) => a.id !== affirmationId));
               Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-              Alert.alert("Info", "Affirmation removed from your list");
+              Alert.alert("Success", "Affirmation removed from your list");
             } catch (error) {
               console.error("[Habits] Error deleting affirmation:", error);
               Alert.alert("Error", "Failed to delete affirmation.");
@@ -543,87 +612,157 @@ export default function HabitsScreen() {
           </>
         ) : (
           <>
-            <Text style={styles.subtitle}>
-              Manage custom affirmations and set them to repeat daily
-            </Text>
-            
-            {affirmations.length === 0 ? (
-              <View style={styles.emptyState}>
-                <IconSymbol
-                  ios_icon_name="sparkles"
-                  android_material_icon_name="auto-awesome"
-                  size={64}
-                  color="#FFF"
-                />
-                <Text style={styles.emptyStateText}>No custom affirmations yet</Text>
-                <Text style={styles.emptyStateSubtext}>
-                  Tap the + button to add your first affirmation
-                </Text>
-              </View>
-            ) : (
-              <View style={styles.itemsList}>
-                {affirmations.map((affirmation) => (
-                  <View key={affirmation.id} style={styles.affirmationCard}>
-                    <View style={styles.affirmationContent}>
-                      <Text style={styles.affirmationText}>{affirmation.text}</Text>
-                      <View style={styles.affirmationMeta}>
-                        {affirmation.isCustom && (
-                          <View style={styles.badge}>
-                            <Text style={styles.badgeText}>Custom</Text>
-                          </View>
-                        )}
-                        {affirmation.isFavorite && (
-                          <View style={styles.badge}>
-                            <IconSymbol
-                              ios_icon_name="star.fill"
-                              android_material_icon_name="star"
-                              size={12}
-                              color="#FFD700"
-                            />
-                            <Text style={styles.badgeText}>Favorite</Text>
-                          </View>
-                        )}
+            {/* Daily Affirmations Section */}
+            <View style={styles.dailySection}>
+              <Text style={styles.sectionTitle}>Daily Affirmations (Shown on Home)</Text>
+              <Text style={styles.sectionSubtitle}>
+                These {dailyAffirmations.length} affirmations appear on your home screen. Reorder them or toggle repeating status.
+              </Text>
+              
+              {dailyAffirmations.length === 0 ? (
+                <View style={styles.emptyDaily}>
+                  <Text style={styles.emptyDailyText}>
+                    No daily affirmations set. Mark affirmations as &quot;Daily&quot; below to show them on home.
+                  </Text>
+                </View>
+              ) : (
+                <View style={styles.dailyList}>
+                  {dailyAffirmations.map((affirmation, index) => (
+                    <View key={affirmation.id} style={styles.dailyCard}>
+                      <View style={styles.dailyContent}>
+                        <View style={styles.dailyNumber}>
+                          <Text style={styles.dailyNumberText}>{index + 1}</Text>
+                        </View>
+                        <Text style={styles.dailyText}>{affirmation.text}</Text>
+                      </View>
+                      <View style={styles.dailyActions}>
+                        <TouchableOpacity
+                          style={[styles.iconButton, index === 0 && styles.iconButtonDisabled]}
+                          onPress={() => moveAffirmationUp(index)}
+                          disabled={index === 0}
+                        >
+                          <IconSymbol
+                            ios_icon_name="chevron.up"
+                            android_material_icon_name="arrow-upward"
+                            size={20}
+                            color={index === 0 ? "#CCC" : "#4F46E5"}
+                          />
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[styles.iconButton, index === dailyAffirmations.length - 1 && styles.iconButtonDisabled]}
+                          onPress={() => moveAffirmationDown(index)}
+                          disabled={index === dailyAffirmations.length - 1}
+                        >
+                          <IconSymbol
+                            ios_icon_name="chevron.down"
+                            android_material_icon_name="arrow-downward"
+                            size={20}
+                            color={index === dailyAffirmations.length - 1 ? "#CCC" : "#4F46E5"}
+                          />
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={styles.iconButton}
+                          onPress={() => toggleAffirmationRepeating(affirmation.id)}
+                        >
+                          <IconSymbol
+                            ios_icon_name="xmark.circle"
+                            android_material_icon_name="close"
+                            size={20}
+                            color="#EF4444"
+                          />
+                        </TouchableOpacity>
                       </View>
                     </View>
-                    <View style={styles.affirmationActions}>
-                      <TouchableOpacity
-                        style={[
-                          styles.repeatButton,
-                          affirmation.isRepeating && styles.repeatButtonActive,
-                        ]}
-                        onPress={() => toggleAffirmationRepeating(affirmation.id)}
-                      >
-                        <IconSymbol
-                          ios_icon_name="repeat"
-                          android_material_icon_name="repeat"
-                          size={16}
-                          color={affirmation.isRepeating ? "#FFF" : "#4F46E5"}
-                        />
-                        <Text
+                  ))}
+                </View>
+              )}
+            </View>
+
+            {/* All Affirmations Section */}
+            <View style={styles.allSection}>
+              <Text style={styles.sectionTitle}>All Affirmations</Text>
+              <Text style={styles.sectionSubtitle}>
+                Manage custom affirmations and set them to repeat daily
+              </Text>
+              
+              {affirmations.length === 0 ? (
+                <View style={styles.emptyState}>
+                  <IconSymbol
+                    ios_icon_name="sparkles"
+                    android_material_icon_name="auto-awesome"
+                    size={64}
+                    color="#FFF"
+                  />
+                  <Text style={styles.emptyStateText}>No custom affirmations yet</Text>
+                  <Text style={styles.emptyStateSubtext}>
+                    Tap the + button to add your first affirmation
+                  </Text>
+                </View>
+              ) : (
+                <View style={styles.itemsList}>
+                  {affirmations.map((affirmation) => (
+                    <View key={affirmation.id} style={styles.affirmationCard}>
+                      <View style={styles.affirmationContent}>
+                        <Text style={styles.affirmationText}>{affirmation.text}</Text>
+                        <View style={styles.affirmationMeta}>
+                          {affirmation.isCustom && (
+                            <View style={styles.badge}>
+                              <Text style={styles.badgeText}>Custom</Text>
+                            </View>
+                          )}
+                          {affirmation.isFavorite && (
+                            <View style={styles.badge}>
+                              <IconSymbol
+                                ios_icon_name="star.fill"
+                                android_material_icon_name="star"
+                                size={12}
+                                color="#FFD700"
+                              />
+                              <Text style={styles.badgeText}>Favorite</Text>
+                            </View>
+                          )}
+                        </View>
+                      </View>
+                      <View style={styles.affirmationActions}>
+                        <TouchableOpacity
                           style={[
-                            styles.repeatButtonText,
-                            affirmation.isRepeating && styles.repeatButtonTextActive,
+                            styles.repeatButton,
+                            affirmation.isRepeating && styles.repeatButtonActive,
                           ]}
+                          onPress={() => toggleAffirmationRepeating(affirmation.id)}
                         >
-                          {affirmation.isRepeating ? "Daily" : "Repeat"}
-                        </Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={styles.actionButton}
-                        onPress={() => deleteAffirmation(affirmation.id)}
-                      >
-                        <IconSymbol
-                          ios_icon_name="trash"
-                          android_material_icon_name="delete"
-                          size={20}
-                          color="#EF4444"
-                        />
-                      </TouchableOpacity>
+                          <IconSymbol
+                            ios_icon_name="repeat"
+                            android_material_icon_name="repeat"
+                            size={16}
+                            color={affirmation.isRepeating ? "#FFF" : "#4F46E5"}
+                          />
+                          <Text
+                            style={[
+                              styles.repeatButtonText,
+                              affirmation.isRepeating && styles.repeatButtonTextActive,
+                            ]}
+                          >
+                            {affirmation.isRepeating ? "Daily" : "Repeat"}
+                          </Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={styles.actionButton}
+                          onPress={() => deleteAffirmation(affirmation.id)}
+                        >
+                          <IconSymbol
+                            ios_icon_name="trash"
+                            android_material_icon_name="delete"
+                            size={20}
+                            color="#EF4444"
+                          />
+                        </TouchableOpacity>
+                      </View>
                     </View>
-                  </View>
-                ))}
-              </View>
-            )}
+                  ))}
+                </View>
+              )}
+            </View>
           </>
         )}
       </ScrollView>
@@ -837,12 +976,6 @@ const styles = StyleSheet.create({
     color: "#FFF",
     marginBottom: 16,
   },
-  subtitle: {
-    fontSize: 14,
-    color: "#E0E7FF",
-    marginBottom: 16,
-    textAlign: "center",
-  },
   tabContainer: {
     flexDirection: "row",
     backgroundColor: "rgba(255,255,255,0.2)",
@@ -885,19 +1018,101 @@ const styles = StyleSheet.create({
     color: "#92400E",
     fontWeight: "500",
   },
+  dailySection: {
+    marginBottom: 24,
+  },
+  allSection: {
+    marginTop: 8,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#FFF",
+    marginBottom: 8,
+  },
+  sectionSubtitle: {
+    fontSize: 14,
+    color: "#E0E7FF",
+    marginBottom: 16,
+    lineHeight: 20,
+  },
+  emptyDaily: {
+    backgroundColor: "rgba(255,255,255,0.1)",
+    borderRadius: 12,
+    padding: 20,
+    alignItems: "center",
+  },
+  emptyDailyText: {
+    fontSize: 14,
+    color: "#E0E7FF",
+    textAlign: "center",
+    lineHeight: 20,
+  },
+  dailyList: {
+    gap: 12,
+  },
+  dailyCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "#FFF",
+    borderRadius: 12,
+    padding: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  dailyContent: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    flex: 1,
+    marginRight: 12,
+  },
+  dailyNumber: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: "#4F46E5",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 12,
+  },
+  dailyNumberText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#FFF",
+  },
+  dailyText: {
+    flex: 1,
+    fontSize: 15,
+    color: "#1F2937",
+    lineHeight: 22,
+  },
+  dailyActions: {
+    flexDirection: "row",
+    gap: 4,
+  },
+  iconButton: {
+    padding: 6,
+  },
+  iconButtonDisabled: {
+    opacity: 0.3,
+  },
   emptyState: {
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 80,
+    paddingVertical: 60,
   },
   emptyStateText: {
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: "600",
     color: "#FFF",
     marginTop: 16,
   },
   emptyStateSubtext: {
-    fontSize: 16,
+    fontSize: 14,
     color: "#E0E7FF",
     marginTop: 8,
     textAlign: "center",

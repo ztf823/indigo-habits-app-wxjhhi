@@ -36,8 +36,9 @@ console.log("[API] Backend URL configured:", BACKEND_URL || "NOT CONFIGURED");
 
 /**
  * Bearer token storage key
+ * Must match the key used in lib/auth.ts for BetterAuth
  */
-const BEARER_TOKEN_KEY = "indigo_habits_bearer_token";
+const BEARER_TOKEN_KEY = "indigo-habits_bearer_token";
 
 /**
  * Check if backend is properly configured
@@ -48,17 +49,33 @@ export const isBackendConfigured = (): boolean => {
 
 /**
  * Get bearer token from platform-specific storage
- * Web: localStorage
- * Native: SecureStore
+ * Web: localStorage (BetterAuth stores it here)
+ * Native: SecureStore (BetterAuth expo client stores it here)
  *
  * @returns Bearer token or null if not found
  */
 export const getBearerToken = async (): Promise<string | null> => {
   try {
     if (Platform.OS === "web") {
-      return localStorage.getItem(BEARER_TOKEN_KEY);
+      // BetterAuth stores the token with this key on web
+      const token = localStorage.getItem(BEARER_TOKEN_KEY);
+      if (token) return token;
+      
+      // Also check the better-auth session storage
+      const sessionData = localStorage.getItem("better-auth.session_token");
+      if (sessionData) return sessionData;
+      
+      return null;
     } else {
-      return await SecureStore.getItemAsync(BEARER_TOKEN_KEY);
+      // On native, BetterAuth expo client uses SecureStore with prefix
+      const token = await SecureStore.getItemAsync(BEARER_TOKEN_KEY);
+      if (token) return token;
+      
+      // Also check the better-auth prefixed key
+      const sessionToken = await SecureStore.getItemAsync("indigo-habits.session_token");
+      if (sessionToken) return sessionToken;
+      
+      return null;
     }
   } catch (error) {
     console.error("[API] Error retrieving bearer token:", error);
@@ -116,13 +133,24 @@ export const apiCall = async <T = any>(
   console.log("[API] Calling:", url, options?.method || "GET");
 
   try {
+    // Prepare headers - don't set Content-Type for FormData (browser will set it with boundary)
+    const headers: Record<string, string> = { ...options?.headers } as Record<string, string>;
+    const isFormData = options?.body instanceof FormData;
+    
+    if (!isFormData && !headers["Content-Type"]) {
+      headers["Content-Type"] = "application/json";
+    }
+
     const response = await fetch(url, {
       ...options,
-      headers: {
-        "Content-Type": "application/json",
-        ...options?.headers,
-      },
+      headers,
     });
+
+    // Handle 204 No Content responses
+    if (response.status === 204) {
+      console.log("[API] Success: 204 No Content");
+      return {} as T;
+    }
 
     // Handle different response types
     const contentType = response.headers.get("content-type");
@@ -142,8 +170,14 @@ export const apiCall = async <T = any>(
 
     console.log("[API] Success:", data);
     return data;
-  } catch (error) {
+  } catch (error: any) {
     console.error("[API] Request failed:", error);
+    
+    // Provide more helpful error messages
+    if (error.message === "Network request failed" || error.message === "Failed to fetch") {
+      throw new Error("Network error. Please check your internet connection.");
+    }
+    
     throw error;
   }
 };
@@ -203,7 +237,8 @@ export const apiDelete = async <T = any>(endpoint: string): Promise<T> => {
 
 /**
  * Authenticated API call helper
- * Automatically retrieves bearer token from storage and adds to Authorization header
+ * On web: Uses cookies (BetterAuth default)
+ * On native: Uses Bearer token from SecureStore
  *
  * @param endpoint - API endpoint path
  * @param options - Fetch options (method, headers, body, etc.)
@@ -214,6 +249,18 @@ export const authenticatedApiCall = async <T = any>(
   endpoint: string,
   options?: RequestInit
 ): Promise<T> => {
+  // On web, BetterAuth uses cookies automatically
+  if (Platform.OS === "web") {
+    return apiCall<T>(endpoint, {
+      ...options,
+      credentials: "include", // Include cookies for authentication
+      headers: {
+        ...options?.headers,
+      },
+    });
+  }
+
+  // On native, use Bearer token
   const token = await getBearerToken();
 
   if (!token) {
@@ -241,11 +288,11 @@ export const authenticatedGet = async <T = any>(endpoint: string): Promise<T> =>
  */
 export const authenticatedPost = async <T = any>(
   endpoint: string,
-  data: any
+  data?: any
 ): Promise<T> => {
   return authenticatedApiCall<T>(endpoint, {
     method: "POST",
-    body: JSON.stringify(data),
+    body: data ? JSON.stringify(data) : undefined,
   });
 };
 
@@ -254,11 +301,11 @@ export const authenticatedPost = async <T = any>(
  */
 export const authenticatedPut = async <T = any>(
   endpoint: string,
-  data: any
+  data?: any
 ): Promise<T> => {
   return authenticatedApiCall<T>(endpoint, {
     method: "PUT",
-    body: JSON.stringify(data),
+    body: data ? JSON.stringify(data) : undefined,
   });
 };
 
@@ -267,11 +314,11 @@ export const authenticatedPut = async <T = any>(
  */
 export const authenticatedPatch = async <T = any>(
   endpoint: string,
-  data: any
+  data?: any
 ): Promise<T> => {
   return authenticatedApiCall<T>(endpoint, {
     method: "PATCH",
-    body: JSON.stringify(data),
+    body: data ? JSON.stringify(data) : undefined,
   });
 };
 

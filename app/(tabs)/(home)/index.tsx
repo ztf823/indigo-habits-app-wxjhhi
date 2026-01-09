@@ -16,7 +16,7 @@ import {
   Alert,
   ActivityIndicator,
 } from "react-native";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 
 interface Affirmation {
   id: string;
@@ -35,6 +35,7 @@ interface Habit {
 
 const MAX_AFFIRMATIONS = 3;
 const MAX_HABITS = 4;
+const AUTO_SAVE_DELAY = 2000; // 2 seconds debounce
 
 export default function HomeScreen() {
   const [affirmations, setAffirmations] = useState<Affirmation[]>([]);
@@ -43,9 +44,69 @@ export default function HomeScreen() {
   const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [generatingAffirmation, setGeneratingAffirmation] = useState(false);
+  const [isSavingJournal, setIsSavingJournal] = useState(false);
+  
+  const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const lastSavedContentRef = useRef("");
+
   useEffect(() => {
     loadData();
   }, []);
+
+  // Auto-save journal entries with debouncing
+  useEffect(() => {
+    // Clear existing timer
+    if (autoSaveTimerRef.current) {
+      clearTimeout(autoSaveTimerRef.current);
+    }
+
+    // Don't auto-save if content is empty or hasn't changed
+    if (!journalContent.trim() || journalContent === lastSavedContentRef.current) {
+      return;
+    }
+
+    // Set new timer for auto-save
+    autoSaveTimerRef.current = setTimeout(() => {
+      autoSaveJournalEntry();
+    }, AUTO_SAVE_DELAY);
+
+    // Cleanup on unmount
+    return () => {
+      if (autoSaveTimerRef.current) {
+        clearTimeout(autoSaveTimerRef.current);
+      }
+    };
+  }, [journalContent, photoUri]);
+
+  const autoSaveJournalEntry = async () => {
+    if (!journalContent.trim() || journalContent === lastSavedContentRef.current) {
+      return;
+    }
+
+    setIsSavingJournal(true);
+
+    if (isBackendConfigured()) {
+      try {
+        // Backend Integration: Auto-save journal entry to history
+        const response = await authenticatedApiCall("/api/journal-entries", {
+          method: "POST",
+          body: JSON.stringify({
+            content: journalContent,
+            photoUrl: photoUri || undefined,
+          }),
+        });
+
+        lastSavedContentRef.current = journalContent;
+        console.log("[Home] Journal entry auto-saved:", response.id);
+      } catch (error: any) {
+        console.error("Error auto-saving journal:", error);
+        // Don't show error to user for auto-save failures
+        // They can still see their content locally
+      }
+    }
+
+    setIsSavingJournal(false);
+  };
 
   const loadData = async () => {
     // Load repeating affirmations and generate/fetch today's affirmations
@@ -69,7 +130,7 @@ export default function HomeScreen() {
     }
 
     try {
-      // Load daily affirmations from backend
+      // Backend Integration: Load daily affirmations from backend
       // This endpoint returns up to 3 daily affirmations (repeating + generated)
       const response = await authenticatedApiCall("/api/affirmations/daily");
       if (Array.isArray(response)) {
@@ -103,7 +164,7 @@ export default function HomeScreen() {
     }
 
     try {
-      // Load active habits from backend
+      // Backend Integration: Load active habits from backend
       const habitsResponse = await authenticatedApiCall("/api/habits");
       if (Array.isArray(habitsResponse)) {
         const today = new Date().toISOString().split("T")[0];
@@ -136,8 +197,6 @@ export default function HomeScreen() {
     }
   };
 
-
-
   const toggleHabit = async (habitId: string) => {
     const habit = habits.find((h) => h.id === habitId);
     if (!habit) return;
@@ -149,7 +208,7 @@ export default function HomeScreen() {
 
     if (isBackendConfigured()) {
       try {
-        // Toggle habit completion for today
+        // Backend Integration: Toggle habit completion for today
         await authenticatedApiCall(`/api/habits/${habitId}/complete`, {
           method: "POST",
           body: JSON.stringify({ 
@@ -179,7 +238,7 @@ export default function HomeScreen() {
 
     if (isBackendConfigured()) {
       try {
-        // Generate new affirmation using AI
+        // Backend Integration: Generate new affirmation using AI
         const response = await authenticatedApiCall("/api/affirmations/generate", {
           method: "POST",
           body: JSON.stringify({}),
@@ -242,7 +301,7 @@ export default function HomeScreen() {
 
     if (isBackendConfigured()) {
       try {
-        // Toggle affirmation favorite status
+        // Backend Integration: Toggle affirmation favorite status
         await authenticatedApiCall(`/api/affirmations/${affirmationId}/favorite`, {
           method: "POST",
         });
@@ -258,106 +317,54 @@ export default function HomeScreen() {
     }
   };
 
-  const toggleFavoriteHabit = async (habitId: string) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-
-    if (isBackendConfigured()) {
-      try {
-        // Toggle habit favorite status
-        await authenticatedApiCall(`/api/habits/${habitId}/favorite`, {
-          method: "POST",
-        });
-        // Reload habits to get updated favorite status
-        await loadHabits();
-      } catch (error) {
-        console.error("Error favoriting habit:", error);
-      }
-    }
-  };
-
-  const [lastJournalEntryId, setLastJournalEntryId] = useState<string | null>(null);
-  const [journalFavorited, setJournalFavorited] = useState(false);
-
-  const toggleFavoriteJournal = async () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-
-    if (!lastJournalEntryId) {
-      Alert.alert("Info", "Save your journal entry first to favorite it");
-      return;
-    }
-
-    const newFavorited = !journalFavorited;
-    setJournalFavorited(newFavorited);
-
-    if (isBackendConfigured()) {
-      try {
-        // Toggle journal entry favorite status
-        await authenticatedApiCall(`/api/journal-entries/${lastJournalEntryId}/favorite`, {
-          method: "POST",
-        });
-      } catch (error) {
-        console.error("Error favoriting journal:", error);
-        // Revert on error
-        setJournalFavorited(!newFavorited);
-      }
-    }
-  };
-
   const removeAffirmation = (affirmationId: string) => {
     setAffirmations(affirmations.filter((a) => a.id !== affirmationId));
   };
 
   const pickImage = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: ["images"],
       allowsEditing: true,
       aspect: [4, 3],
       quality: 0.8,
     });
 
-    if (!result.canceled) {
-      setPhotoUri(result.assets[0].uri);
-    }
-  };
+    if (!result.canceled && result.assets[0]) {
+      const localUri = result.assets[0].uri;
+      
+      // If backend is configured, upload the image first
+      if (isBackendConfigured()) {
+        try {
+          const formData = new FormData();
+          formData.append("file", {
+            uri: localUri,
+            type: "image/jpeg",
+            name: "journal-photo.jpg",
+          } as any);
 
-  const saveJournalEntry = async () => {
-    if (!journalContent.trim()) {
-      Alert.alert("Error", "Please write something in your journal");
-      return;
-    }
+          const response = await authenticatedApiCall("/api/upload/photo", {
+            method: "POST",
+            body: formData,
+          });
 
-    setLoading(true);
-
-    if (isBackendConfigured()) {
-      try {
-        // Save journal entry to backend
-        const response = await authenticatedApiCall("/api/journal-entries", {
-          method: "POST",
-          body: JSON.stringify({
-            content: journalContent,
-            photoUrl: photoUri,
-          }),
-        });
-
-        if (response.id) {
-          setLastJournalEntryId(response.id);
+          if (response.url) {
+            // Use the uploaded URL from backend
+            setPhotoUri(response.url);
+            console.log("[Home] Photo uploaded:", response.url);
+          } else {
+            // Fallback to local URI
+            setPhotoUri(localUri);
+          }
+        } catch (error) {
+          console.error("Error uploading photo:", error);
+          // Fallback to local URI
+          setPhotoUri(localUri);
         }
-
-        Alert.alert("Success", "Journal entry saved!");
-        setJournalContent("");
-        setPhotoUri(null);
-        setJournalFavorited(false);
-      } catch (error) {
-        console.error("Error saving journal:", error);
-        Alert.alert("Error", "Failed to save journal entry");
+      } else {
+        // Demo mode: use local URI
+        setPhotoUri(localUri);
       }
-    } else {
-      Alert.alert("Demo Mode", "Journal entry would be saved when backend is ready");
-      setJournalContent("");
-      setPhotoUri(null);
     }
-
-    setLoading(false);
   };
 
   return (
@@ -370,14 +377,6 @@ export default function HomeScreen() {
         <View style={styles.sectionCard}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Your Affirmations Today</Text>
-            <TouchableOpacity onPress={() => {}}>
-              <IconSymbol
-                ios_icon_name="star.fill"
-                android_material_icon_name="star"
-                size={24}
-                color="#FFD700"
-              />
-            </TouchableOpacity>
           </View>
 
           {affirmations.length === 0 ? (
@@ -478,14 +477,6 @@ export default function HomeScreen() {
         <View style={styles.sectionCard}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Daily Habits</Text>
-            <TouchableOpacity onPress={() => {}}>
-              <IconSymbol
-                ios_icon_name="star.fill"
-                android_material_icon_name="star"
-                size={24}
-                color="#FFD700"
-              />
-            </TouchableOpacity>
           </View>
 
           {habits.length === 0 ? (
@@ -517,14 +508,6 @@ export default function HomeScreen() {
                   </View>
                   <Text style={styles.habitTitle}>{habit.title}</Text>
                 </TouchableOpacity>
-                <TouchableOpacity onPress={() => toggleFavoriteHabit(habit.id)}>
-                  <IconSymbol
-                    ios_icon_name="star"
-                    android_material_icon_name="star-border"
-                    size={20}
-                    color="#999"
-                  />
-                </TouchableOpacity>
               </View>
             ))
           )}
@@ -540,16 +523,12 @@ export default function HomeScreen() {
         <View style={styles.sectionCard}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Journal Entry</Text>
-            <TouchableOpacity onPress={toggleFavoriteJournal}>
-              <IconSymbol
-                ios_icon_name={journalFavorited ? "star.fill" : "star"}
-                android_material_icon_name={
-                  journalFavorited ? "star" : "star-border"
-                }
-                size={24}
-                color={journalFavorited ? "#FFD700" : "#999"}
-              />
-            </TouchableOpacity>
+            {isSavingJournal && (
+              <View style={styles.savingIndicator}>
+                <ActivityIndicator size="small" color="#4B0082" />
+                <Text style={styles.savingText}>Saving...</Text>
+              </View>
+            )}
           </View>
 
           <View style={styles.journalHeader}>
@@ -568,24 +547,16 @@ export default function HomeScreen() {
 
           <TextInput
             style={styles.journalInput}
-            placeholder="Write your thoughts..."
+            placeholder="Write your thoughts... (auto-saves)"
             placeholderTextColor="#999"
             multiline
             value={journalContent}
             onChangeText={setJournalContent}
           />
 
-          <TouchableOpacity
-            style={styles.saveButton}
-            onPress={saveJournalEntry}
-            disabled={loading}
-          >
-            {loading ? (
-              <ActivityIndicator color="#FFF" />
-            ) : (
-              <Text style={styles.saveButtonText}>Save Entry</Text>
-            )}
-          </TouchableOpacity>
+          <Text style={styles.autoSaveHint}>
+            Your journal entries are automatically saved to the History tab
+          </Text>
         </View>
       </ScrollView>
     </LinearGradient>
@@ -622,6 +593,16 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "600",
     color: "#333",
+  },
+  savingIndicator: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  savingText: {
+    fontSize: 12,
+    color: "#4B0082",
+    fontStyle: "italic",
   },
   emptyAffirmations: {
     alignItems: "center",
@@ -754,17 +735,12 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#333",
     textAlignVertical: "top",
-    marginBottom: 16,
+    marginBottom: 8,
   },
-  saveButton: {
-    backgroundColor: "#4B0082",
-    paddingVertical: 14,
-    borderRadius: 8,
-    alignItems: "center",
-  },
-  saveButtonText: {
-    color: "#FFF",
-    fontSize: 16,
-    fontWeight: "600",
+  autoSaveHint: {
+    fontSize: 12,
+    color: "#999",
+    fontStyle: "italic",
+    textAlign: "center",
   },
 });

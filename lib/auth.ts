@@ -4,7 +4,10 @@ import * as SecureStore from "expo-secure-store";
 import { Platform } from "react-native";
 import Constants from "expo-constants";
 
-const API_URL = "https://wtj7b5zqhh4h7kvtqmkdaefv9jzgd8n5.app.specular.dev";
+// Read backend URL from app.json configuration
+const API_URL = Constants.expoConfig?.extra?.backendUrl || "https://wtj7b5zqhh4h7kvtqmkdaefv9jzgd8n5.app.specular.dev";
+
+console.log("[Auth] Backend URL configured:", API_URL);
 
 const BEARER_TOKEN_KEY = "indigo-habits_bearer_token";
 
