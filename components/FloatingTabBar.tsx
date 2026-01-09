@@ -1,3 +1,4 @@
+
 import React from 'react';
 import {
   View,
@@ -36,21 +37,29 @@ interface FloatingTabBarProps {
   containerWidth?: number;
   borderRadius?: number;
   bottomMargin?: number;
+  onTabPress?: (index: number) => void;
+  currentIndex?: number;
 }
 
 export default function FloatingTabBar({
   tabs,
   containerWidth = screenWidth / 2.5,
   borderRadius = 35,
-  bottomMargin
+  bottomMargin,
+  onTabPress,
+  currentIndex,
 }: FloatingTabBarProps) {
   const router = useRouter();
   const pathname = usePathname();
   const theme = useTheme();
   const animatedValue = useSharedValue(0);
 
-  // Improved active tab detection with better path matching
+  // Use currentIndex if provided (for swipe navigation), otherwise detect from pathname
   const activeTabIndex = React.useMemo(() => {
+    if (currentIndex !== undefined) {
+      return currentIndex;
+    }
+
     // Find the best matching tab based on the current pathname
     let bestMatch = -1;
     let bestMatchScore = 0;
@@ -83,7 +92,7 @@ export default function FloatingTabBar({
 
     // Default to first tab if no match found
     return bestMatch >= 0 ? bestMatch : 0;
-  }, [pathname, tabs]);
+  }, [pathname, tabs, currentIndex]);
 
   React.useEffect(() => {
     if (activeTabIndex >= 0) {
@@ -95,11 +104,13 @@ export default function FloatingTabBar({
     }
   }, [activeTabIndex, animatedValue]);
 
-  const handleTabPress = (route: Href) => {
-    router.push(route);
+  const handleTabPress = (route: Href, index: number) => {
+    if (onTabPress) {
+      onTabPress(index);
+    } else {
+      router.push(route);
+    }
   };
-
-  // Remove unnecessary tabBarStyle animation to prevent flickering
 
   const tabWidthPercent = ((100 / tabs.length) - 1).toFixed(2);
 
@@ -177,12 +188,11 @@ export default function FloatingTabBar({
               return (
                 <React.Fragment key={index}>
                 <TouchableOpacity
-                  key={index} // Use index as key
                   style={styles.tab}
-                  onPress={() => handleTabPress(tab.route)}
+                  onPress={() => handleTabPress(tab.route, index)}
                   activeOpacity={0.7}
                 >
-                  <View key={index} style={styles.tabContent}>
+                  <View style={styles.tabContent}>
                     <IconSymbol
                       android_material_icon_name={tab.icon}
                       ios_icon_name={tab.icon}
