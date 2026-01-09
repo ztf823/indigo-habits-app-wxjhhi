@@ -8,6 +8,7 @@ import { registerJournalRoutes } from './routes/journal.js';
 import { registerAffirmationsRoutes } from './routes/affirmations.js';
 import { registerHabitsRoutes } from './routes/habits.js';
 import { registerProgressRoutes } from './routes/progress.js';
+import { registerProfileRoutes } from './routes/profile.js';
 
 // Combine both schemas
 const schema = { ...appSchema, ...authSchema };
@@ -28,6 +29,7 @@ app.withStorage();
 await seedDefaultAffirmations(app);
 
 // Register routes
+registerProfileRoutes(app);
 registerJournalRoutes(app);
 registerAffirmationsRoutes(app);
 registerHabitsRoutes(app);
