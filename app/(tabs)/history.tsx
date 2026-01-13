@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
+  Image,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { authenticatedApiCall, isBackendConfigured } from "@/utils/api";
@@ -41,11 +42,13 @@ export default function HistoryScreen() {
   const router = useRouter();
 
   useEffect(() => {
+    console.log("[History] Loading history for tab:", activeTab);
     loadHistory();
   }, [activeTab]);
 
   const loadHistory = async () => {
     if (!isBackendConfigured()) {
+      console.log("[History] Backend not configured - showing empty state");
       setLoading(false);
       return;
     }
@@ -54,15 +57,18 @@ export default function HistoryScreen() {
       if (activeTab === "journal") {
         const response = await authenticatedApiCall("/api/journal-entries?limit=50");
         setJournalEntries(response.entries || []);
+        console.log("[History] Loaded", response.entries?.length || 0, "journal entries");
       } else if (activeTab === "affirmations") {
         const response = await authenticatedApiCall("/api/affirmations?limit=50");
         setAffirmations(response.affirmations || []);
+        console.log("[History] Loaded", response.affirmations?.length || 0, "affirmations");
       } else if (activeTab === "favorites") {
         const response = await authenticatedApiCall("/api/affirmations/favorites");
         setFavorites(response.affirmations || []);
+        console.log("[History] Loaded", response.affirmations?.length || 0, "favorites");
       }
     } catch (error) {
-      console.error("Error loading history:", error);
+      console.error("[History] Error loading history:", error);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -70,11 +76,13 @@ export default function HistoryScreen() {
   };
 
   const onRefresh = () => {
+    console.log("[History] User pulled to refresh");
     setRefreshing(true);
     loadHistory();
   };
 
   const toggleFavorite = async (affirmationId: string) => {
+    console.log("[History] User toggled favorite for affirmation:", affirmationId);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
     try {
@@ -83,16 +91,35 @@ export default function HistoryScreen() {
       });
       loadHistory();
     } catch (error) {
-      console.error("Error toggling favorite:", error);
+      console.error("[History] Error toggling favorite:", error);
     }
   };
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
-    return date.toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
+    const now = new Date();
+    const diffTime = Math.abs(now.getTime() - date.getTime());
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+    if (diffDays === 0) {
+      return "Today";
+    } else if (diffDays === 1) {
+      return "Yesterday";
+    } else {
+      return date.toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      });
+    }
+  };
+
+  const formatTime = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleTimeString("en-US", {
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
     });
   };
 
@@ -106,7 +133,10 @@ export default function HistoryScreen() {
       <View style={styles.tabContainer}>
         <TouchableOpacity
           style={[styles.tab, activeTab === "journal" && styles.activeTab]}
-          onPress={() => setActiveTab("journal")}
+          onPress={() => {
+            console.log("[History] User switched to Journal tab");
+            setActiveTab("journal");
+          }}
         >
           <Text style={[styles.tabText, activeTab === "journal" && styles.activeTabText]}>
             Journal
@@ -114,7 +144,10 @@ export default function HistoryScreen() {
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.tab, activeTab === "affirmations" && styles.activeTab]}
-          onPress={() => setActiveTab("affirmations")}
+          onPress={() => {
+            console.log("[History] User switched to Affirmations tab");
+            setActiveTab("affirmations");
+          }}
         >
           <Text style={[styles.tabText, activeTab === "affirmations" && styles.activeTabText]}>
             Affirmations
@@ -122,7 +155,10 @@ export default function HistoryScreen() {
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.tab, activeTab === "favorites" && styles.activeTab]}
-          onPress={() => setActiveTab("favorites")}
+          onPress={() => {
+            console.log("[History] User switched to Favorites tab");
+            setActiveTab("favorites");
+          }}
         >
           <Text style={[styles.tabText, activeTab === "favorites" && styles.activeTabText]}>
             Favorites
@@ -144,7 +180,12 @@ export default function HistoryScreen() {
             <>
               {journalEntries.length === 0 ? (
                 <View style={styles.emptyState}>
-                  <IconSymbol name="book.closed" size={48} color="#FFF" />
+                  <IconSymbol
+                    ios_icon_name="book.closed"
+                    android_material_icon_name="menu-book"
+                    size={48}
+                    color="#FFF"
+                  />
                   <Text style={styles.emptyText}>No journal entries yet</Text>
                   <Text style={styles.emptySubtext}>Start writing to see your history</Text>
                 </View>
@@ -153,15 +194,26 @@ export default function HistoryScreen() {
                   <TouchableOpacity
                     key={entry.id}
                     style={styles.entryCard}
-                    onPress={() => router.push(`/entry/${entry.id}`)}
+                    onPress={() => {
+                      console.log("[History] User tapped journal entry:", entry.id);
+                      router.push(`/entry/${entry.id}`);
+                    }}
                   >
-                    <Text style={styles.entryDate}>{formatDate(entry.createdAt)}</Text>
+                    <View style={styles.entryHeader}>
+                      <Text style={styles.entryDate}>{formatDate(entry.createdAt)}</Text>
+                      <Text style={styles.entryTime}>{formatTime(entry.createdAt)}</Text>
+                    </View>
                     <Text style={styles.entryContent} numberOfLines={3}>
                       {entry.content}
                     </Text>
                     {entry.photoUrl && (
                       <View style={styles.photoIndicator}>
-                        <IconSymbol name="photo" size={16} color="#999" />
+                        <IconSymbol
+                          ios_icon_name="photo"
+                          android_material_icon_name="image"
+                          size={16}
+                          color="#999"
+                        />
                         <Text style={styles.photoText}>Has photo</Text>
                       </View>
                     )}
@@ -175,7 +227,12 @@ export default function HistoryScreen() {
             <>
               {affirmations.length === 0 ? (
                 <View style={styles.emptyState}>
-                  <IconSymbol name="sparkles" size={48} color="#FFF" />
+                  <IconSymbol
+                    ios_icon_name="sparkles"
+                    android_material_icon_name="auto-awesome"
+                    size={48}
+                    color="#FFF"
+                  />
                   <Text style={styles.emptyText}>No affirmations yet</Text>
                   <Text style={styles.emptySubtext}>Generate or add custom affirmations</Text>
                 </View>
@@ -186,7 +243,8 @@ export default function HistoryScreen() {
                       <Text style={styles.affirmationDate}>{formatDate(affirmation.createdAt)}</Text>
                       <TouchableOpacity onPress={() => toggleFavorite(affirmation.id)}>
                         <IconSymbol
-                          name={affirmation.isFavorite ? "star.fill" : "star"}
+                          ios_icon_name={affirmation.isFavorite ? "star.fill" : "star"}
+                          android_material_icon_name={affirmation.isFavorite ? "star" : "star-border"}
                           size={24}
                           color={affirmation.isFavorite ? "#FFD700" : "#999"}
                         />
@@ -208,7 +266,12 @@ export default function HistoryScreen() {
             <>
               {favorites.length === 0 ? (
                 <View style={styles.emptyState}>
-                  <IconSymbol name="star" size={48} color="#FFF" />
+                  <IconSymbol
+                    ios_icon_name="star"
+                    android_material_icon_name="star-border"
+                    size={48}
+                    color="#FFF"
+                  />
                   <Text style={styles.emptyText}>No favorites yet</Text>
                   <Text style={styles.emptySubtext}>Star affirmations to save them here</Text>
                 </View>
@@ -218,7 +281,12 @@ export default function HistoryScreen() {
                     <View style={styles.affirmationHeader}>
                       <Text style={styles.affirmationDate}>{formatDate(affirmation.createdAt)}</Text>
                       <TouchableOpacity onPress={() => toggleFavorite(affirmation.id)}>
-                        <IconSymbol name="star.fill" size={24} color="#FFD700" />
+                        <IconSymbol
+                          ios_icon_name="star.fill"
+                          android_material_icon_name="star"
+                          size={24}
+                          color="#FFD700"
+                        />
                       </TouchableOpacity>
                     </View>
                     <Text style={styles.affirmationText}>{affirmation.text}</Text>
@@ -306,10 +374,20 @@ const styles = StyleSheet.create({
     padding: 16,
     marginBottom: 12,
   },
+  entryHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 8,
+  },
   entryDate: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#4B0082",
+  },
+  entryTime: {
     fontSize: 12,
     color: "#999",
-    marginBottom: 8,
   },
   entryContent: {
     fontSize: 16,

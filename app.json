@@ -1,8 +1,7 @@
-
 {
   "expo": {
     "name": "Indigo Habits",
-    "slug": "indigo-habits",
+    "slug": "Indigo Habits",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/natively-dark.png",
@@ -65,5 +64,6 @@
         "projectId": "your-project-id-here"
       }
     }
-  }
+  },
+  "scheme": "Indigo Habits"
 }
