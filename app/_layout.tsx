@@ -3,7 +3,6 @@ import { Stack } from "expo-router";
 import { useFonts } from "expo-font";
 import { StatusBar } from "expo-status-bar";
 import { WidgetProvider } from "@/contexts/WidgetContext";
-import { AuthProvider } from "@/contexts/AuthContext";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect, useState } from "react";
 import { SystemBars } from "react-native-edge-to-edge";
@@ -15,8 +14,6 @@ import {
   DefaultTheme,
   ThemeProvider,
 } from "@react-navigation/native";
-import { Redirect } from "expo-router";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
@@ -24,27 +21,14 @@ SplashScreen.preventAutoHideAsync();
 export default function RootLayout() {
   const colorScheme = useColorScheme();
   const [isReady, setIsReady] = useState(false);
-  const [hasSeenWelcome, setHasSeenWelcome] = useState<boolean | null>(null);
 
   const [loaded] = useFonts({
     SpaceMono: require("../assets/fonts/SpaceMono-Regular.ttf"),
   });
 
   useEffect(() => {
-    async function prepare() {
-      try {
-        const welcomeStatus = await AsyncStorage.getItem("hasSeenWelcome");
-        setHasSeenWelcome(welcomeStatus === "true");
-      } catch (error) {
-        console.error("Error checking welcome status:", error);
-        setHasSeenWelcome(false);
-      } finally {
-        setIsReady(true);
-      }
-    }
-
     if (loaded) {
-      prepare();
+      setIsReady(true);
     }
   }, [loaded]);
 
@@ -54,37 +38,33 @@ export default function RootLayout() {
     }
   }, [loaded, isReady]);
 
-  if (!loaded || !isReady || hasSeenWelcome === null) {
+  if (!loaded || !isReady) {
     return null;
   }
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <AuthProvider>
-        <WidgetProvider>
-          <ThemeProvider
-            value={colorScheme === "dark" ? DarkTheme : DefaultTheme}
+      <WidgetProvider>
+        <ThemeProvider
+          value={colorScheme === "dark" ? DarkTheme : DefaultTheme}
+        >
+          <SystemBars style="light" />
+          <Stack
+            screenOptions={{
+              headerShown: false,
+              animation: "none",
+            }}
           >
-            <SystemBars style="light" />
-            <Stack
-              screenOptions={{
-                headerShown: false,
-                animation: "none",
-              }}
-            >
-              <Stack.Screen name="welcome" />
-              <Stack.Screen name="auth" />
-              <Stack.Screen name="auth-popup" />
-              <Stack.Screen name="auth-callback" />
-              <Stack.Screen name="(tabs)" />
-              <Stack.Screen name="modal" options={{ presentation: "modal" }} />
-              <Stack.Screen name="formsheet" options={{ presentation: "formSheet" }} />
-              <Stack.Screen name="transparent-modal" options={{ presentation: "transparentModal" }} />
-            </Stack>
-            <StatusBar style="light" />
-          </ThemeProvider>
-        </WidgetProvider>
-      </AuthProvider>
+            <Stack.Screen name="welcome" />
+            <Stack.Screen name="(tabs)" />
+            <Stack.Screen name="modal" options={{ presentation: "modal" }} />
+            <Stack.Screen name="formsheet" options={{ presentation: "formSheet" }} />
+            <Stack.Screen name="transparent-modal" options={{ presentation: "transparentModal" }} />
+            <Stack.Screen name="entry/[id]" />
+          </Stack>
+          <StatusBar style="light" />
+        </ThemeProvider>
+      </WidgetProvider>
     </GestureHandlerRootView>
   );
 }

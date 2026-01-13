@@ -17,13 +17,16 @@ export default function WelcomeScreen() {
   const router = useRouter();
 
   const handleGetStarted = async () => {
+    console.log("User tapped Get Started button");
     try {
       await AsyncStorage.setItem("hasSeenWelcome", "true");
-      router.replace("/auth");
+      console.log("Welcome status saved, navigating to home");
+      // Skip auth - go directly to home
+      router.replace("/(tabs)/(home)/");
     } catch (error) {
       console.error("Error saving welcome status:", error);
       // Navigate anyway even if storage fails
-      router.replace("/auth");
+      router.replace("/(tabs)/(home)/");
     }
   };
 
@@ -113,7 +116,7 @@ export default function WelcomeScreen() {
             onPress={handleGetStarted}
             activeOpacity={0.8}
           >
-            <Text style={styles.buttonText}>Get Started</Text>
+            <Text style={styles.buttonText}>Let&apos;s Get Started</Text>
             <IconSymbol
               ios_icon_name="arrow.right"
               android_material_icon_name="arrow-forward"

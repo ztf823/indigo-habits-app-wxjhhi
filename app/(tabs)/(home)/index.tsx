@@ -5,6 +5,7 @@ import { IconSymbol } from "@/components/IconSymbol";
 import * as Haptics from "expo-haptics";
 import { LinearGradient } from "expo-linear-gradient";
 import { getRandomAffirmation, getMultipleRandomAffirmations } from "@/utils/affirmations";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   View,
   Text,
@@ -21,7 +22,6 @@ import {
   Dimensions,
   PanResponder,
 } from "react-native";
-import { authenticatedApiCall, isBackendConfigured } from "@/utils/api";
 
 interface Affirmation {
   id: string;
@@ -41,6 +41,12 @@ interface Habit {
 const MAX_AFFIRMATIONS = 3;
 const MAX_HABITS = 4;
 const AUTO_SAVE_DELAY = 30000; // 30 seconds
+
+const STORAGE_KEYS = {
+  AFFIRMATIONS: "indigo_habits_affirmations",
+  HABITS: "indigo_habits_habits",
+  JOURNAL_ENTRIES: "indigo_habits_journal_entries",
+};
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 
@@ -78,7 +84,7 @@ export default function HomeScreen() {
   ).current;
 
   useEffect(() => {
-    console.log("[Home] Loading home screen data");
+    console.log("[Home] Loading home screen data from local storage");
     loadData();
   }, []);
 
@@ -117,25 +123,27 @@ export default function HomeScreen() {
 
     setIsSavingJournal(true);
 
-    if (isBackendConfigured()) {
-      try {
-        console.log("[Home] Auto-saving journal entry to backend");
-        const response = await authenticatedApiCall("/api/journal-entries", {
-          method: "POST",
-          body: JSON.stringify({
-            content: journalContent,
-            photoUrl: journalPhotoUri || undefined,
-          }),
-        });
+    try {
+      console.log("[Home] Auto-saving journal entry to local storage");
+      const existingEntriesJson = await AsyncStorage.getItem(STORAGE_KEYS.JOURNAL_ENTRIES);
+      const existingEntries = existingEntriesJson ? JSON.parse(existingEntriesJson) : [];
+      
+      const newEntry = {
+        id: `journal-${Date.now()}`,
+        content: journalContent,
+        photoUrl: journalPhotoUri || undefined,
+        createdAt: new Date().toISOString(),
+      };
+      
+      await AsyncStorage.setItem(
+        STORAGE_KEYS.JOURNAL_ENTRIES,
+        JSON.stringify([newEntry, ...existingEntries])
+      );
 
-        lastSavedContentRef.current = journalContent;
-        console.log("[Home] Journal entry auto-saved:", response.id);
-      } catch (error: any) {
-        console.error("[Home] Error auto-saving journal:", error);
-      }
-    } else {
-      console.log("[Home] Demo mode - journal entry saved locally");
       lastSavedContentRef.current = journalContent;
+      console.log("[Home] Journal entry auto-saved locally");
+    } catch (error: any) {
+      console.error("[Home] Error auto-saving journal:", error);
     }
 
     setIsSavingJournal(false);
@@ -147,23 +155,24 @@ export default function HomeScreen() {
   };
 
   const loadAffirmations = async () => {
-    if (!isBackendConfigured()) {
-      const randomAffirmations = getMultipleRandomAffirmations(MAX_AFFIRMATIONS);
-      setAffirmations(
-        randomAffirmations.map((text, index) => ({
+    try {
+      const storedAffirmations = await AsyncStorage.getItem(STORAGE_KEYS.AFFIRMATIONS);
+      if (storedAffirmations) {
+        const parsed = JSON.parse(storedAffirmations);
+        setAffirmations(parsed.slice(0, MAX_AFFIRMATIONS));
+        console.log("[Home] Loaded affirmations from local storage:", parsed.length);
+      } else {
+        // Initialize with random affirmations
+        const randomAffirmations = getMultipleRandomAffirmations(MAX_AFFIRMATIONS);
+        const initialAffirmations = randomAffirmations.map((text, index) => ({
           id: `demo-${index}`,
           text,
           isCustom: false,
           isFavorite: false,
-        }))
-      );
-      return;
-    }
-
-    try {
-      const response = await authenticatedApiCall("/api/affirmations/daily");
-      if (Array.isArray(response)) {
-        setAffirmations(response.slice(0, MAX_AFFIRMATIONS));
+        }));
+        setAffirmations(initialAffirmations);
+        await AsyncStorage.setItem(STORAGE_KEYS.AFFIRMATIONS, JSON.stringify(initialAffirmations));
+        console.log("[Home] Initialized affirmations with random data");
       }
     } catch (error) {
       console.error("[Home] Error loading affirmations:", error);
@@ -180,42 +189,23 @@ export default function HomeScreen() {
   };
 
   const loadHabits = async () => {
-    if (!isBackendConfigured()) {
-      setHabits([
-        { id: "1", title: "Morning meditation", completed: false, color: "#4CAF50" },
-        { id: "2", title: "Exercise", completed: false, color: "#2196F3" },
-        { id: "3", title: "Read 10 pages", completed: false, color: "#FF9800" },
-        { id: "4", title: "Drink water", completed: false, color: "#00BCD4" },
-      ]);
-      return;
-    }
-
     try {
-      const habitsResponse = await authenticatedApiCall("/api/habits");
-      if (Array.isArray(habitsResponse)) {
-        const today = new Date().toISOString().split("T")[0];
-        const completionsResponse = await authenticatedApiCall(
-          `/api/habits/completions?startDate=${today}&endDate=${today}`
-        );
-        
-        const completedIds = new Set(
-          completionsResponse.completions
-            ?.filter((c: any) => c.completed)
-            .map((c: any) => c.habitId) || []
-        );
-
-        const activeHabits = habitsResponse
-          .filter((h: any) => h.isActive)
-          .slice(0, MAX_HABITS);
-
-        setHabits(
-          activeHabits.map((h: any) => ({
-            id: h.id,
-            title: h.title,
-            completed: completedIds.has(h.id),
-            color: h.color,
-          }))
-        );
+      const storedHabits = await AsyncStorage.getItem(STORAGE_KEYS.HABITS);
+      if (storedHabits) {
+        const parsed = JSON.parse(storedHabits);
+        setHabits(parsed.slice(0, MAX_HABITS));
+        console.log("[Home] Loaded habits from local storage:", parsed.length);
+      } else {
+        // Initialize with default habits
+        const defaultHabits = [
+          { id: "1", title: "Morning meditation", completed: false, color: "#4CAF50" },
+          { id: "2", title: "Exercise", completed: false, color: "#2196F3" },
+          { id: "3", title: "Read 10 pages", completed: false, color: "#FF9800" },
+          { id: "4", title: "Drink water", completed: false, color: "#00BCD4" },
+        ];
+        setHabits(defaultHabits);
+        await AsyncStorage.setItem(STORAGE_KEYS.HABITS, JSON.stringify(defaultHabits));
+        console.log("[Home] Initialized habits with default data");
       }
     } catch (error) {
       console.error("[Home] Error loading habits:", error);
@@ -227,23 +217,16 @@ export default function HomeScreen() {
     if (!habit) return;
 
     const newCompleted = !habit.completed;
-    setHabits(habits.map((h) => (h.id === habitId ? { ...h, completed: newCompleted } : h)));
+    const updatedHabits = habits.map((h) => (h.id === habitId ? { ...h, completed: newCompleted } : h));
+    setHabits(updatedHabits);
 
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
-    if (isBackendConfigured()) {
-      try {
-        await authenticatedApiCall(`/api/habits/${habitId}/complete`, {
-          method: "POST",
-          body: JSON.stringify({ 
-            completed: newCompleted,
-            date: new Date().toISOString().split("T")[0]
-          }),
-        });
-      } catch (error) {
-        console.error("[Home] Error toggling habit:", error);
-        setHabits(habits.map((h) => (h.id === habitId ? { ...h, completed: !newCompleted } : h)));
-      }
+    try {
+      await AsyncStorage.setItem(STORAGE_KEYS.HABITS, JSON.stringify(updatedHabits));
+      console.log("[Home] Habit toggled and saved:", habitId, newCompleted);
+    } catch (error) {
+      console.error("[Home] Error saving habit:", error);
     }
   };
 
@@ -260,47 +243,22 @@ export default function HomeScreen() {
     setGeneratingAffirmation(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
-    if (isBackendConfigured()) {
-      try {
-        const response = await authenticatedApiCall("/api/affirmations/generate", {
-          method: "POST",
-          body: JSON.stringify({}),
-        });
-        
-        const newAffirmation: Affirmation = {
-          id: response.id || `generated-${Date.now()}`,
-          text: response.text,
-          isCustom: response.isCustom || false,
-          isFavorite: false,
-          isRepeating: false,
-        };
-        
-        setAffirmations([...affirmations, newAffirmation].slice(0, MAX_AFFIRMATIONS));
-      } catch (error) {
-        console.error("[Home] Error generating affirmation:", error);
-        Alert.alert("Error", "Failed to generate affirmation. Please try again.");
-        const randomText = getRandomAffirmation();
-        setAffirmations([
-          ...affirmations,
-          {
-            id: `random-${Date.now()}`,
-            text: randomText,
-            isCustom: false,
-            isFavorite: false,
-          },
-        ].slice(0, MAX_AFFIRMATIONS));
-      }
-    } else {
-      const randomText = getRandomAffirmation();
-      setAffirmations([
-        ...affirmations,
-        {
-          id: `random-${Date.now()}`,
-          text: randomText,
-          isCustom: false,
-          isFavorite: false,
-        },
-      ].slice(0, MAX_AFFIRMATIONS));
+    const randomText = getRandomAffirmation();
+    const newAffirmation: Affirmation = {
+      id: `random-${Date.now()}`,
+      text: randomText,
+      isCustom: false,
+      isFavorite: false,
+    };
+    
+    const updatedAffirmations = [...affirmations, newAffirmation].slice(0, MAX_AFFIRMATIONS);
+    setAffirmations(updatedAffirmations);
+    
+    try {
+      await AsyncStorage.setItem(STORAGE_KEYS.AFFIRMATIONS, JSON.stringify(updatedAffirmations));
+      console.log("[Home] New affirmation generated and saved");
+    } catch (error) {
+      console.error("[Home] Error saving affirmation:", error);
     }
 
     setGeneratingAffirmation(false);
@@ -314,31 +272,30 @@ export default function HomeScreen() {
     if (!affirmation) return;
 
     const newFavorite = !affirmation.isFavorite;
-    setAffirmations(
-      affirmations.map((a) =>
-        a.id === affirmationId ? { ...a, isFavorite: newFavorite } : a
-      )
+    const updatedAffirmations = affirmations.map((a) =>
+      a.id === affirmationId ? { ...a, isFavorite: newFavorite } : a
     );
+    setAffirmations(updatedAffirmations);
 
-    if (isBackendConfigured()) {
-      try {
-        await authenticatedApiCall(`/api/affirmations/${affirmationId}/favorite`, {
-          method: "POST",
-        });
-      } catch (error) {
-        console.error("[Home] Error favoriting affirmation:", error);
-        setAffirmations(
-          affirmations.map((a) =>
-            a.id === affirmationId ? { ...a, isFavorite: !newFavorite } : a
-          )
-        );
-      }
+    try {
+      await AsyncStorage.setItem(STORAGE_KEYS.AFFIRMATIONS, JSON.stringify(updatedAffirmations));
+      console.log("[Home] Affirmation favorite status saved");
+    } catch (error) {
+      console.error("[Home] Error saving favorite status:", error);
     }
   };
 
-  const removeAffirmation = (affirmationId: string) => {
+  const removeAffirmation = async (affirmationId: string) => {
     console.log("[Home] User removed affirmation:", affirmationId);
-    setAffirmations(affirmations.filter((a) => a.id !== affirmationId));
+    const updatedAffirmations = affirmations.filter((a) => a.id !== affirmationId);
+    setAffirmations(updatedAffirmations);
+    
+    try {
+      await AsyncStorage.setItem(STORAGE_KEYS.AFFIRMATIONS, JSON.stringify(updatedAffirmations));
+      console.log("[Home] Affirmation removed and saved");
+    } catch (error) {
+      console.error("[Home] Error saving after removal:", error);
+    }
   };
 
   const openJournalModal = () => {
@@ -371,30 +328,31 @@ export default function HomeScreen() {
       return;
     }
 
-    console.log("[Home] Saving journal entry");
+    console.log("[Home] Saving journal entry to local storage");
     setIsSavingJournal(true);
 
-    if (isBackendConfigured()) {
-      try {
-        const response = await authenticatedApiCall("/api/journal-entries", {
-          method: "POST",
-          body: JSON.stringify({
-            content: journalContent,
-            photoUrl: journalPhotoUri || undefined,
-          }),
-        });
+    try {
+      const existingEntriesJson = await AsyncStorage.getItem(STORAGE_KEYS.JOURNAL_ENTRIES);
+      const existingEntries = existingEntriesJson ? JSON.parse(existingEntriesJson) : [];
+      
+      const newEntry = {
+        id: `journal-${Date.now()}`,
+        content: journalContent,
+        photoUrl: journalPhotoUri || undefined,
+        createdAt: new Date().toISOString(),
+      };
+      
+      await AsyncStorage.setItem(
+        STORAGE_KEYS.JOURNAL_ENTRIES,
+        JSON.stringify([newEntry, ...existingEntries])
+      );
 
-        lastSavedContentRef.current = journalContent;
-        console.log("[Home] Journal entry saved:", response.id);
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      } catch (error: any) {
-        console.error("[Home] Error saving journal:", error);
-        Alert.alert("Error", "Failed to save journal entry. Please try again.");
-      }
-    } else {
-      console.log("[Home] Demo mode - journal entry saved locally");
       lastSavedContentRef.current = journalContent;
+      console.log("[Home] Journal entry saved locally:", newEntry.id);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (error: any) {
+      console.error("[Home] Error saving journal:", error);
+      Alert.alert("Error", "Failed to save journal entry. Please try again.");
     }
 
     setIsSavingJournal(false);
@@ -411,34 +369,8 @@ export default function HomeScreen() {
 
     if (!result.canceled && result.assets[0]) {
       const localUri = result.assets[0].uri;
-      
-      if (isBackendConfigured()) {
-        try {
-          const formData = new FormData();
-          formData.append("file", {
-            uri: localUri,
-            type: "image/jpeg",
-            name: "journal-photo.jpg",
-          } as any);
-
-          const response = await authenticatedApiCall("/api/upload/photo", {
-            method: "POST",
-            body: formData,
-          });
-
-          if (response.url) {
-            setJournalPhotoUri(response.url);
-            console.log("[Home] Photo uploaded:", response.url);
-          } else {
-            setJournalPhotoUri(localUri);
-          }
-        } catch (error) {
-          console.error("[Home] Error uploading photo:", error);
-          setJournalPhotoUri(localUri);
-        }
-      } else {
-        setJournalPhotoUri(localUri);
-      }
+      setJournalPhotoUri(localUri);
+      console.log("[Home] Photo selected:", localUri);
     }
   };
 
