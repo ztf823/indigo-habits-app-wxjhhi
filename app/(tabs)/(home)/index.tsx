@@ -36,6 +36,7 @@ interface Habit {
   title: string;
   completed: boolean;
   color: string;
+  isFavorite?: boolean;
   isRepeating?: boolean;
 }
 
@@ -219,10 +220,10 @@ export default function HomeScreen() {
       } else {
         // Initialize with default habits
         const defaultHabits = [
-          { id: "1", title: "Morning meditation", completed: false, color: "#4CAF50", isRepeating: true },
-          { id: "2", title: "Exercise", completed: false, color: "#2196F3", isRepeating: true },
-          { id: "3", title: "Read 10 pages", completed: false, color: "#FF9800", isRepeating: true },
-          { id: "4", title: "Drink water", completed: false, color: "#00BCD4", isRepeating: true },
+          { id: "1", title: "Morning meditation", completed: false, color: "#4CAF50", isFavorite: false, isRepeating: true },
+          { id: "2", title: "Exercise", completed: false, color: "#2196F3", isFavorite: false, isRepeating: true },
+          { id: "3", title: "Read 10 pages", completed: false, color: "#FF9800", isFavorite: false, isRepeating: true },
+          { id: "4", title: "Drink water", completed: false, color: "#00BCD4", isFavorite: false, isRepeating: true },
         ];
         setHabits(defaultHabits);
         await AsyncStorage.setItem(STORAGE_KEYS.HABITS, JSON.stringify(defaultHabits));
@@ -254,6 +255,35 @@ export default function HomeScreen() {
       }
     } catch (error) {
       console.error("[Home] Error saving habit:", error);
+    }
+  };
+
+  const toggleFavoriteHabit = async (habitId: string) => {
+    console.log("[Home] User tapped favorite button for habit:", habitId);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+
+    const habit = habits.find((h) => h.id === habitId);
+    if (!habit) return;
+
+    const newFavorite = !habit.isFavorite;
+    const updatedHabits = habits.map((h) =>
+      h.id === habitId ? { ...h, isFavorite: newFavorite } : h
+    );
+    setHabits(updatedHabits);
+
+    try {
+      // Update in full storage
+      const storedHabits = await AsyncStorage.getItem(STORAGE_KEYS.HABITS);
+      if (storedHabits) {
+        const allHabits = JSON.parse(storedHabits);
+        const updated = allHabits.map((h: Habit) =>
+          h.id === habitId ? { ...h, isFavorite: newFavorite } : h
+        );
+        await AsyncStorage.setItem(STORAGE_KEYS.HABITS, JSON.stringify(updated));
+        console.log("[Home] Habit favorite status saved:", habitId, newFavorite);
+      }
+    } catch (error) {
+      console.error("[Home] Error saving habit favorite status:", error);
     }
   };
 
@@ -591,16 +621,14 @@ export default function HomeScreen() {
                     <View style={styles.habitActions}>
                       {/* Star button */}
                       <TouchableOpacity
-                        onPress={() => {
-                          console.log("[Home] Star button for habit not yet implemented");
-                        }}
+                        onPress={() => toggleFavoriteHabit(habit.id)}
                         style={styles.actionButton}
                       >
                         <IconSymbol
-                          ios_icon_name="star"
-                          android_material_icon_name="star-border"
+                          ios_icon_name={habit.isFavorite ? "star.fill" : "star"}
+                          android_material_icon_name={habit.isFavorite ? "star" : "star-border"}
                           size={18}
-                          color="#999"
+                          color={habit.isFavorite ? "#FFD700" : "#999"}
                         />
                       </TouchableOpacity>
 
