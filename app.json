@@ -53,7 +53,7 @@
         }
       ]
     ],
-    "scheme": "natively",
+    "scheme": "indigohabits",
     "experiments": {
       "typedRoutes": true
     },
@@ -65,6 +65,5 @@
         "projectId": "your-project-id-here"
       }
     }
-  },
-  "scheme": "Indigo Habits"
+  }
 }
