@@ -1,11 +1,10 @@
 
 import React, { useEffect, useRef } from "react";
 import { View, Text, StyleSheet, Animated, Dimensions, Image } from "react-native";
-import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-const { width: SCREEN_WIDTH } = Dimensions.get("window");
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 
 export default function SplashScreen() {
   const router = useRouter();
@@ -36,7 +35,7 @@ export default function SplashScreen() {
       useNativeDriver: true,
     }).start();
 
-    // Start shine animation
+    // Start shine animation - sweeps left to right across entire screen
     Animated.timing(shinePosition, {
       toValue: SCREEN_WIDTH * 2,
       duration: 2000,
@@ -62,46 +61,41 @@ export default function SplashScreen() {
 
   return (
     <Animated.View style={[styles.container, { opacity: fadeAnim }]}>
-      <LinearGradient
-        colors={["#4B0082", "#6A0DAD"]}
-        style={styles.gradient}
+      {/* Logo with animation - 40% of screen height */}
+      <Animated.View 
+        style={[
+          styles.logoContainer,
+          {
+            transform: [{ scale: logoScale }],
+          },
+        ]}
       >
-        {/* Logo with animation */}
-        <Animated.View 
-          style={[
-            styles.logoContainer,
-            {
-              transform: [{ scale: logoScale }],
-            },
-          ]}
-        >
-          <Image
-            source={require("@/assets/images/f61de770-7b2e-4a90-b8f2-478836e42e2a.png")}
-            style={styles.logo}
-            resizeMode="contain"
-          />
-        </Animated.View>
-
-        {/* Tagline */}
-        <Animated.Text 
-          style={[
-            styles.tagline,
-            { opacity: textOpacity },
-          ]}
-        >
-          The path to transforming your life.
-        </Animated.Text>
-
-        {/* Silver shine sweep */}
-        <Animated.View
-          style={[
-            styles.shine,
-            {
-              transform: [{ translateX: shinePosition }],
-            },
-          ]}
+        <Image
+          source={require("@/assets/images/f61de770-7b2e-4a90-b8f2-478836e42e2a.png")}
+          style={styles.logo}
+          resizeMode="contain"
         />
-      </LinearGradient>
+      </Animated.View>
+
+      {/* Tagline - solid black, bold, comfortable spacing */}
+      <Animated.Text 
+        style={[
+          styles.tagline,
+          { opacity: textOpacity },
+        ]}
+      >
+        The path to transforming your life.
+      </Animated.Text>
+
+      {/* Thin silver shine sweep - sweeps left to right across entire screen */}
+      <Animated.View
+        style={[
+          styles.shine,
+          {
+            transform: [{ translateX: shinePosition }],
+          },
+        ]}
+      />
     </Animated.View>
   );
 }
@@ -109,36 +103,34 @@ export default function SplashScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-  },
-  gradient: {
-    flex: 1,
+    backgroundColor: "#FFFFFF", // Solid white background
     justifyContent: "center",
     alignItems: "center",
     position: "relative",
     overflow: "hidden",
   },
   logoContainer: {
-    marginBottom: 32,
+    marginBottom: 40, // Comfortable spacing between logo and text
   },
   logo: {
-    width: 280,
-    height: 280,
+    width: SCREEN_HEIGHT * 0.4, // 40% of screen height
+    height: SCREEN_HEIGHT * 0.4, // 40% of screen height
   },
   tagline: {
-    fontSize: 18,
-    fontWeight: "500",
-    color: "#FFFFFF",
+    fontSize: 20,
+    fontWeight: "bold", // Bold text
+    color: "#000000", // Solid black
     textAlign: "center",
     paddingHorizontal: 40,
-    opacity: 0.95,
+    letterSpacing: 0.5,
   },
   shine: {
     position: "absolute",
     top: 0,
     left: 0,
-    width: 100,
-    height: "100%",
-    backgroundColor: "rgba(192, 192, 192, 0.3)",
+    width: 80, // Thin silver shine
+    height: "100%", // Covers entire screen height
+    backgroundColor: "rgba(192, 192, 192, 0.25)", // Thin silver shine
     transform: [{ skewX: "-20deg" }],
   },
 });
