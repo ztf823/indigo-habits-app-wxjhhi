@@ -109,7 +109,7 @@ export default function FloatingTabBar({
 
               return (
                 <TouchableOpacity
-                  key={tab.name}
+                  key={`tab-${tab.name}-${index}`}
                   style={[styles.tab, { width: tabWidth }]}
                   onPress={() => handleTabPress(tab.route, index)}
                   activeOpacity={0.7}
@@ -151,7 +151,12 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     alignItems: 'center',
-    pointerEvents: 'box-none',
+    ...Platform.select({
+      web: {
+        pointerEvents: 'box-none',
+      },
+      default: {},
+    }),
   },
   container: {
     height: 70,

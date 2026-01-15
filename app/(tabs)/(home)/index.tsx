@@ -396,7 +396,7 @@ export default function HomeScreen() {
                 showsVerticalScrollIndicator={false}
               >
                 {affirmations.map((affirmation, index) => (
-                  <View key={affirmation.id} style={styles.affirmationItem}>
+                  <View key={`affirmation-${affirmation.id}-${index}`} style={styles.affirmationItem}>
                     <View style={styles.affirmationContent}>
                       <Text style={styles.affirmationText}>{affirmation.text}</Text>
                     </View>
@@ -447,31 +447,33 @@ export default function HomeScreen() {
                 <Text style={styles.emptySubtext}>Go to Habits tab to add habits</Text>
               </View>
             ) : (
-              habits.map((habit) => (
-                <View key={habit.id} style={styles.habitItem}>
-                  <TouchableOpacity
-                    style={styles.habitCheckbox}
-                    onPress={() => toggleHabit(habit.id)}
-                  >
-                    <View
-                      style={[
-                        styles.habitCircle,
-                        habit.completed && { backgroundColor: habit.color },
-                      ]}
+              <React.Fragment>
+                {habits.map((habit, index) => (
+                  <View key={`habit-${habit.id}-${index}`} style={styles.habitItem}>
+                    <TouchableOpacity
+                      style={styles.habitCheckbox}
+                      onPress={() => toggleHabit(habit.id)}
                     >
-                      {habit.completed && (
-                        <IconSymbol
-                          ios_icon_name="checkmark"
-                          android_material_icon_name="check"
-                          size={20}
-                          color="#FFF"
-                        />
-                      )}
-                    </View>
-                    <Text style={styles.habitTitle}>{habit.title}</Text>
-                  </TouchableOpacity>
-                </View>
-              ))
+                      <View
+                        style={[
+                          styles.habitCircle,
+                          habit.completed && { backgroundColor: habit.color },
+                        ]}
+                      >
+                        {habit.completed && (
+                          <IconSymbol
+                            ios_icon_name="checkmark"
+                            android_material_icon_name="check"
+                            size={20}
+                            color="#FFF"
+                          />
+                        )}
+                      </View>
+                      <Text style={styles.habitTitle}>{habit.title}</Text>
+                    </TouchableOpacity>
+                  </View>
+                ))}
+              </React.Fragment>
             )}
 
             {!hasPremium && habits.length >= MAX_HABITS && (
@@ -609,11 +611,20 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 20,
     marginBottom: 20,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 4,
+      },
+      web: {
+        boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
+      },
+    }),
   },
   sectionHeader: {
     flexDirection: "row",
@@ -717,11 +728,20 @@ const styles = StyleSheet.create({
     backgroundColor: "#4B0082",
     justifyContent: "center",
     alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 8,
+      },
+      web: {
+        boxShadow: "0 4px 8px rgba(0,0,0,0.3)",
+      },
+    }),
   },
   journalModalContainer: {
     flex: 1,
