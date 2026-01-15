@@ -4,8 +4,6 @@ import Animated, {
   useAnimatedStyle,
   useSharedValue,
   withSpring,
-  interpolate,
-  withTiming,
 } from 'react-native-reanimated';
 import React, { useEffect } from 'react';
 import { BlurView } from 'expo-blur';
@@ -20,7 +18,7 @@ import {
   Platform,
   Dimensions,
 } from 'react-native';
-import { useRouter, usePathname } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export interface TabBarItem {
@@ -49,7 +47,6 @@ export default function FloatingTabBar({
   onTabPress,
   currentIndex = 0,
 }: FloatingTabBarProps) {
-  const pathname = usePathname();
   const { colors: themeColors } = useTheme();
   const router = useRouter();
 
@@ -109,7 +106,7 @@ export default function FloatingTabBar({
 
               return (
                 <TouchableOpacity
-                  key={`tab-${tab.name}-${index}`}
+                  key={`tab-${tab.name}`}
                   style={[styles.tab, { width: tabWidth }]}
                   onPress={() => handleTabPress(tab.route, index)}
                   activeOpacity={0.7}

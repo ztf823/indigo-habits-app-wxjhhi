@@ -31,15 +31,13 @@ export default function Index() {
     );
   }
 
-  // Always show splash on first launch, then go directly to home
+  // Show splash on first launch
   if (!hasSeenSplash) {
     console.log("Redirecting to splash screen");
-    // Mark as seen immediately
-    AsyncStorage.setItem("hasSeenSplash", "true").catch(console.error);
     return <Redirect href="/splash" />;
   }
 
-  // Go directly to home
+  // Go directly to home after splash has been seen
   console.log("Redirecting to home screen");
   return <Redirect href="/(tabs)/(home)/" />;
 }

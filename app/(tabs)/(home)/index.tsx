@@ -48,6 +48,7 @@ const STORAGE_KEYS = {
   HABITS: "indigo_habits_habits",
   JOURNAL_ENTRIES: "indigo_habits_journal_entries",
   HAS_PREMIUM: "indigo_habits_has_premium",
+  USED_AFFIRMATIONS_TODAY: "indigo_habits_used_affirmations_today",
 };
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
@@ -56,7 +57,7 @@ export default function HomeScreen() {
   const [affirmations, setAffirmations] = useState<Affirmation[]>([]);
   const [habits, setHabits] = useState<Habit[]>([]);
   const [loading, setLoading] = useState(false);
-  const [generatingAffirmation, setGeneratingAffirmation] = useState(false);
+  const [generatingAffirmation, setGeneratingAffirmation] = useState<string | null>(null);
   const [hasPremium, setHasPremium] = useState(false);
   
   // Journal modal state
@@ -285,6 +286,100 @@ export default function HomeScreen() {
     }
   };
 
+  const generateNewAffirmation = async (affirmationId: string) => {
+    console.log("[Home] User tapped Generate button for affirmation:", affirmationId);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+    setGeneratingAffirmation(affirmationId);
+
+    try {
+      // Get used affirmations today to avoid duplicates
+      const usedTodayJson = await AsyncStorage.getItem(STORAGE_KEYS.USED_AFFIRMATIONS_TODAY);
+      const usedToday = usedTodayJson ? JSON.parse(usedTodayJson) : [];
+
+      // Get a random affirmation that hasn't been used today
+      let newAffirmationText = getRandomAffirmation();
+      let attempts = 0;
+      while (usedToday.includes(newAffirmationText) && attempts < 50) {
+        newAffirmationText = getRandomAffirmation();
+        attempts++;
+      }
+
+      // Update the affirmation
+      const updatedAffirmations = affirmations.map((a) =>
+        a.id === affirmationId ? { ...a, text: newAffirmationText } : a
+      );
+      setAffirmations(updatedAffirmations);
+
+      // Save to storage
+      const storedAffirmations = await AsyncStorage.getItem(STORAGE_KEYS.AFFIRMATIONS);
+      if (storedAffirmations) {
+        const allAffirmations = JSON.parse(storedAffirmations);
+        const updated = allAffirmations.map((a: Affirmation) =>
+          a.id === affirmationId ? { ...a, text: newAffirmationText } : a
+        );
+        await AsyncStorage.setItem(STORAGE_KEYS.AFFIRMATIONS, JSON.stringify(updated));
+      }
+
+      // Track used affirmation
+      usedToday.push(newAffirmationText);
+      await AsyncStorage.setItem(STORAGE_KEYS.USED_AFFIRMATIONS_TODAY, JSON.stringify(usedToday));
+
+      console.log("[Home] Generated new affirmation:", newAffirmationText);
+    } catch (error) {
+      console.error("[Home] Error generating affirmation:", error);
+      Alert.alert("Error", "Failed to generate new affirmation. Please try again.");
+    }
+
+    setGeneratingAffirmation(null);
+  };
+
+  const removeAffirmation = async (affirmationId: string) => {
+    console.log("[Home] User tapped remove button for affirmation:", affirmationId);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+
+    const updatedAffirmations = affirmations.filter((a) => a.id !== affirmationId);
+    setAffirmations(updatedAffirmations);
+
+    try {
+      // Update in full storage - mark as not repeating instead of deleting
+      const storedAffirmations = await AsyncStorage.getItem(STORAGE_KEYS.AFFIRMATIONS);
+      if (storedAffirmations) {
+        const allAffirmations = JSON.parse(storedAffirmations);
+        const updated = allAffirmations.map((a: Affirmation) =>
+          a.id === affirmationId ? { ...a, isRepeating: false } : a
+        );
+        await AsyncStorage.setItem(STORAGE_KEYS.AFFIRMATIONS, JSON.stringify(updated));
+        console.log("[Home] Affirmation removed from daily list");
+      }
+    } catch (error) {
+      console.error("[Home] Error removing affirmation:", error);
+    }
+  };
+
+  const removeHabit = async (habitId: string) => {
+    console.log("[Home] User tapped remove button for habit:", habitId);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+
+    const updatedHabits = habits.filter((h) => h.id !== habitId);
+    setHabits(updatedHabits);
+
+    try {
+      // Update in full storage - mark as not repeating instead of deleting
+      const storedHabits = await AsyncStorage.getItem(STORAGE_KEYS.HABITS);
+      if (storedHabits) {
+        const allHabits = JSON.parse(storedHabits);
+        const updated = allHabits.map((h: Habit) =>
+          h.id === habitId ? { ...h, isRepeating: false } : h
+        );
+        await AsyncStorage.setItem(STORAGE_KEYS.HABITS, JSON.stringify(updated));
+        console.log("[Home] Habit removed from daily list");
+      }
+    } catch (error) {
+      console.error("[Home] Error removing habit:", error);
+    }
+  };
+
   const openJournalModal = () => {
     console.log("[Home] User tapped floating pencil icon - opening journal modal");
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -399,29 +494,49 @@ export default function HomeScreen() {
                   <View key={`affirmation-${affirmation.id}-${index}`} style={styles.affirmationItem}>
                     <View style={styles.affirmationContent}>
                       <Text style={styles.affirmationText}>{affirmation.text}</Text>
+                      
+                      {/* Action buttons row */}
+                      <View style={styles.affirmationActions}>
+                        {/* Star button */}
+                        <TouchableOpacity
+                          onPress={() => toggleFavoriteAffirmation(affirmation.id)}
+                          style={styles.actionButton}
+                        >
+                          <IconSymbol
+                            ios_icon_name={affirmation.isFavorite ? "star.fill" : "star"}
+                            android_material_icon_name={affirmation.isFavorite ? "star" : "star-border"}
+                            size={18}
+                            color={affirmation.isFavorite ? "#FFD700" : "#999"}
+                          />
+                        </TouchableOpacity>
+
+                        {/* Remove button */}
+                        <TouchableOpacity
+                          onPress={() => removeAffirmation(affirmation.id)}
+                          style={styles.actionButton}
+                        >
+                          <IconSymbol
+                            ios_icon_name="xmark"
+                            android_material_icon_name="close"
+                            size={18}
+                            color="#FF5252"
+                          />
+                        </TouchableOpacity>
+
+                        {/* Generate button */}
+                        <TouchableOpacity
+                          onPress={() => generateNewAffirmation(affirmation.id)}
+                          style={styles.generateButton}
+                          disabled={generatingAffirmation === affirmation.id}
+                        >
+                          {generatingAffirmation === affirmation.id ? (
+                            <ActivityIndicator size="small" color="#4B0082" />
+                          ) : (
+                            <Text style={styles.generateButtonText}>Generate</Text>
+                          )}
+                        </TouchableOpacity>
+                      </View>
                     </View>
-                    <TouchableOpacity
-                      onPress={() => toggleFavoriteAffirmation(affirmation.id)}
-                    >
-                      <IconSymbol
-                        ios_icon_name={
-                          affirmation.isFavorite
-                            ? "star.fill"
-                            : "star"
-                        }
-                        android_material_icon_name={
-                          affirmation.isFavorite
-                            ? "star"
-                            : "star-border"
-                        }
-                        size={20}
-                        color={
-                          affirmation.isFavorite
-                            ? "#FFD700"
-                            : "#999"
-                        }
-                      />
-                    </TouchableOpacity>
                   </View>
                 ))}
               </ScrollView>
@@ -471,6 +586,37 @@ export default function HomeScreen() {
                       </View>
                       <Text style={styles.habitTitle}>{habit.title}</Text>
                     </TouchableOpacity>
+
+                    {/* Action buttons */}
+                    <View style={styles.habitActions}>
+                      {/* Star button */}
+                      <TouchableOpacity
+                        onPress={() => {
+                          console.log("[Home] Star button for habit not yet implemented");
+                        }}
+                        style={styles.actionButton}
+                      >
+                        <IconSymbol
+                          ios_icon_name="star"
+                          android_material_icon_name="star-border"
+                          size={18}
+                          color="#999"
+                        />
+                      </TouchableOpacity>
+
+                      {/* Remove button */}
+                      <TouchableOpacity
+                        onPress={() => removeHabit(habit.id)}
+                        style={styles.actionButton}
+                      >
+                        <IconSymbol
+                          ios_icon_name="xmark"
+                          android_material_icon_name="close"
+                          size={18}
+                          color="#FF5252"
+                        />
+                      </TouchableOpacity>
+                    </View>
                   </View>
                 ))}
               </React.Fragment>
@@ -665,25 +811,44 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   affirmationsScroll: {
-    maxHeight: 300,
+    maxHeight: 400,
     marginBottom: 12,
   },
   affirmationItem: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    justifyContent: "space-between",
     paddingVertical: 12,
     borderBottomWidth: 1,
     borderBottomColor: "#F0F0F0",
   },
   affirmationContent: {
     flex: 1,
-    marginRight: 12,
   },
   affirmationText: {
     fontSize: 16,
     color: "#333",
     lineHeight: 24,
+    marginBottom: 12,
+  },
+  affirmationActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  actionButton: {
+    padding: 8,
+  },
+  generateButton: {
+    backgroundColor: "#E0E7FF",
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 16,
+    minWidth: 90,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  generateButtonText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#4B0082",
   },
   habitItem: {
     flexDirection: "row",
@@ -710,6 +875,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#333",
     flex: 1,
+  },
+  habitActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
   },
   limitText: {
     fontSize: 12,

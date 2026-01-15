@@ -1,9 +1,9 @@
 
 import React, { useEffect, useRef } from "react";
-import { View, Text, StyleSheet, Animated, Dimensions } from "react-native";
+import { View, Text, StyleSheet, Animated, Dimensions, Image } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
-import { Image } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -11,18 +11,40 @@ export default function SplashScreen() {
   const router = useRouter();
   const fadeAnim = useRef(new Animated.Value(1)).current;
   const shinePosition = useRef(new Animated.Value(-SCREEN_WIDTH)).current;
+  const logoScale = useRef(new Animated.Value(0.8)).current;
+  const textOpacity = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     console.log("[Splash] Splash screen mounted");
 
-    // Start shine animation immediately
-    Animated.timing(shinePosition, {
-      toValue: SCREEN_WIDTH * 2,
-      duration: 2000,
+    // Mark splash as seen
+    AsyncStorage.setItem("hasSeenSplash", "true").catch(console.error);
+
+    // Animate logo scale up
+    Animated.spring(logoScale, {
+      toValue: 1,
+      tension: 50,
+      friction: 7,
       useNativeDriver: true,
     }).start();
 
-    // After 2 seconds, fade out and navigate
+    // Fade in text after logo
+    Animated.timing(textOpacity, {
+      toValue: 1,
+      duration: 800,
+      delay: 300,
+      useNativeDriver: true,
+    }).start();
+
+    // Start shine animation
+    Animated.timing(shinePosition, {
+      toValue: SCREEN_WIDTH * 2,
+      duration: 2000,
+      delay: 500,
+      useNativeDriver: true,
+    }).start();
+
+    // After 2.5 seconds, fade out and navigate
     const timer = setTimeout(() => {
       console.log("[Splash] Fading out splash screen");
       Animated.timing(fadeAnim, {
@@ -33,7 +55,7 @@ export default function SplashScreen() {
         console.log("[Splash] Navigating to home screen");
         router.replace("/(tabs)/(home)/");
       });
-    }, 2000);
+    }, 2500);
 
     return () => clearTimeout(timer);
   }, []);
@@ -41,20 +63,44 @@ export default function SplashScreen() {
   return (
     <Animated.View style={[styles.container, { opacity: fadeAnim }]}>
       <LinearGradient
-        colors={["#4B0082", "#4B0082"]}
+        colors={["#4B0082", "#6A0DAD"]}
         style={styles.gradient}
       >
-        {/* Logo */}
-        <View style={styles.logoContainer}>
+        {/* Logo with animation */}
+        <Animated.View 
+          style={[
+            styles.logoContainer,
+            {
+              transform: [{ scale: logoScale }],
+            },
+          ]}
+        >
           <Image
             source={require("@/assets/images/final_quest_240x240.png")}
             style={styles.logo}
             resizeMode="contain"
           />
-        </View>
+        </Animated.View>
 
-        {/* Text */}
-        <Text style={styles.tagline}>The path to transforming your life.</Text>
+        {/* App Name */}
+        <Animated.Text 
+          style={[
+            styles.appName,
+            { opacity: textOpacity },
+          ]}
+        >
+          Indigo Habits
+        </Animated.Text>
+
+        {/* Tagline */}
+        <Animated.Text 
+          style={[
+            styles.tagline,
+            { opacity: textOpacity },
+          ]}
+        >
+          The path to transforming your life.
+        </Animated.Text>
 
         {/* Silver shine sweep */}
         <Animated.View
@@ -82,11 +128,19 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   logoContainer: {
-    marginBottom: 32,
+    marginBottom: 24,
   },
   logo: {
     width: 180,
     height: 180,
+  },
+  appName: {
+    fontSize: 36,
+    fontWeight: "800",
+    color: "#FFFFFF",
+    textAlign: "center",
+    marginBottom: 12,
+    letterSpacing: 1,
   },
   tagline: {
     fontSize: 18,
