@@ -55,7 +55,6 @@ export default function RootLayout() {
               animation: "none",
             }}
           >
-            <Stack.Screen name="splash" />
             <Stack.Screen name="welcome" />
             <Stack.Screen name="(tabs)" />
             <Stack.Screen name="modal" options={{ presentation: "modal" }} />

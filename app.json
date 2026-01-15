@@ -1,16 +1,17 @@
+
 {
   "expo": {
     "name": "Indigo Habits",
     "slug": "Indigo Habits",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/natively-dark.png",
+    "icon": "./assets/images/6d55fc54-d63d-4404-853f-c341ea5517d1.png",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
-      "image": "./assets/images/natively-dark.png",
+      "image": "./assets/images/6d55fc54-d63d-4404-853f-c341ea5517d1.png",
       "resizeMode": "contain",
-      "backgroundColor": "#4F46E5"
+      "backgroundColor": "#FFFFFF"
     },
     "ios": {
       "supportsTablet": true,
@@ -24,8 +25,8 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/natively-dark.png",
-        "backgroundColor": "#4F46E5"
+        "foregroundImage": "./assets/images/6d55fc54-d63d-4404-853f-c341ea5517d1.png",
+        "backgroundColor": "#FFFFFF"
       },
       "edgeToEdgeEnabled": true,
       "package": "com.indigohabits.app",
@@ -37,7 +38,7 @@
       ]
     },
     "web": {
-      "favicon": "./assets/images/final_quest_240x240.png",
+      "favicon": "./assets/images/6d55fc54-d63d-4404-853f-c341ea5517d1.png",
       "bundler": "metro"
     },
     "plugins": [

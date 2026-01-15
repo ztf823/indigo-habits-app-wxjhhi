@@ -1,43 +1,10 @@
 
 import { Redirect } from "expo-router";
-import React, { useEffect, useState } from "react";
-import { View, ActivityIndicator } from "react-native";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import React from "react";
 
 export default function Index() {
-  const [hasSeenSplash, setHasSeenSplash] = useState<boolean | null>(null);
-
-  useEffect(() => {
-    console.log("Index screen: Checking splash status");
-    async function checkSplashStatus() {
-      try {
-        const splashStatus = await AsyncStorage.getItem("hasSeenSplash");
-        console.log("Splash status from storage:", splashStatus);
-        setHasSeenSplash(splashStatus === "true");
-      } catch (error) {
-        console.error("Error checking splash status:", error);
-        setHasSeenSplash(false);
-      }
-    }
-
-    checkSplashStatus();
-  }, []);
-
-  if (hasSeenSplash === null) {
-    return (
-      <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#4B0082" }}>
-        <ActivityIndicator size="large" color="white" />
-      </View>
-    );
-  }
-
-  // Show splash on first launch
-  if (!hasSeenSplash) {
-    console.log("Redirecting to splash screen");
-    return <Redirect href="/splash" />;
-  }
-
-  // Go directly to home after splash has been seen
-  console.log("Redirecting to home screen");
+  console.log("Index screen: Redirecting directly to home screen");
+  
+  // Go directly to home screen - no splash screen
   return <Redirect href="/(tabs)/(home)/" />;
 }
