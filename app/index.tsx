@@ -5,39 +5,41 @@ import { View, ActivityIndicator } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export default function Index() {
-  const [hasSeenWelcome, setHasSeenWelcome] = useState<boolean | null>(null);
+  const [hasSeenSplash, setHasSeenSplash] = useState<boolean | null>(null);
 
   useEffect(() => {
-    console.log("Index screen: Checking welcome status");
-    async function checkWelcomeStatus() {
+    console.log("Index screen: Checking splash status");
+    async function checkSplashStatus() {
       try {
-        const welcomeStatus = await AsyncStorage.getItem("hasSeenWelcome");
-        console.log("Welcome status from storage:", welcomeStatus);
-        setHasSeenWelcome(welcomeStatus === "true");
+        const splashStatus = await AsyncStorage.getItem("hasSeenSplash");
+        console.log("Splash status from storage:", splashStatus);
+        setHasSeenSplash(splashStatus === "true");
       } catch (error) {
-        console.error("Error checking welcome status:", error);
-        setHasSeenWelcome(false);
+        console.error("Error checking splash status:", error);
+        setHasSeenSplash(false);
       }
     }
 
-    checkWelcomeStatus();
+    checkSplashStatus();
   }, []);
 
-  if (hasSeenWelcome === null) {
+  if (hasSeenSplash === null) {
     return (
-      <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#4F46E5" }}>
+      <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#4B0082" }}>
         <ActivityIndicator size="large" color="white" />
       </View>
     );
   }
 
-  // If user hasn't seen welcome, show welcome screen
-  if (!hasSeenWelcome) {
-    console.log("Redirecting to welcome screen");
-    return <Redirect href="/welcome" />;
+  // Always show splash on first launch, then go directly to home
+  if (!hasSeenSplash) {
+    console.log("Redirecting to splash screen");
+    // Mark as seen immediately
+    AsyncStorage.setItem("hasSeenSplash", "true").catch(console.error);
+    return <Redirect href="/splash" />;
   }
 
-  // Skip auth - go directly to home
+  // Go directly to home
   console.log("Redirecting to home screen");
   return <Redirect href="/(tabs)/(home)/" />;
 }

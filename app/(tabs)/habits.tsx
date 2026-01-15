@@ -11,17 +11,18 @@ import {
   ActivityIndicator,
   RefreshControl,
 } from "react-native";
-import { authenticatedApiCall, isBackendConfigured } from "@/utils/api";
 import { LinearGradient } from "expo-linear-gradient";
 import React, { useState, useEffect } from "react";
 import * as Haptics from "expo-haptics";
 import { IconSymbol } from "@/components/IconSymbol";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 interface Habit {
   id: string;
   title: string;
   color: string;
   isActive: boolean;
+  isRepeating: boolean;
 }
 
 interface Affirmation {
@@ -33,11 +34,11 @@ interface Affirmation {
   order?: number;
 }
 
-const DEFAULT_HABITS = [
-  { title: "Morning meditation", color: "#4F46E5" },
-  { title: "Exercise", color: "#10B981" },
-  { title: "Read 10 pages", color: "#F59E0B" },
-];
+const STORAGE_KEYS = {
+  AFFIRMATIONS: "indigo_habits_affirmations",
+  HABITS: "indigo_habits_habits",
+  HAS_PREMIUM: "indigo_habits_has_premium",
+};
 
 const COLORS = [
   "#4F46E5", // Indigo
@@ -54,7 +55,6 @@ export default function HabitsScreen() {
   const [activeTab, setActiveTab] = useState<"habits" | "affirmations">("habits");
   const [habits, setHabits] = useState<Habit[]>([]);
   const [affirmations, setAffirmations] = useState<Affirmation[]>([]);
-  const [dailyAffirmations, setDailyAffirmations] = useState<Affirmation[]>([]);
   const [showAddHabitModal, setShowAddHabitModal] = useState(false);
   const [showEditHabitModal, setShowEditHabitModal] = useState(false);
   const [showAddAffirmationModal, setShowAddAffirmationModal] = useState(false);
@@ -64,188 +64,67 @@ export default function HabitsScreen() {
   const [editingHabit, setEditingHabit] = useState<Habit | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [backendReady, setBackendReady] = useState(false);
+  const [hasPremium, setHasPremium] = useState(false);
 
   useEffect(() => {
-    checkBackendAndLoadData();
+    loadData();
   }, [activeTab]);
 
-  const checkBackendAndLoadData = async () => {
+  const loadData = async () => {
     setIsLoading(true);
-    
-    if (!isBackendConfigured()) {
-      console.log("[Habits] Backend not configured, using demo data");
-      setBackendReady(false);
-      loadDemoData();
-      setIsLoading(false);
-      return;
-    }
-
-    setBackendReady(true);
+    await loadPremiumStatus();
     if (activeTab === "habits") {
       await loadHabits();
     } else {
       await loadAffirmations();
-      await loadDailyAffirmations();
     }
     setIsLoading(false);
   };
 
-  const loadDemoData = () => {
-    if (activeTab === "habits") {
-      setHabits(
-        DEFAULT_HABITS.map((h, index) => ({
-          id: `demo-${index}`,
-          title: h.title,
-          color: h.color,
-          isActive: true,
-        }))
-      );
-    } else {
-      const demoAffirmations = [
-        {
-          id: "demo-1",
-          text: "I am worthy of love and respect.",
-          isCustom: true,
-          isFavorite: true,
-          isRepeating: true,
-          order: 0,
-        },
-        {
-          id: "demo-2",
-          text: "I choose to be happy and grateful today.",
-          isCustom: true,
-          isFavorite: true,
-          isRepeating: false,
-          order: 1,
-        },
-        {
-          id: "demo-3",
-          text: "I am capable of achieving my goals.",
-          isCustom: true,
-          isFavorite: false,
-          isRepeating: true,
-          order: 2,
-        },
-      ];
-      setAffirmations(demoAffirmations);
-      setDailyAffirmations(demoAffirmations.filter(a => a.isRepeating).slice(0, 3));
+  const loadPremiumStatus = async () => {
+    try {
+      const premiumStatus = await AsyncStorage.getItem(STORAGE_KEYS.HAS_PREMIUM);
+      setHasPremium(premiumStatus === "true");
+      console.log("[Habits] Premium status:", premiumStatus === "true");
+    } catch (error) {
+      console.error("[Habits] Error loading premium status:", error);
     }
   };
 
   const loadHabits = async () => {
     try {
-      console.log("[Habits] Loading habits from backend...");
-      
-      // Backend Integration: Load habits from backend
-      const data = await authenticatedApiCall("/api/habits");
-      
-      if (Array.isArray(data)) {
-        setHabits(data.filter((h) => h.isActive));
-        console.log("[Habits] Loaded", data.length, "habits");
-      }
-    } catch (error: any) {
-      console.error("[Habits] Error loading habits:", error);
-      
-      if (error.message?.includes("Backend URL not configured") || error.message?.includes("Authentication token not found")) {
-        loadDemoData();
+      const storedHabits = await AsyncStorage.getItem(STORAGE_KEYS.HABITS);
+      if (storedHabits) {
+        const parsed = JSON.parse(storedHabits);
+        setHabits(parsed.filter((h: Habit) => h.isActive));
+        console.log("[Habits] Loaded", parsed.length, "habits");
       } else {
-        Alert.alert(
-          "Connection Error",
-          "Unable to load your habits. Please check your internet connection.",
-          [{ text: "OK" }]
-        );
+        setHabits([]);
       }
+    } catch (error) {
+      console.error("[Habits] Error loading habits:", error);
     }
   };
 
   const loadAffirmations = async () => {
     try {
-      console.log("[Habits] Loading affirmations from backend...");
-      
-      // Backend Integration: Load all affirmations (custom and favorites)
-      const response = await authenticatedApiCall("/api/affirmations?limit=100");
-      
-      if (response.affirmations) {
-        // Filter to show only custom or favorite affirmations
-        const filtered = response.affirmations.filter(
-          (a: Affirmation) => a.isCustom || a.isFavorite
-        );
-        setAffirmations(filtered);
-        console.log("[Habits] Loaded", filtered.length, "affirmations");
+      const storedAffirmations = await AsyncStorage.getItem(STORAGE_KEYS.AFFIRMATIONS);
+      if (storedAffirmations) {
+        const parsed = JSON.parse(storedAffirmations);
+        setAffirmations(parsed);
+        console.log("[Habits] Loaded", parsed.length, "affirmations");
+      } else {
+        setAffirmations([]);
       }
-    } catch (error: any) {
+    } catch (error) {
       console.error("[Habits] Error loading affirmations:", error);
-      
-      if (error.message?.includes("Backend URL not configured") || error.message?.includes("Authentication token not found")) {
-        loadDemoData();
-      }
-    }
-  };
-
-  const loadDailyAffirmations = async () => {
-    try {
-      // Backend Integration: Load daily affirmations (the 3 shown on home)
-      const response = await authenticatedApiCall("/api/affirmations/daily");
-      
-      if (Array.isArray(response)) {
-        setDailyAffirmations(response.slice(0, 3));
-        console.log("[Habits] Loaded", response.length, "daily affirmations");
-      }
-    } catch (error: any) {
-      console.error("[Habits] Error loading daily affirmations:", error);
     }
   };
 
   const onRefresh = async () => {
     setIsRefreshing(true);
-    if (activeTab === "habits") {
-      await loadHabits();
-    } else {
-      await loadAffirmations();
-      await loadDailyAffirmations();
-    }
+    await loadData();
     setIsRefreshing(false);
-  };
-
-  const createHabit = async (title: string, color: string) => {
-    if (!backendReady) {
-      // Demo mode: Add locally
-      const newHabit: Habit = {
-        id: `demo-${Date.now()}`,
-        title,
-        color,
-        isActive: true,
-      };
-      setHabits((prev) => [...prev, newHabit]);
-      Alert.alert("Success", "Habit added! (Demo mode - won't be saved)");
-      return;
-    }
-
-    try {
-      // Backend Integration: Create habit via backend API
-      const data = await authenticatedApiCall("/api/habits", {
-        method: "POST",
-        body: JSON.stringify({ title, color }),
-      });
-
-      if (data?.id) {
-        setHabits((prev) => [...prev, data]);
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        console.log("[Habits] Habit created:", data.id);
-      }
-    } catch (error: any) {
-      console.error("[Habits] Error creating habit:", error);
-      
-      if (error.message?.includes("limit")) {
-        Alert.alert("Limit Reached", "You've reached the maximum number of habits. Upgrade to Pro for unlimited habits!");
-      } else if (error.message?.includes("Authentication token not found")) {
-        Alert.alert("Session Expired", "Please sign in again to continue.");
-      } else {
-        Alert.alert("Error", "Failed to create habit. Please check your internet connection and try again.");
-      }
-      throw error;
-    }
   };
 
   const handleAddHabit = async () => {
@@ -254,14 +133,39 @@ export default function HabitsScreen() {
       return;
     }
 
-    try {
-      await createHabit(newHabitTitle.trim(), selectedColor);
-      setNewHabitTitle("");
-      setSelectedColor(COLORS[0]);
-      setShowAddHabitModal(false);
-    } catch (error) {
-      console.error("[Habits] Failed to add habit:", error);
+    // Check limit for free users
+    const repeatingCount = habits.filter(h => h.isRepeating).length;
+    if (!hasPremium && repeatingCount >= 5) {
+      Alert.alert(
+        "Limit Reached",
+        "Free users can have up to 5 daily habits. Upgrade to Premium for unlimited habits!",
+        [{ text: "OK" }]
+      );
+      return;
     }
+
+    const newHabit: Habit = {
+      id: `habit-${Date.now()}`,
+      title: newHabitTitle.trim(),
+      color: selectedColor,
+      isActive: true,
+      isRepeating: false,
+    };
+
+    const updatedHabits = [...habits, newHabit];
+    setHabits(updatedHabits);
+
+    try {
+      await AsyncStorage.setItem(STORAGE_KEYS.HABITS, JSON.stringify(updatedHabits));
+      console.log("[Habits] Habit added:", newHabit.id);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (error) {
+      console.error("[Habits] Error saving habit:", error);
+    }
+
+    setNewHabitTitle("");
+    setSelectedColor(COLORS[0]);
+    setShowAddHabitModal(false);
   };
 
   const handleEditHabit = async () => {
@@ -270,46 +174,24 @@ export default function HabitsScreen() {
       return;
     }
 
-    if (!backendReady) {
-      // Demo mode: Update locally
-      setHabits((prev) =>
-        prev.map((h) =>
-          h.id === editingHabit.id
-            ? { ...h, title: newHabitTitle.trim(), color: selectedColor }
-            : h
-        )
-      );
-      setShowEditHabitModal(false);
-      setEditingHabit(null);
-      setNewHabitTitle("");
-      Alert.alert("Success", "Habit updated! (Demo mode - won't be saved)");
-      return;
-    }
+    const updatedHabits = habits.map((h) =>
+      h.id === editingHabit.id
+        ? { ...h, title: newHabitTitle.trim(), color: selectedColor }
+        : h
+    );
+    setHabits(updatedHabits);
 
     try {
-      // Backend Integration: Update habit via backend API
-      const data = await authenticatedApiCall(`/api/habits/${editingHabit.id}`, {
-        method: "PUT",
-        body: JSON.stringify({
-          title: newHabitTitle.trim(),
-          color: selectedColor,
-        }),
-      });
-
-      if (data) {
-        setHabits((prev) =>
-          prev.map((h) => (h.id === editingHabit.id ? data : h))
-        );
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      }
-
-      setShowEditHabitModal(false);
-      setEditingHabit(null);
-      setNewHabitTitle("");
+      await AsyncStorage.setItem(STORAGE_KEYS.HABITS, JSON.stringify(updatedHabits));
+      console.log("[Habits] Habit updated:", editingHabit.id);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (error) {
       console.error("[Habits] Error updating habit:", error);
-      Alert.alert("Error", "Failed to update habit. Please try again.");
     }
+
+    setShowEditHabitModal(false);
+    setEditingHabit(null);
+    setNewHabitTitle("");
   };
 
   const handleDeleteHabit = async (id: string) => {
@@ -322,24 +204,15 @@ export default function HabitsScreen() {
           text: "Delete",
           style: "destructive",
           onPress: async () => {
-            if (!backendReady) {
-              // Demo mode: Delete locally
-              setHabits((prev) => prev.filter((h) => h.id !== id));
-              return;
-            }
+            const updatedHabits = habits.filter((h) => h.id !== id);
+            setHabits(updatedHabits);
 
             try {
-              // Backend Integration: Delete habit via backend API (soft delete)
-              await authenticatedApiCall(`/api/habits/${id}`, {
-                method: "DELETE",
-              });
-
-              setHabits((prev) => prev.filter((h) => h.id !== id));
-              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              await AsyncStorage.setItem(STORAGE_KEYS.HABITS, JSON.stringify(updatedHabits));
               console.log("[Habits] Habit deleted:", id);
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
             } catch (error) {
               console.error("[Habits] Error deleting habit:", error);
-              Alert.alert("Error", "Failed to delete habit. Please try again.");
             }
           },
         },
@@ -354,114 +227,170 @@ export default function HabitsScreen() {
     setShowEditHabitModal(true);
   };
 
+  const toggleHabitRepeating = async (habitId: string) => {
+    const habit = habits.find((h) => h.id === habitId);
+    if (!habit) return;
+
+    const newRepeating = !habit.isRepeating;
+
+    // Check limit for free users
+    if (!hasPremium && newRepeating) {
+      const repeatingCount = habits.filter(h => h.isRepeating).length;
+      if (repeatingCount >= 5) {
+        Alert.alert(
+          "Limit Reached",
+          "Free users can have up to 5 daily habits. Upgrade to Premium for unlimited!",
+          [{ text: "OK" }]
+        );
+        return;
+      }
+    }
+
+    const updatedHabits = habits.map((h) =>
+      h.id === habitId ? { ...h, isRepeating: newRepeating } : h
+    );
+    setHabits(updatedHabits);
+
+    try {
+      await AsyncStorage.setItem(STORAGE_KEYS.HABITS, JSON.stringify(updatedHabits));
+      console.log("[Habits] Habit repeating toggled:", habitId, newRepeating);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    } catch (error) {
+      console.error("[Habits] Error toggling repeating:", error);
+    }
+  };
+
+  const moveHabitUp = async (index: number) => {
+    if (index === 0) return;
+
+    const newHabits = [...habits];
+    [newHabits[index - 1], newHabits[index]] = [newHabits[index], newHabits[index - 1]];
+    setHabits(newHabits);
+
+    try {
+      await AsyncStorage.setItem(STORAGE_KEYS.HABITS, JSON.stringify(newHabits));
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    } catch (error) {
+      console.error("[Habits] Error reordering habits:", error);
+    }
+  };
+
+  const moveHabitDown = async (index: number) => {
+    if (index === habits.length - 1) return;
+
+    const newHabits = [...habits];
+    [newHabits[index], newHabits[index + 1]] = [newHabits[index + 1], newHabits[index]];
+    setHabits(newHabits);
+
+    try {
+      await AsyncStorage.setItem(STORAGE_KEYS.HABITS, JSON.stringify(newHabits));
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    } catch (error) {
+      console.error("[Habits] Error reordering habits:", error);
+    }
+  };
+
   const handleAddCustomAffirmation = async () => {
     if (!newAffirmationText.trim()) {
       Alert.alert("Error", "Please enter an affirmation");
       return;
     }
 
-    if (!backendReady) {
-      // Demo mode: Add locally
-      const newAffirmation: Affirmation = {
-        id: `demo-${Date.now()}`,
-        text: newAffirmationText.trim(),
-        isCustom: true,
-        isFavorite: false,
-        isRepeating: false,
-      };
-      setAffirmations((prev) => [...prev, newAffirmation]);
-      setNewAffirmationText("");
-      setShowAddAffirmationModal(false);
-      Alert.alert("Success", "Affirmation added! (Demo mode - won't be saved)");
+    // Check limit for free users
+    const repeatingCount = affirmations.filter(a => a.isRepeating).length;
+    if (!hasPremium && repeatingCount >= 5) {
+      Alert.alert(
+        "Limit Reached",
+        "Free users can have up to 5 daily affirmations. Upgrade to Premium for unlimited!",
+        [{ text: "OK" }]
+      );
       return;
     }
 
+    const newAffirmation: Affirmation = {
+      id: `affirmation-${Date.now()}`,
+      text: newAffirmationText.trim(),
+      isCustom: true,
+      isFavorite: false,
+      isRepeating: false,
+    };
+
+    const updatedAffirmations = [...affirmations, newAffirmation];
+    setAffirmations(updatedAffirmations);
+
     try {
-      // Backend Integration: Create custom affirmation via backend API
-      const data = await authenticatedApiCall("/api/affirmations/custom", {
-        method: "POST",
-        body: JSON.stringify({ text: newAffirmationText.trim() }),
-      });
-
-      if (data?.id) {
-        setAffirmations((prev) => [...prev, data]);
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      }
-
-      setNewAffirmationText("");
-      setShowAddAffirmationModal(false);
+      await AsyncStorage.setItem(STORAGE_KEYS.AFFIRMATIONS, JSON.stringify(updatedAffirmations));
+      console.log("[Habits] Affirmation added:", newAffirmation.id);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (error) {
-      console.error("[Habits] Error creating affirmation:", error);
-      Alert.alert("Error", "Failed to create affirmation. Please try again.");
+      console.error("[Habits] Error saving affirmation:", error);
     }
+
+    setNewAffirmationText("");
+    setShowAddAffirmationModal(false);
   };
 
   const toggleAffirmationRepeating = async (affirmationId: string) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-
     const affirmation = affirmations.find((a) => a.id === affirmationId);
     if (!affirmation) return;
 
     const newRepeating = !affirmation.isRepeating;
 
-    // Update locally first
-    setAffirmations((prev) =>
-      prev.map((a) =>
-        a.id === affirmationId ? { ...a, isRepeating: newRepeating } : a
-      )
-    );
-
-    // Also update daily affirmations list
-    if (newRepeating) {
-      setDailyAffirmations((prev) => [...prev, { ...affirmation, isRepeating: true }].slice(0, 3));
-    } else {
-      setDailyAffirmations((prev) => prev.filter(a => a.id !== affirmationId));
-    }
-
-    if (backendReady) {
-      try {
-        // Backend Integration: Toggle affirmation repeating status via backend API
-        await authenticatedApiCall(`/api/affirmations/${affirmationId}/repeat`, {
-          method: "POST",
-        });
-      } catch (error) {
-        console.error("[Habits] Error toggling repeating:", error);
-        // Revert on error
-        setAffirmations((prev) =>
-          prev.map((a) =>
-            a.id === affirmationId ? { ...a, isRepeating: !newRepeating } : a
-          )
+    // Check limit for free users
+    if (!hasPremium && newRepeating) {
+      const repeatingCount = affirmations.filter(a => a.isRepeating).length;
+      if (repeatingCount >= 5) {
+        Alert.alert(
+          "Limit Reached",
+          "Free users can have up to 5 daily affirmations. Upgrade to Premium for unlimited!",
+          [{ text: "OK" }]
         );
+        return;
       }
     }
+
+    const updatedAffirmations = affirmations.map((a) =>
+      a.id === affirmationId ? { ...a, isRepeating: newRepeating } : a
+    );
+    setAffirmations(updatedAffirmations);
+
+    try {
+      await AsyncStorage.setItem(STORAGE_KEYS.AFFIRMATIONS, JSON.stringify(updatedAffirmations));
+      console.log("[Habits] Affirmation repeating toggled:", affirmationId, newRepeating);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    } catch (error) {
+      console.error("[Habits] Error toggling repeating:", error);
+    }
   };
 
-  const moveAffirmationUp = (index: number) => {
+  const moveAffirmationUp = async (index: number) => {
     if (index === 0) return;
-    
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    
-    const newDaily = [...dailyAffirmations];
-    [newDaily[index - 1], newDaily[index]] = [newDaily[index], newDaily[index - 1]];
-    setDailyAffirmations(newDaily);
 
-    // Note: Backend doesn't support custom ordering yet
-    // Order is determined by the backend based on repeating status and creation time
-    // This is a local-only reorder for UI purposes
+    const newAffirmations = [...affirmations];
+    [newAffirmations[index - 1], newAffirmations[index]] = [newAffirmations[index], newAffirmations[index - 1]];
+    setAffirmations(newAffirmations);
+
+    try {
+      await AsyncStorage.setItem(STORAGE_KEYS.AFFIRMATIONS, JSON.stringify(newAffirmations));
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    } catch (error) {
+      console.error("[Habits] Error reordering affirmations:", error);
+    }
   };
 
-  const moveAffirmationDown = (index: number) => {
-    if (index === dailyAffirmations.length - 1) return;
-    
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    
-    const newDaily = [...dailyAffirmations];
-    [newDaily[index], newDaily[index + 1]] = [newDaily[index + 1], newDaily[index]];
-    setDailyAffirmations(newDaily);
+  const moveAffirmationDown = async (index: number) => {
+    if (index === affirmations.length - 1) return;
 
-    // Note: Backend doesn't support custom ordering yet
-    // Order is determined by the backend based on repeating status and creation time
-    // This is a local-only reorder for UI purposes
+    const newAffirmations = [...affirmations];
+    [newAffirmations[index], newAffirmations[index + 1]] = [newAffirmations[index + 1], newAffirmations[index]];
+    setAffirmations(newAffirmations);
+
+    try {
+      await AsyncStorage.setItem(STORAGE_KEYS.AFFIRMATIONS, JSON.stringify(newAffirmations));
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    } catch (error) {
+      console.error("[Habits] Error reordering affirmations:", error);
+    }
   };
 
   const deleteAffirmation = async (affirmationId: string) => {
@@ -474,23 +403,15 @@ export default function HabitsScreen() {
           text: "Delete",
           style: "destructive",
           onPress: async () => {
-            if (!backendReady) {
-              setAffirmations((prev) => prev.filter((a) => a.id !== affirmationId));
-              setDailyAffirmations((prev) => prev.filter((a) => a.id !== affirmationId));
-              return;
-            }
+            const updatedAffirmations = affirmations.filter((a) => a.id !== affirmationId);
+            setAffirmations(updatedAffirmations);
 
             try {
-              // Backend Integration: Affirmations are managed by toggling favorite/repeating status
-              // Removing from the list just means unfavoriting and un-repeating
-              // The affirmation still exists in history
-              setAffirmations((prev) => prev.filter((a) => a.id !== affirmationId));
-              setDailyAffirmations((prev) => prev.filter((a) => a.id !== affirmationId));
+              await AsyncStorage.setItem(STORAGE_KEYS.AFFIRMATIONS, JSON.stringify(updatedAffirmations));
+              console.log("[Habits] Affirmation deleted:", affirmationId);
               Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-              Alert.alert("Success", "Affirmation removed from your list");
             } catch (error) {
               console.error("[Habits] Error deleting affirmation:", error);
-              Alert.alert("Error", "Failed to delete affirmation.");
             }
           },
         },
@@ -509,10 +430,13 @@ export default function HabitsScreen() {
     );
   }
 
+  const dailyHabits = habits.filter(h => h.isRepeating);
+  const dailyAffirmations = affirmations.filter(a => a.isRepeating);
+
   return (
     <LinearGradient colors={["#4F46E5", "#7C3AED", "#87CEEB"]} style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>My Habits</Text>
+        <Text style={styles.title}>Manage</Text>
         
         {/* Tab Selector */}
         <View style={styles.tabContainer}>
@@ -541,23 +465,16 @@ export default function HabitsScreen() {
           <RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} tintColor="#FFF" />
         }
       >
-        {/* Backend Status Banner */}
-        {!backendReady && (
-          <View style={styles.demoBanner}>
-            <IconSymbol
-              ios_icon_name="info.circle"
-              android_material_icon_name="info"
-              size={20}
-              color="#F59E0B"
-            />
-            <Text style={styles.demoBannerText}>
-              Demo Mode - Changes won&apos;t be saved until backend is ready
-            </Text>
-          </View>
-        )}
-
         {activeTab === "habits" ? (
           <>
+            {/* Daily Habits Info */}
+            <View style={styles.infoCard}>
+              <Text style={styles.infoTitle}>Daily Habits on Home: {dailyHabits.length}/5</Text>
+              <Text style={styles.infoText}>
+                Toggle &quot;Daily&quot; to show habits on your home screen. {!hasPremium && "Free users: max 5 daily habits."}
+              </Text>
+            </View>
+
             {habits.length === 0 ? (
               <View style={styles.emptyState}>
                 <IconSymbol
@@ -573,7 +490,7 @@ export default function HabitsScreen() {
               </View>
             ) : (
               <View style={styles.itemsList}>
-                {habits.map((habit) => (
+                {habits.map((habit, index) => (
                   <View key={habit.id} style={styles.itemCard}>
                     <View style={styles.itemInfo}>
                       <View
@@ -583,7 +500,47 @@ export default function HabitsScreen() {
                     </View>
                     <View style={styles.itemActions}>
                       <TouchableOpacity
-                        style={styles.actionButton}
+                        style={[
+                          styles.repeatButton,
+                          habit.isRepeating && styles.repeatButtonActive,
+                        ]}
+                        onPress={() => toggleHabitRepeating(habit.id)}
+                      >
+                        <Text
+                          style={[
+                            styles.repeatButtonText,
+                            habit.isRepeating && styles.repeatButtonTextActive,
+                          ]}
+                        >
+                          {habit.isRepeating ? "Daily" : "Repeat"}
+                        </Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={styles.iconButton}
+                        onPress={() => moveHabitUp(index)}
+                        disabled={index === 0}
+                      >
+                        <IconSymbol
+                          ios_icon_name="chevron.up"
+                          android_material_icon_name="arrow-upward"
+                          size={20}
+                          color={index === 0 ? "#CCC" : "#4F46E5"}
+                        />
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={styles.iconButton}
+                        onPress={() => moveHabitDown(index)}
+                        disabled={index === habits.length - 1}
+                      >
+                        <IconSymbol
+                          ios_icon_name="chevron.down"
+                          android_material_icon_name="arrow-downward"
+                          size={20}
+                          color={index === habits.length - 1 ? "#CCC" : "#4F46E5"}
+                        />
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={styles.iconButton}
                         onPress={() => openEditModal(habit)}
                       >
                         <IconSymbol
@@ -594,7 +551,7 @@ export default function HabitsScreen() {
                         />
                       </TouchableOpacity>
                       <TouchableOpacity
-                        style={styles.actionButton}
+                        style={styles.iconButton}
                         onPress={() => handleDeleteHabit(habit.id)}
                       >
                         <IconSymbol
@@ -612,157 +569,91 @@ export default function HabitsScreen() {
           </>
         ) : (
           <>
-            {/* Daily Affirmations Section */}
-            <View style={styles.dailySection}>
-              <Text style={styles.sectionTitle}>Daily Affirmations (Shown on Home)</Text>
-              <Text style={styles.sectionSubtitle}>
-                These {dailyAffirmations.length} affirmations appear on your home screen. Reorder them or toggle repeating status.
+            {/* Daily Affirmations Info */}
+            <View style={styles.infoCard}>
+              <Text style={styles.infoTitle}>Daily Affirmations on Home: {dailyAffirmations.length}/5</Text>
+              <Text style={styles.infoText}>
+                Toggle &quot;Daily&quot; to show affirmations on your home screen. {!hasPremium && "Free users: max 5 daily affirmations."}
               </Text>
-              
-              {dailyAffirmations.length === 0 ? (
-                <View style={styles.emptyDaily}>
-                  <Text style={styles.emptyDailyText}>
-                    No daily affirmations set. Mark affirmations as &quot;Daily&quot; below to show them on home.
-                  </Text>
-                </View>
-              ) : (
-                <View style={styles.dailyList}>
-                  {dailyAffirmations.map((affirmation, index) => (
-                    <View key={affirmation.id} style={styles.dailyCard}>
-                      <View style={styles.dailyContent}>
-                        <View style={styles.dailyNumber}>
-                          <Text style={styles.dailyNumberText}>{index + 1}</Text>
-                        </View>
-                        <Text style={styles.dailyText}>{affirmation.text}</Text>
-                      </View>
-                      <View style={styles.dailyActions}>
-                        <TouchableOpacity
-                          style={[styles.iconButton, index === 0 && styles.iconButtonDisabled]}
-                          onPress={() => moveAffirmationUp(index)}
-                          disabled={index === 0}
-                        >
-                          <IconSymbol
-                            ios_icon_name="chevron.up"
-                            android_material_icon_name="arrow-upward"
-                            size={20}
-                            color={index === 0 ? "#CCC" : "#4F46E5"}
-                          />
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                          style={[styles.iconButton, index === dailyAffirmations.length - 1 && styles.iconButtonDisabled]}
-                          onPress={() => moveAffirmationDown(index)}
-                          disabled={index === dailyAffirmations.length - 1}
-                        >
-                          <IconSymbol
-                            ios_icon_name="chevron.down"
-                            android_material_icon_name="arrow-downward"
-                            size={20}
-                            color={index === dailyAffirmations.length - 1 ? "#CCC" : "#4F46E5"}
-                          />
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                          style={styles.iconButton}
-                          onPress={() => toggleAffirmationRepeating(affirmation.id)}
-                        >
-                          <IconSymbol
-                            ios_icon_name="xmark.circle"
-                            android_material_icon_name="close"
-                            size={20}
-                            color="#EF4444"
-                          />
-                        </TouchableOpacity>
-                      </View>
-                    </View>
-                  ))}
-                </View>
-              )}
             </View>
 
-            {/* All Affirmations Section */}
-            <View style={styles.allSection}>
-              <Text style={styles.sectionTitle}>All Affirmations</Text>
-              <Text style={styles.sectionSubtitle}>
-                Manage custom affirmations and set them to repeat daily
-              </Text>
-              
-              {affirmations.length === 0 ? (
-                <View style={styles.emptyState}>
-                  <IconSymbol
-                    ios_icon_name="sparkles"
-                    android_material_icon_name="auto-awesome"
-                    size={64}
-                    color="#FFF"
-                  />
-                  <Text style={styles.emptyStateText}>No custom affirmations yet</Text>
-                  <Text style={styles.emptyStateSubtext}>
-                    Tap the + button to add your first affirmation
-                  </Text>
-                </View>
-              ) : (
-                <View style={styles.itemsList}>
-                  {affirmations.map((affirmation) => (
-                    <View key={affirmation.id} style={styles.affirmationCard}>
-                      <View style={styles.affirmationContent}>
-                        <Text style={styles.affirmationText}>{affirmation.text}</Text>
-                        <View style={styles.affirmationMeta}>
-                          {affirmation.isCustom && (
-                            <View style={styles.badge}>
-                              <Text style={styles.badgeText}>Custom</Text>
-                            </View>
-                          )}
-                          {affirmation.isFavorite && (
-                            <View style={styles.badge}>
-                              <IconSymbol
-                                ios_icon_name="star.fill"
-                                android_material_icon_name="star"
-                                size={12}
-                                color="#FFD700"
-                              />
-                              <Text style={styles.badgeText}>Favorite</Text>
-                            </View>
-                          )}
-                        </View>
-                      </View>
-                      <View style={styles.affirmationActions}>
-                        <TouchableOpacity
-                          style={[
-                            styles.repeatButton,
-                            affirmation.isRepeating && styles.repeatButtonActive,
-                          ]}
-                          onPress={() => toggleAffirmationRepeating(affirmation.id)}
-                        >
-                          <IconSymbol
-                            ios_icon_name="repeat"
-                            android_material_icon_name="repeat"
-                            size={16}
-                            color={affirmation.isRepeating ? "#FFF" : "#4F46E5"}
-                          />
-                          <Text
-                            style={[
-                              styles.repeatButtonText,
-                              affirmation.isRepeating && styles.repeatButtonTextActive,
-                            ]}
-                          >
-                            {affirmation.isRepeating ? "Daily" : "Repeat"}
-                          </Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                          style={styles.actionButton}
-                          onPress={() => deleteAffirmation(affirmation.id)}
-                        >
-                          <IconSymbol
-                            ios_icon_name="trash"
-                            android_material_icon_name="delete"
-                            size={20}
-                            color="#EF4444"
-                          />
-                        </TouchableOpacity>
-                      </View>
+            {affirmations.length === 0 ? (
+              <View style={styles.emptyState}>
+                <IconSymbol
+                  ios_icon_name="sparkles"
+                  android_material_icon_name="auto-awesome"
+                  size={64}
+                  color="#FFF"
+                />
+                <Text style={styles.emptyStateText}>No affirmations yet</Text>
+                <Text style={styles.emptyStateSubtext}>
+                  Tap the + button to add your first affirmation
+                </Text>
+              </View>
+            ) : (
+              <View style={styles.itemsList}>
+                {affirmations.map((affirmation, index) => (
+                  <View key={affirmation.id} style={styles.affirmationCard}>
+                    <View style={styles.affirmationContent}>
+                      <Text style={styles.affirmationText}>{affirmation.text}</Text>
                     </View>
-                  ))}
-                </View>
-              )}
-            </View>
+                    <View style={styles.affirmationActions}>
+                      <TouchableOpacity
+                        style={[
+                          styles.repeatButton,
+                          affirmation.isRepeating && styles.repeatButtonActive,
+                        ]}
+                        onPress={() => toggleAffirmationRepeating(affirmation.id)}
+                      >
+                        <Text
+                          style={[
+                            styles.repeatButtonText,
+                            affirmation.isRepeating && styles.repeatButtonTextActive,
+                          ]}
+                        >
+                          {affirmation.isRepeating ? "Daily" : "Repeat"}
+                        </Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={styles.iconButton}
+                        onPress={() => moveAffirmationUp(index)}
+                        disabled={index === 0}
+                      >
+                        <IconSymbol
+                          ios_icon_name="chevron.up"
+                          android_material_icon_name="arrow-upward"
+                          size={20}
+                          color={index === 0 ? "#CCC" : "#4F46E5"}
+                        />
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={styles.iconButton}
+                        onPress={() => moveAffirmationDown(index)}
+                        disabled={index === affirmations.length - 1}
+                      >
+                        <IconSymbol
+                          ios_icon_name="chevron.down"
+                          android_material_icon_name="arrow-downward"
+                          size={20}
+                          color={index === affirmations.length - 1 ? "#CCC" : "#4F46E5"}
+                        />
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={styles.iconButton}
+                        onPress={() => deleteAffirmation(affirmation.id)}
+                      >
+                        <IconSymbol
+                          ios_icon_name="trash"
+                          android_material_icon_name="delete"
+                          size={20}
+                          color="#EF4444"
+                        />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                ))}
+              </View>
+            )}
           </>
         )}
       </ScrollView>
@@ -1003,102 +894,22 @@ const styles = StyleSheet.create({
     padding: 20,
     paddingBottom: 100,
   },
-  demoBanner: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#FEF3C7",
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 16,
-    gap: 8,
-  },
-  demoBannerText: {
-    flex: 1,
-    fontSize: 13,
-    color: "#92400E",
-    fontWeight: "500",
-  },
-  dailySection: {
-    marginBottom: 24,
-  },
-  allSection: {
-    marginTop: 8,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#FFF",
-    marginBottom: 8,
-  },
-  sectionSubtitle: {
-    fontSize: 14,
-    color: "#E0E7FF",
-    marginBottom: 16,
-    lineHeight: 20,
-  },
-  emptyDaily: {
-    backgroundColor: "rgba(255,255,255,0.1)",
-    borderRadius: 12,
-    padding: 20,
-    alignItems: "center",
-  },
-  emptyDailyText: {
-    fontSize: 14,
-    color: "#E0E7FF",
-    textAlign: "center",
-    lineHeight: 20,
-  },
-  dailyList: {
-    gap: 12,
-  },
-  dailyCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    backgroundColor: "#FFF",
+  infoCard: {
+    backgroundColor: "rgba(255,255,255,0.95)",
     borderRadius: 12,
     padding: 16,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    marginBottom: 16,
   },
-  dailyContent: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    flex: 1,
-    marginRight: 12,
-  },
-  dailyNumber: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: "#4F46E5",
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 12,
-  },
-  dailyNumberText: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: "#FFF",
-  },
-  dailyText: {
-    flex: 1,
-    fontSize: 15,
+  infoTitle: {
+    fontSize: 16,
+    fontWeight: "600",
     color: "#1F2937",
-    lineHeight: 22,
+    marginBottom: 8,
   },
-  dailyActions: {
-    flexDirection: "row",
-    gap: 4,
-  },
-  iconButton: {
-    padding: 6,
-  },
-  iconButtonDisabled: {
-    opacity: 0.3,
+  infoText: {
+    fontSize: 14,
+    color: "#6B7280",
+    lineHeight: 20,
   },
   emptyState: {
     alignItems: "center",
@@ -1121,9 +932,6 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   itemCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
     backgroundColor: "#FFF",
     borderRadius: 12,
     padding: 16,
@@ -1136,7 +944,7 @@ const styles = StyleSheet.create({
   itemInfo: {
     flexDirection: "row",
     alignItems: "center",
-    flex: 1,
+    marginBottom: 12,
   },
   colorIndicator: {
     width: 12,
@@ -1153,9 +961,30 @@ const styles = StyleSheet.create({
   itemActions: {
     flexDirection: "row",
     gap: 8,
+    alignItems: "center",
+    flexWrap: "wrap",
   },
-  actionButton: {
-    padding: 8,
+  iconButton: {
+    padding: 6,
+  },
+  repeatButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#E0E7FF",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  repeatButtonActive: {
+    backgroundColor: "#4F46E5",
+  },
+  repeatButtonText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#4F46E5",
+  },
+  repeatButtonTextActive: {
+    color: "#FFF",
   },
   affirmationCard: {
     backgroundColor: "#FFF",
@@ -1174,50 +1003,12 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#1F2937",
     lineHeight: 24,
-    marginBottom: 8,
-  },
-  affirmationMeta: {
-    flexDirection: "row",
-    gap: 8,
-  },
-  badge: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#E0E7FF",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-    gap: 4,
-  },
-  badgeText: {
-    fontSize: 11,
-    fontWeight: "600",
-    color: "#4F46E5",
   },
   affirmationActions: {
     flexDirection: "row",
-    justifyContent: "space-between",
+    gap: 8,
     alignItems: "center",
-  },
-  repeatButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#E0E7FF",
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
-    gap: 6,
-  },
-  repeatButtonActive: {
-    backgroundColor: "#4F46E5",
-  },
-  repeatButtonText: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#4F46E5",
-  },
-  repeatButtonTextActive: {
-    color: "#FFF",
+    flexWrap: "wrap",
   },
   addButton: {
     position: "absolute",

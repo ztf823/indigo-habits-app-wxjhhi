@@ -1,8 +1,8 @@
 
-import { authenticatedApiCall, isBackendConfigured } from "@/utils/api";
 import { LinearGradient } from "expo-linear-gradient";
 import React, { useState, useEffect } from "react";
 import { IconSymbol } from "@/components/IconSymbol";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   View,
   Text,
@@ -22,9 +22,31 @@ interface Badge {
   id: string;
   name: string;
   description: string;
+  daysRequired: number;
   earned: boolean;
   earnedAt?: string;
+  glowColor: string;
 }
+
+const STORAGE_KEYS = {
+  HABITS: "indigo_habits_habits",
+  STREAK_DATA: "indigo_habits_streak_data",
+};
+
+const BADGES: Badge[] = [
+  { id: "1", name: "Indigo Warrior", description: "3-day streak", daysRequired: 3, earned: false, glowColor: "#4B0082" },
+  { id: "2", name: "Indigo Guardian", description: "7-day streak", daysRequired: 7, earned: false, glowColor: "#5B1A9E" },
+  { id: "3", name: "Indigo Sentinel", description: "14-day streak", daysRequired: 14, earned: false, glowColor: "#6B2AB8" },
+  { id: "4", name: "Indigo Champion", description: "21-day streak", daysRequired: 21, earned: false, glowColor: "#7B3AD2" },
+  { id: "5", name: "Indigo Legend", description: "30-day streak", daysRequired: 30, earned: false, glowColor: "#8B4AEC" },
+  { id: "6", name: "Indigo Sovereign", description: "60-day streak", daysRequired: 60, earned: false, glowColor: "#9B5AFF" },
+  { id: "7", name: "Indigo Eternal", description: "90-day streak", daysRequired: 90, earned: false, glowColor: "#AB6AFF" },
+  { id: "8", name: "Indigo Vanguard", description: "120-day streak", daysRequired: 120, earned: false, glowColor: "#BB7AFF" },
+  { id: "9", name: "Indigo Titan", description: "150-day streak", daysRequired: 150, earned: false, glowColor: "#CB8AFF" },
+  { id: "10", name: "Indigo Immortal", description: "180-day streak", daysRequired: 180, earned: false, glowColor: "#DB9AFF" },
+  { id: "11", name: "Indigo Apex", description: "240-day streak", daysRequired: 240, earned: false, glowColor: "#EBAAFF" },
+  { id: "12", name: "Indigo Master", description: "365-day streak", daysRequired: 365, earned: false, glowColor: "#FFD700" },
+];
 
 export default function ProgressScreen() {
   const [streaks, setStreaks] = useState<StreakData>({
@@ -32,95 +54,53 @@ export default function ProgressScreen() {
     longestStreak: 0,
     totalCompletions: 0,
   });
-  const [badges, setBadges] = useState<Badge[]>([]);
+  const [badges, setBadges] = useState<Badge[]>(BADGES);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [backendReady, setBackendReady] = useState(false);
 
   useEffect(() => {
-    checkBackendAndLoadProgress();
+    loadProgress();
   }, []);
 
-  const checkBackendAndLoadProgress = async () => {
+  const loadProgress = async () => {
     setIsLoading(true);
     
-    if (!isBackendConfigured()) {
-      console.log("[Progress] Backend not configured, using demo data");
-      setBackendReady(false);
-      loadDemoData();
-      setIsLoading(false);
-      return;
-    }
-
-    setBackendReady(true);
-    await loadProgress();
-    setIsLoading(false);
-  };
-
-  const loadDemoData = () => {
-    setStreaks({
-      currentStreak: 3,
-      longestStreak: 7,
-      totalCompletions: 42,
-    });
-
-    setBadges([
-      {
-        id: "1",
-        name: "Getting Started",
-        description: "Complete your first day",
-        earned: true,
-        earnedAt: new Date().toISOString(),
-      },
-      {
-        id: "2",
-        name: "3-Day Warrior",
-        description: "Maintain a 3-day streak",
-        earned: true,
-        earnedAt: new Date().toISOString(),
-      },
-      {
-        id: "3",
-        name: "Week Champion",
-        description: "Maintain a 7-day streak",
-        earned: false,
-      },
-      {
-        id: "4",
-        name: "Month Master",
-        description: "Maintain a 30-day streak",
-        earned: false,
-      },
-    ]);
-  };
-
-  const loadProgress = async () => {
     try {
-      console.log("[Progress] Loading progress from backend...");
-      
-      // Load progress data from backend
-      const data = await authenticatedApiCall("/api/progress");
-      
-      if (data) {
-        setStreaks({
-          currentStreak: data.currentStreak || 0,
-          longestStreak: data.longestStreak || 0,
-          totalCompletions: data.totalCompletions || 0,
-        });
-
-        if (data.badges) {
-          setBadges(data.badges);
+      // Load streak data
+      const storedStreakData = await AsyncStorage.getItem(STORAGE_KEYS.STREAK_DATA);
+      if (storedStreakData) {
+        const parsed = JSON.parse(storedStreakData);
+        setStreaks(parsed);
+        console.log("[Progress] Loaded streak data:", parsed);
+      } else {
+        // Calculate from habits
+        const storedHabits = await AsyncStorage.getItem(STORAGE_KEYS.HABITS);
+        if (storedHabits) {
+          const habits = JSON.parse(storedHabits);
+          const completedCount = habits.filter((h: any) => h.completed).length;
+          const newStreakData = {
+            currentStreak: completedCount > 0 ? 1 : 0,
+            longestStreak: completedCount > 0 ? 1 : 0,
+            totalCompletions: completedCount,
+          };
+          setStreaks(newStreakData);
+          await AsyncStorage.setItem(STORAGE_KEYS.STREAK_DATA, JSON.stringify(newStreakData));
         }
-        
-        console.log("[Progress] Progress data loaded");
       }
-    } catch (error: any) {
-      console.error("[Progress] Error loading progress:", error);
+
+      // Update badges based on current streak
+      const updatedBadges = BADGES.map(badge => ({
+        ...badge,
+        earned: streaks.longestStreak >= badge.daysRequired,
+        earnedAt: streaks.longestStreak >= badge.daysRequired ? new Date().toISOString() : undefined,
+      }));
+      setBadges(updatedBadges);
       
-      if (error.message?.includes("Backend URL not configured") || error.message?.includes("Authentication token not found")) {
-        loadDemoData();
-      }
+    } catch (error) {
+      console.error("[Progress] Error loading progress:", error);
     }
+    
+    setIsLoading(false);
   };
 
   const onRefresh = async () => {
@@ -140,6 +120,9 @@ export default function ProgressScreen() {
     );
   }
 
+  // Find next badge to earn
+  const nextBadge = badges.find(b => !b.earned);
+
   return (
     <LinearGradient colors={["#4F46E5", "#7C3AED", "#87CEEB"]} style={styles.container}>
       <ScrollView
@@ -148,21 +131,6 @@ export default function ProgressScreen() {
           <RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} tintColor="#FFF" />
         }
       >
-        {/* Backend Status Banner */}
-        {!backendReady && (
-          <View style={styles.demoBanner}>
-            <IconSymbol
-              ios_icon_name="info.circle"
-              android_material_icon_name="info"
-              size={20}
-              color="#F59E0B"
-            />
-            <Text style={styles.demoBannerText}>
-              Demo Mode - Showing sample progress data
-            </Text>
-          </View>
-        )}
-
         <Text style={styles.title}>Your Progress</Text>
         <Text style={styles.subtitle}>Track your journey to better habits</Text>
 
@@ -203,6 +171,29 @@ export default function ProgressScreen() {
           </View>
         </View>
 
+        {/* Next Badge Section */}
+        {nextBadge && (
+          <View style={styles.nextBadgeCard}>
+            <Text style={styles.nextBadgeTitle}>Next Badge</Text>
+            <View style={styles.nextBadgeContent}>
+              <View style={[styles.nextBadgeIcon, { backgroundColor: nextBadge.glowColor + "20" }]}>
+                <IconSymbol
+                  ios_icon_name="trophy"
+                  android_material_icon_name="emoji-events"
+                  size={40}
+                  color={nextBadge.glowColor}
+                />
+              </View>
+              <View style={styles.nextBadgeInfo}>
+                <Text style={styles.nextBadgeName}>{nextBadge.name}</Text>
+                <Text style={styles.nextBadgeDescription}>
+                  {nextBadge.daysRequired - streaks.longestStreak} more days to unlock
+                </Text>
+              </View>
+            </View>
+          </View>
+        )}
+
         {/* Badges Section */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Badges</Text>
@@ -215,12 +206,19 @@ export default function ProgressScreen() {
                   !badge.earned && styles.badgeCardLocked,
                 ]}
               >
-                <IconSymbol
-                  ios_icon_name={badge.earned ? "trophy.fill" : "trophy"}
-                  android_material_icon_name={badge.earned ? "emoji-events" : "emoji-events"}
-                  size={40}
-                  color={badge.earned ? "#FFD700" : "#9CA3AF"}
-                />
+                <View
+                  style={[
+                    styles.badgeIconContainer,
+                    badge.earned && { backgroundColor: badge.glowColor + "20" },
+                  ]}
+                >
+                  <IconSymbol
+                    ios_icon_name={badge.earned ? "trophy.fill" : "trophy"}
+                    android_material_icon_name="emoji-events"
+                    size={40}
+                    color={badge.earned ? badge.glowColor : "#9CA3AF"}
+                  />
+                </View>
                 <Text
                   style={[
                     styles.badgeName,
@@ -238,9 +236,15 @@ export default function ProgressScreen() {
                   {badge.description}
                 </Text>
                 {badge.earned && badge.earnedAt && (
-                  <Text style={styles.badgeEarnedDate}>
-                    Earned {new Date(badge.earnedAt).toLocaleDateString()}
-                  </Text>
+                  <View style={styles.earnedBadge}>
+                    <IconSymbol
+                      ios_icon_name="checkmark.circle.fill"
+                      android_material_icon_name="check-circle"
+                      size={16}
+                      color="#10B981"
+                    />
+                    <Text style={styles.earnedText}>Earned</Text>
+                  </View>
                 )}
               </View>
             ))}
@@ -283,22 +287,8 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: 20,
+    paddingTop: 60,
     paddingBottom: 100,
-  },
-  demoBanner: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#FEF3C7",
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 16,
-    gap: 8,
-  },
-  demoBannerText: {
-    flex: 1,
-    fontSize: 13,
-    color: "#92400E",
-    fontWeight: "500",
   },
   title: {
     fontSize: 32,
@@ -348,6 +338,48 @@ const styles = StyleSheet.create({
     marginTop: 4,
     textAlign: "center",
   },
+  nextBadgeCard: {
+    backgroundColor: "#FFF",
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 24,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  nextBadgeTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#1F2937",
+    marginBottom: 16,
+  },
+  nextBadgeContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 16,
+  },
+  nextBadgeIcon: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  nextBadgeInfo: {
+    flex: 1,
+  },
+  nextBadgeName: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: "#1F2937",
+    marginBottom: 4,
+  },
+  nextBadgeDescription: {
+    fontSize: 14,
+    color: "#6B7280",
+  },
   badgesContainer: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -366,13 +398,21 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   badgeCardLocked: {
-    opacity: 0.6,
+    opacity: 0.5,
+  },
+  badgeIconContainer: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 8,
   },
   badgeName: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: "600",
     color: "#1F2937",
-    marginTop: 12,
+    marginTop: 8,
     textAlign: "center",
   },
   badgeNameLocked: {
@@ -387,11 +427,20 @@ const styles = StyleSheet.create({
   badgeDescriptionLocked: {
     color: "#9CA3AF",
   },
-  badgeEarnedDate: {
-    fontSize: 10,
-    color: "#10B981",
+  earnedBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
     marginTop: 8,
-    fontWeight: "500",
+    backgroundColor: "#D1FAE5",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  earnedText: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: "#10B981",
   },
   motivationCard: {
     flexDirection: "row",

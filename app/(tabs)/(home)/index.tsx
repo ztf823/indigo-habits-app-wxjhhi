@@ -36,16 +36,18 @@ interface Habit {
   title: string;
   completed: boolean;
   color: string;
+  isRepeating?: boolean;
 }
 
-const MAX_AFFIRMATIONS = 3;
-const MAX_HABITS = 4;
+const MAX_AFFIRMATIONS = 5;
+const MAX_HABITS = 5;
 const AUTO_SAVE_DELAY = 30000; // 30 seconds
 
 const STORAGE_KEYS = {
   AFFIRMATIONS: "indigo_habits_affirmations",
   HABITS: "indigo_habits_habits",
   JOURNAL_ENTRIES: "indigo_habits_journal_entries",
+  HAS_PREMIUM: "indigo_habits_has_premium",
 };
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
@@ -55,6 +57,7 @@ export default function HomeScreen() {
   const [habits, setHabits] = useState<Habit[]>([]);
   const [loading, setLoading] = useState(false);
   const [generatingAffirmation, setGeneratingAffirmation] = useState(false);
+  const [hasPremium, setHasPremium] = useState(false);
   
   // Journal modal state
   const [journalModalVisible, setJournalModalVisible] = useState(false);
@@ -150,8 +153,19 @@ export default function HomeScreen() {
   };
 
   const loadData = async () => {
+    await loadPremiumStatus();
     await loadAffirmations();
     await loadHabits();
+  };
+
+  const loadPremiumStatus = async () => {
+    try {
+      const premiumStatus = await AsyncStorage.getItem(STORAGE_KEYS.HAS_PREMIUM);
+      setHasPremium(premiumStatus === "true");
+      console.log("[Home] Premium status:", premiumStatus === "true");
+    } catch (error) {
+      console.error("[Home] Error loading premium status:", error);
+    }
   };
 
   const loadAffirmations = async () => {
@@ -159,8 +173,10 @@ export default function HomeScreen() {
       const storedAffirmations = await AsyncStorage.getItem(STORAGE_KEYS.AFFIRMATIONS);
       if (storedAffirmations) {
         const parsed = JSON.parse(storedAffirmations);
-        setAffirmations(parsed.slice(0, MAX_AFFIRMATIONS));
-        console.log("[Home] Loaded affirmations from local storage:", parsed.length);
+        // Filter to only show repeating affirmations on home, limit to 5
+        const repeating = parsed.filter((a: Affirmation) => a.isRepeating).slice(0, MAX_AFFIRMATIONS);
+        setAffirmations(repeating);
+        console.log("[Home] Loaded affirmations from local storage:", repeating.length);
       } else {
         // Initialize with random affirmations
         const randomAffirmations = getMultipleRandomAffirmations(MAX_AFFIRMATIONS);
@@ -169,6 +185,7 @@ export default function HomeScreen() {
           text,
           isCustom: false,
           isFavorite: false,
+          isRepeating: true,
         }));
         setAffirmations(initialAffirmations);
         await AsyncStorage.setItem(STORAGE_KEYS.AFFIRMATIONS, JSON.stringify(initialAffirmations));
@@ -183,6 +200,7 @@ export default function HomeScreen() {
           text,
           isCustom: false,
           isFavorite: false,
+          isRepeating: true,
         }))
       );
     }
@@ -193,15 +211,17 @@ export default function HomeScreen() {
       const storedHabits = await AsyncStorage.getItem(STORAGE_KEYS.HABITS);
       if (storedHabits) {
         const parsed = JSON.parse(storedHabits);
-        setHabits(parsed.slice(0, MAX_HABITS));
-        console.log("[Home] Loaded habits from local storage:", parsed.length);
+        // Filter to only show repeating habits on home, limit to 5
+        const repeating = parsed.filter((h: Habit) => h.isRepeating).slice(0, MAX_HABITS);
+        setHabits(repeating);
+        console.log("[Home] Loaded habits from local storage:", repeating.length);
       } else {
         // Initialize with default habits
         const defaultHabits = [
-          { id: "1", title: "Morning meditation", completed: false, color: "#4CAF50" },
-          { id: "2", title: "Exercise", completed: false, color: "#2196F3" },
-          { id: "3", title: "Read 10 pages", completed: false, color: "#FF9800" },
-          { id: "4", title: "Drink water", completed: false, color: "#00BCD4" },
+          { id: "1", title: "Morning meditation", completed: false, color: "#4CAF50", isRepeating: true },
+          { id: "2", title: "Exercise", completed: false, color: "#2196F3", isRepeating: true },
+          { id: "3", title: "Read 10 pages", completed: false, color: "#FF9800", isRepeating: true },
+          { id: "4", title: "Drink water", completed: false, color: "#00BCD4", isRepeating: true },
         ];
         setHabits(defaultHabits);
         await AsyncStorage.setItem(STORAGE_KEYS.HABITS, JSON.stringify(defaultHabits));
@@ -223,45 +243,17 @@ export default function HomeScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
     try {
-      await AsyncStorage.setItem(STORAGE_KEYS.HABITS, JSON.stringify(updatedHabits));
-      console.log("[Home] Habit toggled and saved:", habitId, newCompleted);
+      // Update in full storage
+      const storedHabits = await AsyncStorage.getItem(STORAGE_KEYS.HABITS);
+      if (storedHabits) {
+        const allHabits = JSON.parse(storedHabits);
+        const updated = allHabits.map((h: Habit) => (h.id === habitId ? { ...h, completed: newCompleted } : h));
+        await AsyncStorage.setItem(STORAGE_KEYS.HABITS, JSON.stringify(updated));
+        console.log("[Home] Habit toggled and saved:", habitId, newCompleted);
+      }
     } catch (error) {
       console.error("[Home] Error saving habit:", error);
     }
-  };
-
-  const generateAffirmation = async () => {
-    if (affirmations.length >= MAX_AFFIRMATIONS) {
-      Alert.alert(
-        "Limit Reached",
-        `You can only have ${MAX_AFFIRMATIONS} affirmations per day. Remove one to generate a new one.`
-      );
-      return;
-    }
-
-    console.log("[Home] User tapped Generate Affirmation button");
-    setGeneratingAffirmation(true);
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-
-    const randomText = getRandomAffirmation();
-    const newAffirmation: Affirmation = {
-      id: `random-${Date.now()}`,
-      text: randomText,
-      isCustom: false,
-      isFavorite: false,
-    };
-    
-    const updatedAffirmations = [...affirmations, newAffirmation].slice(0, MAX_AFFIRMATIONS);
-    setAffirmations(updatedAffirmations);
-    
-    try {
-      await AsyncStorage.setItem(STORAGE_KEYS.AFFIRMATIONS, JSON.stringify(updatedAffirmations));
-      console.log("[Home] New affirmation generated and saved");
-    } catch (error) {
-      console.error("[Home] Error saving affirmation:", error);
-    }
-
-    setGeneratingAffirmation(false);
   };
 
   const toggleFavoriteAffirmation = async (affirmationId: string) => {
@@ -278,23 +270,18 @@ export default function HomeScreen() {
     setAffirmations(updatedAffirmations);
 
     try {
-      await AsyncStorage.setItem(STORAGE_KEYS.AFFIRMATIONS, JSON.stringify(updatedAffirmations));
-      console.log("[Home] Affirmation favorite status saved");
+      // Update in full storage
+      const storedAffirmations = await AsyncStorage.getItem(STORAGE_KEYS.AFFIRMATIONS);
+      if (storedAffirmations) {
+        const allAffirmations = JSON.parse(storedAffirmations);
+        const updated = allAffirmations.map((a: Affirmation) =>
+          a.id === affirmationId ? { ...a, isFavorite: newFavorite } : a
+        );
+        await AsyncStorage.setItem(STORAGE_KEYS.AFFIRMATIONS, JSON.stringify(updated));
+        console.log("[Home] Affirmation favorite status saved");
+      }
     } catch (error) {
       console.error("[Home] Error saving favorite status:", error);
-    }
-  };
-
-  const removeAffirmation = async (affirmationId: string) => {
-    console.log("[Home] User removed affirmation:", affirmationId);
-    const updatedAffirmations = affirmations.filter((a) => a.id !== affirmationId);
-    setAffirmations(updatedAffirmations);
-    
-    try {
-      await AsyncStorage.setItem(STORAGE_KEYS.AFFIRMATIONS, JSON.stringify(updatedAffirmations));
-      console.log("[Home] Affirmation removed and saved");
-    } catch (error) {
-      console.error("[Home] Error saving after removal:", error);
     }
   };
 
@@ -394,12 +381,13 @@ export default function HomeScreen() {
           <View style={styles.sectionCard}>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>Your Affirmations Today</Text>
+              <Text style={styles.countBadge}>{affirmations.length}/{MAX_AFFIRMATIONS}</Text>
             </View>
 
             {affirmations.length === 0 ? (
               <View style={styles.emptyAffirmations}>
-                <Text style={styles.emptyText}>No affirmations yet</Text>
-                <Text style={styles.emptySubtext}>Generate one to get started</Text>
+                <Text style={styles.emptyText}>No daily affirmations set</Text>
+                <Text style={styles.emptySubtext}>Go to Habits tab to add affirmations</Text>
               </View>
             ) : (
               <ScrollView 
@@ -411,95 +399,52 @@ export default function HomeScreen() {
                   <View key={affirmation.id} style={styles.affirmationItem}>
                     <View style={styles.affirmationContent}>
                       <Text style={styles.affirmationText}>{affirmation.text}</Text>
-                      {affirmation.isRepeating && (
-                        <View style={styles.repeatingBadge}>
-                          <IconSymbol
-                            ios_icon_name="repeat"
-                            android_material_icon_name="repeat"
-                            size={12}
-                            color="#4B0082"
-                          />
-                          <Text style={styles.repeatingBadgeText}>Daily</Text>
-                        </View>
-                      )}
                     </View>
-                    <View style={styles.affirmationActions}>
-                      <TouchableOpacity
-                        onPress={() => toggleFavoriteAffirmation(affirmation.id)}
-                      >
-                        <IconSymbol
-                          ios_icon_name={
-                            affirmation.isFavorite
-                              ? "star.fill"
-                              : "star"
-                          }
-                          android_material_icon_name={
-                            affirmation.isFavorite
-                              ? "star"
-                              : "star-border"
-                          }
-                          size={20}
-                          color={
-                            affirmation.isFavorite
-                              ? "#FFD700"
-                              : "#999"
-                          }
-                        />
-                      </TouchableOpacity>
-                      {!affirmation.isRepeating && (
-                        <TouchableOpacity onPress={() => removeAffirmation(affirmation.id)}>
-                          <IconSymbol
-                            ios_icon_name="xmark.circle"
-                            android_material_icon_name="close"
-                            size={20}
-                            color="#999"
-                          />
-                        </TouchableOpacity>
-                      )}
-                    </View>
+                    <TouchableOpacity
+                      onPress={() => toggleFavoriteAffirmation(affirmation.id)}
+                    >
+                      <IconSymbol
+                        ios_icon_name={
+                          affirmation.isFavorite
+                            ? "star.fill"
+                            : "star"
+                        }
+                        android_material_icon_name={
+                          affirmation.isFavorite
+                            ? "star"
+                            : "star-border"
+                        }
+                        size={20}
+                        color={
+                          affirmation.isFavorite
+                            ? "#FFD700"
+                            : "#999"
+                        }
+                      />
+                    </TouchableOpacity>
                   </View>
                 ))}
               </ScrollView>
             )}
 
-            <TouchableOpacity
-              style={[
-                styles.generateButton,
-                affirmations.length >= MAX_AFFIRMATIONS && styles.generateButtonDisabled,
-              ]}
-              onPress={generateAffirmation}
-              disabled={generatingAffirmation || affirmations.length >= MAX_AFFIRMATIONS}
-            >
-              {generatingAffirmation ? (
-                <ActivityIndicator color="#FFF" size="small" />
-              ) : (
-                <React.Fragment>
-                  <IconSymbol
-                    ios_icon_name="sparkles"
-                    android_material_icon_name="auto-awesome"
-                    size={20}
-                    color="#FFF"
-                  />
-                  <Text style={styles.generateButtonText}>
-                    {affirmations.length >= MAX_AFFIRMATIONS
-                      ? `Max ${MAX_AFFIRMATIONS} affirmations`
-                      : "Generate Affirmation"}
-                  </Text>
-                </React.Fragment>
-              )}
-            </TouchableOpacity>
+            {!hasPremium && affirmations.length >= MAX_AFFIRMATIONS && (
+              <Text style={styles.limitText}>
+                Free: {MAX_AFFIRMATIONS} affirmations. Unlock unlimited in Profile.
+              </Text>
+            )}
           </View>
 
           {/* Habits Section */}
           <View style={styles.sectionCard}>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>Daily Habits</Text>
+              <Text style={styles.countBadge}>{habits.length}/{MAX_HABITS}</Text>
             </View>
 
             {habits.length === 0 ? (
               <View style={styles.emptyState}>
-                <Text style={styles.emptyText}>No habits yet</Text>
-                <Text style={styles.emptySubtext}>Add habits in the Habits tab</Text>
+                <Text style={styles.emptyText}>No daily habits set</Text>
+                <Text style={styles.emptySubtext}>Go to Habits tab to add habits</Text>
               </View>
             ) : (
               habits.map((habit) => (
@@ -529,9 +474,9 @@ export default function HomeScreen() {
               ))
             )}
 
-            {habits.length >= MAX_HABITS && (
+            {!hasPremium && habits.length >= MAX_HABITS && (
               <Text style={styles.limitText}>
-                Showing {MAX_HABITS} habits. Manage more in Habits tab.
+                Free: {MAX_HABITS} habits. Unlock unlimited in Profile.
               </Text>
             )}
           </View>
@@ -681,6 +626,15 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#333",
   },
+  countBadge: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#4B0082",
+    backgroundColor: "#E0E7FF",
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
   emptyAffirmations: {
     alignItems: "center",
     paddingVertical: 20,
@@ -719,44 +673,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#333",
     lineHeight: 24,
-  },
-  repeatingBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#E0E7FF",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-    marginTop: 8,
-    alignSelf: "flex-start",
-    gap: 4,
-  },
-  repeatingBadgeText: {
-    fontSize: 11,
-    fontWeight: "600",
-    color: "#4B0082",
-  },
-  affirmationActions: {
-    flexDirection: "row",
-    gap: 12,
-    alignItems: "center",
-  },
-  generateButton: {
-    backgroundColor: "#4B0082",
-    paddingVertical: 12,
-    borderRadius: 8,
-    alignItems: "center",
-    flexDirection: "row",
-    justifyContent: "center",
-    gap: 8,
-  },
-  generateButtonDisabled: {
-    backgroundColor: "#999",
-  },
-  generateButtonText: {
-    color: "#FFF",
-    fontSize: 16,
-    fontWeight: "600",
   },
   habitItem: {
     flexDirection: "row",

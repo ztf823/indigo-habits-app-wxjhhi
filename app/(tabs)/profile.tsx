@@ -12,6 +12,7 @@ const STORAGE_KEYS = {
   PROFILE_IMAGE: "@indigo_habits_profile_image",
   USER_NAME: "@indigo_habits_user_name",
   USER_EMAIL: "@indigo_habits_user_email",
+  HAS_PREMIUM: "indigo_habits_has_premium",
 };
 
 export default function ProfileScreen() {
@@ -21,6 +22,7 @@ export default function ProfileScreen() {
   const [userEmail, setUserEmail] = useState<string>("Keep building your habits");
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [hasPremium, setHasPremium] = useState(false);
 
   useEffect(() => {
     console.log("[Profile] Loading profile data from local storage");
@@ -32,10 +34,11 @@ export default function ProfileScreen() {
       setIsLoading(true);
       
       // Load profile data from AsyncStorage
-      const [storedImage, storedName, storedEmail] = await Promise.all([
+      const [storedImage, storedName, storedEmail, premiumStatus] = await Promise.all([
         AsyncStorage.getItem(STORAGE_KEYS.PROFILE_IMAGE),
         AsyncStorage.getItem(STORAGE_KEYS.USER_NAME),
         AsyncStorage.getItem(STORAGE_KEYS.USER_EMAIL),
+        AsyncStorage.getItem(STORAGE_KEYS.HAS_PREMIUM),
       ]);
 
       if (storedImage) {
@@ -52,6 +55,9 @@ export default function ProfileScreen() {
         setUserEmail(storedEmail);
         console.log("[Profile] Loaded user email from storage:", storedEmail);
       }
+
+      setHasPremium(premiumStatus === "true");
+      console.log("[Profile] Premium status:", premiumStatus === "true");
     } catch (error) {
       console.error("[Profile] Error loading profile data:", error);
     } finally {
@@ -160,6 +166,63 @@ export default function ProfileScreen() {
     );
   };
 
+  const handleUnlockPremium = async () => {
+    console.log("[Profile] User tapped Unlock Premium button");
+    
+    Alert.alert(
+      "Unlock Premium",
+      "Get unlimited affirmations and habits for just $5.99/year!\n\n✓ Unlimited daily affirmations\n✓ Unlimited daily habits\n✓ All future features included",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Subscribe $5.99/year",
+          onPress: async () => {
+            try {
+              console.log("[Profile] Processing subscription...");
+              
+              // TODO: Integrate with Superwall for actual subscription
+              // For now, simulate successful purchase
+              await AsyncStorage.setItem(STORAGE_KEYS.HAS_PREMIUM, "true");
+              setHasPremium(true);
+              
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              Alert.alert(
+                "Welcome to Premium!",
+                "You now have unlimited access to all affirmations and habits. Thank you for your support!",
+                [{ text: "Awesome!" }]
+              );
+              
+              console.log("[Profile] Premium subscription activated");
+            } catch (error) {
+              console.error("[Profile] Error processing subscription:", error);
+              Alert.alert("Error", "Failed to process subscription. Please try again.");
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleRestorePurchases = async () => {
+    console.log("[Profile] User tapped Restore Purchases");
+    
+    try {
+      // TODO: Integrate with Superwall to restore purchases
+      // For now, check local storage
+      const premiumStatus = await AsyncStorage.getItem(STORAGE_KEYS.HAS_PREMIUM);
+      
+      if (premiumStatus === "true") {
+        setHasPremium(true);
+        Alert.alert("Success", "Premium subscription restored!");
+      } else {
+        Alert.alert("No Purchases Found", "You don't have any active subscriptions to restore.");
+      }
+    } catch (error) {
+      console.error("[Profile] Error restoring purchases:", error);
+      Alert.alert("Error", "Failed to restore purchases. Please try again.");
+    }
+  };
+
   const handleClearData = () => {
     console.log("[Profile] User tapped clear data");
     Alert.alert(
@@ -186,9 +249,10 @@ export default function ProfileScreen() {
                     setProfileImage(null);
                     setUserName("Habit Builder");
                     setUserEmail("Keep building your habits");
+                    setHasPremium(false);
                     
-                    // Navigate back to welcome screen
-                    router.replace("/welcome");
+                    // Navigate back to splash
+                    router.replace("/splash");
                   },
                 },
               ]);
@@ -300,7 +364,73 @@ export default function ProfileScreen() {
               color="#9CA3AF" 
             />
           </TouchableOpacity>
+
+          {/* Premium Status Badge */}
+          {hasPremium && (
+            <View style={styles.premiumBadge}>
+              <IconSymbol
+                ios_icon_name="crown.fill"
+                android_material_icon_name="workspace-premium"
+                size={20}
+                color="#FFD700"
+              />
+              <Text style={styles.premiumBadgeText}>Premium Member</Text>
+            </View>
+          )}
         </View>
+
+        {/* Premium Unlock Section */}
+        {!hasPremium && (
+          <View style={styles.premiumCard}>
+            <View style={styles.premiumHeader}>
+              <IconSymbol
+                ios_icon_name="crown.fill"
+                android_material_icon_name="workspace-premium"
+                size={32}
+                color="#FFD700"
+              />
+              <Text style={styles.premiumTitle}>Unlock Premium</Text>
+            </View>
+            <Text style={styles.premiumDescription}>
+              Get unlimited affirmations and habits for just $5.99/year
+            </Text>
+            <View style={styles.premiumFeatures}>
+              <View style={styles.premiumFeature}>
+                <IconSymbol
+                  ios_icon_name="checkmark.circle.fill"
+                  android_material_icon_name="check-circle"
+                  size={20}
+                  color="#10B981"
+                />
+                <Text style={styles.premiumFeatureText}>Unlimited daily affirmations</Text>
+              </View>
+              <View style={styles.premiumFeature}>
+                <IconSymbol
+                  ios_icon_name="checkmark.circle.fill"
+                  android_material_icon_name="check-circle"
+                  size={20}
+                  color="#10B981"
+                />
+                <Text style={styles.premiumFeatureText}>Unlimited daily habits</Text>
+              </View>
+              <View style={styles.premiumFeature}>
+                <IconSymbol
+                  ios_icon_name="checkmark.circle.fill"
+                  android_material_icon_name="check-circle"
+                  size={20}
+                  color="#10B981"
+                />
+                <Text style={styles.premiumFeatureText}>All future features included</Text>
+              </View>
+            </View>
+            <TouchableOpacity style={styles.premiumButton} onPress={handleUnlockPremium}>
+              <Text style={styles.premiumButtonText}>Subscribe for $5.99/year</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.restoreButton} onPress={handleRestorePurchases}>
+              <Text style={styles.restoreButtonText}>Restore Purchases</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Settings</Text>
@@ -469,6 +599,81 @@ const styles = StyleSheet.create({
   email: {
     fontSize: 14,
     color: "#6B7280",
+  },
+  premiumBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "#FEF3C7",
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    marginTop: 12,
+  },
+  premiumBadgeText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#92400E",
+  },
+  premiumCard: {
+    backgroundColor: "rgba(255, 255, 255, 0.95)",
+    borderRadius: 16,
+    padding: 24,
+    marginBottom: 24,
+    borderWidth: 2,
+    borderColor: "#FFD700",
+  },
+  premiumHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    marginBottom: 12,
+  },
+  premiumTitle: {
+    fontSize: 24,
+    fontWeight: "700",
+    color: "#1F2937",
+  },
+  premiumDescription: {
+    fontSize: 16,
+    color: "#6B7280",
+    marginBottom: 20,
+    lineHeight: 24,
+  },
+  premiumFeatures: {
+    gap: 12,
+    marginBottom: 24,
+  },
+  premiumFeature: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  premiumFeatureText: {
+    fontSize: 15,
+    color: "#374151",
+    flex: 1,
+  },
+  premiumButton: {
+    backgroundColor: "#4F46E5",
+    paddingVertical: 16,
+    borderRadius: 12,
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  premiumButtonText: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#FFFFFF",
+  },
+  restoreButton: {
+    paddingVertical: 12,
+    alignItems: "center",
+  },
+  restoreButtonText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#4F46E5",
   },
   section: {
     marginBottom: 24,
