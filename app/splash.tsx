@@ -76,21 +76,11 @@ export default function SplashScreen() {
           ]}
         >
           <Image
-            source={require("@/assets/images/final_quest_240x240.png")}
+            source={require("@/assets/images/f61de770-7b2e-4a90-b8f2-478836e42e2a.png")}
             style={styles.logo}
             resizeMode="contain"
           />
         </Animated.View>
-
-        {/* App Name */}
-        <Animated.Text 
-          style={[
-            styles.appName,
-            { opacity: textOpacity },
-          ]}
-        >
-          Indigo Habits
-        </Animated.Text>
 
         {/* Tagline */}
         <Animated.Text 
@@ -128,19 +118,11 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   logoContainer: {
-    marginBottom: 24,
+    marginBottom: 32,
   },
   logo: {
-    width: 180,
-    height: 180,
-  },
-  appName: {
-    fontSize: 36,
-    fontWeight: "800",
-    color: "#FFFFFF",
-    textAlign: "center",
-    marginBottom: 12,
-    letterSpacing: 1,
+    width: 280,
+    height: 280,
   },
   tagline: {
     fontSize: 18,
