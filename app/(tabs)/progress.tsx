@@ -10,6 +10,7 @@ import {
   ScrollView,
   ActivityIndicator,
   RefreshControl,
+  Platform,
 } from "react-native";
 
 interface StreakData {
@@ -64,7 +65,7 @@ export default function ProgressScreen() {
       setStreaks(streakData as StreakData);
       console.log("[Progress] Loaded streak data:", streakData);
 
-      // Update badges based on current streak
+      // Update badges based on longest streak
       const updatedBadges = BADGES.map(badge => ({
         ...badge,
         earned: (streakData as StreakData).longestStreak >= badge.daysRequired,
@@ -102,6 +103,7 @@ export default function ProgressScreen() {
 
   // Find next badge to earn
   const nextBadge = badges.find(b => !b.earned);
+  const earnedBadges = badges.filter(b => b.earned);
 
   return (
     <LinearGradient colors={["#4F46E5", "#7C3AED", "#87CEEB"]} style={styles.container}>
@@ -169,6 +171,17 @@ export default function ProgressScreen() {
                 <Text style={styles.nextBadgeDescription}>
                   {nextBadge.daysRequired - streaks.longestStreak} more days to unlock
                 </Text>
+                <View style={styles.progressBar}>
+                  <View
+                    style={[
+                      styles.progressFill,
+                      {
+                        width: `${Math.min((streaks.longestStreak / nextBadge.daysRequired) * 100, 100)}%`,
+                        backgroundColor: nextBadge.glowColor,
+                      },
+                    ]}
+                  />
+                </View>
               </View>
             </View>
           </View>
@@ -176,7 +189,7 @@ export default function ProgressScreen() {
 
         {/* Badges Section */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Badges</Text>
+          <Text style={styles.sectionTitle}>Badges ({earnedBadges.length}/{badges.length})</Text>
           <View style={styles.badgesContainer}>
             {badges.map((badge) => (
               <View
@@ -184,12 +197,20 @@ export default function ProgressScreen() {
                 style={[
                   styles.badgeCard,
                   !badge.earned && styles.badgeCardLocked,
+                  badge.earned && { borderColor: badge.glowColor, borderWidth: 2 },
                 ]}
               >
                 <View
                   style={[
                     styles.badgeIconContainer,
-                    badge.earned && { backgroundColor: badge.glowColor + "20" },
+                    badge.earned && {
+                      backgroundColor: badge.glowColor + "20",
+                      shadowColor: badge.glowColor,
+                      shadowOffset: { width: 0, height: 0 },
+                      shadowOpacity: 0.5,
+                      shadowRadius: 10,
+                      elevation: 8,
+                    },
                   ]}
                 >
                   <IconSymbol
@@ -203,6 +224,7 @@ export default function ProgressScreen() {
                   style={[
                     styles.badgeName,
                     !badge.earned && styles.badgeNameLocked,
+                    badge.earned && { color: badge.glowColor },
                   ]}
                 >
                   {badge.name}
@@ -215,7 +237,7 @@ export default function ProgressScreen() {
                 >
                   {badge.description}
                 </Text>
-                {badge.earned && badge.earnedAt && (
+                {badge.earned ? (
                   <View style={styles.earnedBadge}>
                     <IconSymbol
                       ios_icon_name="checkmark.circle.fill"
@@ -224,6 +246,16 @@ export default function ProgressScreen() {
                       color="#10B981"
                     />
                     <Text style={styles.earnedText}>Earned</Text>
+                  </View>
+                ) : (
+                  <View style={styles.lockedBadge}>
+                    <IconSymbol
+                      ios_icon_name="lock.fill"
+                      android_material_icon_name="lock"
+                      size={16}
+                      color="#9CA3AF"
+                    />
+                    <Text style={styles.lockedText}>Locked</Text>
                   </View>
                 )}
               </View>
@@ -267,7 +299,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: 20,
-    paddingTop: 60,
+    paddingTop: Platform.OS === "android" ? 60 : 60,
     paddingBottom: 100,
   },
   title: {
@@ -359,6 +391,17 @@ const styles = StyleSheet.create({
   nextBadgeDescription: {
     fontSize: 14,
     color: "#6B7280",
+    marginBottom: 8,
+  },
+  progressBar: {
+    height: 8,
+    backgroundColor: "#E5E7EB",
+    borderRadius: 4,
+    overflow: "hidden",
+  },
+  progressFill: {
+    height: "100%",
+    borderRadius: 4,
   },
   badgesContainer: {
     flexDirection: "row",
@@ -378,7 +421,7 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   badgeCardLocked: {
-    opacity: 0.5,
+    opacity: 0.6,
   },
   badgeIconContainer: {
     width: 64,
@@ -421,6 +464,21 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: "600",
     color: "#10B981",
+  },
+  lockedBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginTop: 8,
+    backgroundColor: "#F3F4F6",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  lockedText: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: "#9CA3AF",
   },
   motivationCard: {
     flexDirection: "row",

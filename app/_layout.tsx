@@ -14,6 +14,7 @@ import {
   DefaultTheme,
   ThemeProvider,
 } from "@react-navigation/native";
+import { initDatabase } from "@/utils/database";
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
@@ -27,8 +28,20 @@ export default function RootLayout() {
   });
 
   useEffect(() => {
+    async function prepare() {
+      try {
+        console.log("[App] Initializing database...");
+        await initDatabase();
+        console.log("[App] Database initialized successfully");
+        setIsReady(true);
+      } catch (error) {
+        console.error("[App] Error initializing database:", error);
+        setIsReady(true); // Continue anyway
+      }
+    }
+
     if (loaded) {
-      setIsReady(true);
+      prepare();
     }
   }, [loaded]);
 

@@ -87,6 +87,7 @@ export const initDatabase = async (): Promise<void> => {
         id TEXT PRIMARY KEY,
         content TEXT NOT NULL,
         photoUri TEXT,
+        audioUri TEXT,
         affirmationText TEXT,
         date TEXT NOT NULL,
         createdAt TEXT DEFAULT CURRENT_TIMESTAMP
@@ -341,13 +342,14 @@ export const createJournalEntry = async (entry: {
   id: string;
   content: string;
   photoUri?: string;
+  audioUri?: string;
   affirmationText?: string;
   date: string;
 }) => {
   const database = getDb();
   await database.runAsync(
-    'INSERT INTO journal_entries (id, content, photoUri, affirmationText, date) VALUES (?, ?, ?, ?, ?)',
-    [entry.id, entry.content, entry.photoUri || null, entry.affirmationText || null, entry.date]
+    'INSERT INTO journal_entries (id, content, photoUri, audioUri, affirmationText, date) VALUES (?, ?, ?, ?, ?, ?)',
+    [entry.id, entry.content, entry.photoUri || null, entry.audioUri || null, entry.affirmationText || null, entry.date]
   );
   return entry;
 };
@@ -355,6 +357,7 @@ export const createJournalEntry = async (entry: {
 export const updateJournalEntry = async (id: string, updates: {
   content?: string;
   photoUri?: string;
+  audioUri?: string;
   affirmationText?: string;
 }) => {
   const database = getDb();
@@ -368,6 +371,10 @@ export const updateJournalEntry = async (id: string, updates: {
   if (updates.photoUri !== undefined) {
     fields.push('photoUri = ?');
     values.push(updates.photoUri || null);
+  }
+  if (updates.audioUri !== undefined) {
+    fields.push('audioUri = ?');
+    values.push(updates.audioUri || null);
   }
   if (updates.affirmationText !== undefined) {
     fields.push('affirmationText = ?');
