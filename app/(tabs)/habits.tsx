@@ -58,6 +58,11 @@ const COLORS = [
   "#06B6D4", // Cyan
 ];
 
+// Free users: 5 affirmations and 5 habits
+// Pro users: unlimited
+const FREE_MAX_AFFIRMATIONS = 5;
+const FREE_MAX_HABITS = 5;
+
 export default function HabitsScreen() {
   const [activeTab, setActiveTab] = useState<"habits" | "affirmations">("habits");
   const [habits, setHabits] = useState<Habit[]>([]);
@@ -79,7 +84,9 @@ export default function HabitsScreen() {
   const loadPremiumStatus = useCallback(async () => {
     try {
       const profile = await getProfile();
-      setIsPremium(profile?.isPremium === 1);
+      const premiumStatus = profile?.isPremium === 1;
+      setIsPremium(premiumStatus);
+      console.log(`User premium status: ${premiumStatus ? 'Premium' : 'Free'}`);
     } catch (error) {
       console.error("Error loading premium status:", error);
     }
@@ -89,6 +96,7 @@ export default function HabitsScreen() {
     try {
       const dbHabits = await getAllHabits() as Habit[];
       setHabits(dbHabits);
+      console.log(`Loaded ${dbHabits.length} habits`);
     } catch (error) {
       console.error("Error loading habits:", error);
     }
@@ -98,6 +106,7 @@ export default function HabitsScreen() {
     try {
       const dbAffirmations = await getAllAffirmations() as Affirmation[];
       setAffirmations(dbAffirmations);
+      console.log(`Loaded ${dbAffirmations.length} affirmations`);
     } catch (error) {
       console.error("Error loading affirmations:", error);
     }
@@ -132,6 +141,22 @@ export default function HabitsScreen() {
   const handleAddHabit = async () => {
     if (!habitTitle.trim()) {
       Alert.alert("Error", "Please enter a habit title");
+      return;
+    }
+
+    // Check limit for free users
+    if (!isPremium && habits.length >= FREE_MAX_HABITS) {
+      Alert.alert(
+        "Limit Reached",
+        `Free users can create up to ${FREE_MAX_HABITS} habits. Upgrade to Premium for unlimited habits!`,
+        [
+          { text: "Cancel", style: "cancel" },
+          { text: "Upgrade", onPress: () => {
+            // Navigate to profile/premium screen
+            console.log("User wants to upgrade to premium");
+          }},
+        ]
+      );
       return;
     }
 
@@ -299,6 +324,22 @@ export default function HabitsScreen() {
       return;
     }
 
+    // Check limit for free users
+    if (!isPremium && affirmations.length >= FREE_MAX_AFFIRMATIONS) {
+      Alert.alert(
+        "Limit Reached",
+        `Free users can create up to ${FREE_MAX_AFFIRMATIONS} affirmations. Upgrade to Premium for unlimited affirmations!`,
+        [
+          { text: "Cancel", style: "cancel" },
+          { text: "Upgrade", onPress: () => {
+            // Navigate to profile/premium screen
+            console.log("User wants to upgrade to premium");
+          }},
+        ]
+      );
+      return;
+    }
+
     try {
       console.log("User adding custom affirmation");
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -453,6 +494,11 @@ export default function HabitsScreen() {
         {/* Header */}
         <View style={styles.header}>
           <Text style={styles.headerTitle}>My Habits</Text>
+          {!isPremium && (
+            <Text style={styles.limitText}>
+              Free: {activeTab === "habits" ? `${habits.length}/${FREE_MAX_HABITS} habits` : `${affirmations.length}/${FREE_MAX_AFFIRMATIONS} affirmations`}
+            </Text>
+          )}
         </View>
 
         {/* Tabs */}
@@ -774,6 +820,12 @@ const styles = StyleSheet.create({
     fontSize: 32,
     fontWeight: "800",
     color: "white",
+  },
+  limitText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "rgba(255, 255, 255, 0.9)",
+    marginTop: 4,
   },
   tabs: {
     flexDirection: "row",

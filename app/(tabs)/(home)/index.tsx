@@ -61,8 +61,10 @@ interface JournalEntry {
   isFavorite?: number;
 }
 
-const MAX_AFFIRMATIONS = 5;
-const MAX_HABITS = 5;
+// Free users: 5 affirmations and 5 habits
+// Pro users: unlimited
+const FREE_MAX_AFFIRMATIONS = 5;
+const FREE_MAX_HABITS = 5;
 
 export default function HomeScreen() {
   const [affirmations, setAffirmations] = useState<Affirmation[]>([]);
@@ -86,7 +88,9 @@ export default function HomeScreen() {
   const loadPremiumStatus = useCallback(async () => {
     try {
       const profile = await getProfile();
-      setIsPremium(profile?.isPremium === 1);
+      const premiumStatus = profile?.isPremium === 1;
+      setIsPremium(premiumStatus);
+      console.log(`User premium status: ${premiumStatus ? 'Premium' : 'Free'}`);
     } catch (error) {
       console.error("Error loading premium status:", error);
     }
@@ -99,9 +103,12 @@ export default function HomeScreen() {
       // Filter for repeating affirmations
       let repeatingAffirmations = dbAffirmations.filter(a => a.isRepeating === 1);
       
-      // If we have less than 5 repeating affirmations, fill with random ones
-      if (repeatingAffirmations.length < MAX_AFFIRMATIONS) {
-        const needed = MAX_AFFIRMATIONS - repeatingAffirmations.length;
+      // Determine max affirmations based on premium status
+      const maxAffirmations = isPremium ? repeatingAffirmations.length : FREE_MAX_AFFIRMATIONS;
+      
+      // If we have less than the limit, fill with random ones
+      if (repeatingAffirmations.length < maxAffirmations) {
+        const needed = maxAffirmations - repeatingAffirmations.length;
         console.log(`Creating ${needed} default affirmations...`);
         
         for (let i = 0; i < needed; i++) {
@@ -119,11 +126,17 @@ export default function HomeScreen() {
         }
       }
       
-      setAffirmations(repeatingAffirmations.slice(0, MAX_AFFIRMATIONS));
+      // Apply limit: free users get 5, premium users get all
+      const displayAffirmations = isPremium 
+        ? repeatingAffirmations 
+        : repeatingAffirmations.slice(0, FREE_MAX_AFFIRMATIONS);
+      
+      setAffirmations(displayAffirmations);
+      console.log(`Loaded ${displayAffirmations.length} affirmations (${isPremium ? 'unlimited' : 'free limit'})`);
     } catch (error) {
       console.error("Error loading affirmations:", error);
     }
-  }, []);
+  }, [isPremium]);
 
   const loadHabits = useCallback(async () => {
     try {
@@ -144,11 +157,17 @@ export default function HomeScreen() {
         })
       );
 
-      setHabits(habitsWithCompletion.slice(0, MAX_HABITS));
+      // Apply limit: free users get 5, premium users get all
+      const displayHabits = isPremium 
+        ? habitsWithCompletion 
+        : habitsWithCompletion.slice(0, FREE_MAX_HABITS);
+
+      setHabits(displayHabits);
+      console.log(`Loaded ${displayHabits.length} habits (${isPremium ? 'unlimited' : 'free limit'})`);
     } catch (error) {
       console.error("Error loading habits:", error);
     }
-  }, []);
+  }, [isPremium]);
 
   const loadTodayJournal = useCallback(async () => {
     try {
@@ -179,19 +198,24 @@ export default function HomeScreen() {
       console.log("Loading home screen data from SQLite...");
       setLoading(true);
 
-      await Promise.all([
-        loadPremiumStatus(),
-        loadAffirmations(),
-        loadHabits(),
-        loadTodayJournal(),
-      ]);
+      // Load premium status first, then load data based on that
+      await loadPremiumStatus();
     } catch (error) {
       console.error("Error loading home screen data:", error);
       Alert.alert("Error", "Failed to load data. Please try again.");
     } finally {
       setLoading(false);
     }
-  }, [loadPremiumStatus, loadAffirmations, loadHabits, loadTodayJournal]);
+  }, [loadPremiumStatus]);
+
+  // Load affirmations and habits after premium status is loaded
+  useEffect(() => {
+    if (!loading) {
+      loadAffirmations();
+      loadHabits();
+      loadTodayJournal();
+    }
+  }, [isPremium, loading]);
 
   useEffect(() => {
     loadData();
@@ -524,6 +548,11 @@ export default function HomeScreen() {
         {/* Header with Date */}
         <View style={styles.header}>
           <Text style={styles.dateText}>{today}</Text>
+          {!isPremium && (
+            <View style={styles.limitBadge}>
+              <Text style={styles.limitBadgeText}>Free: {affirmations.length}/{FREE_MAX_AFFIRMATIONS} affirmations, {habits.length}/{FREE_MAX_HABITS} habits</Text>
+            </View>
+          )}
         </View>
 
         {/* Affirmations Section */}
@@ -759,6 +788,19 @@ const styles = StyleSheet.create({
   },
   dateText: {
     fontSize: 18,
+    fontWeight: "600",
+    color: "white",
+    marginBottom: 8,
+  },
+  limitBadge: {
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    borderRadius: 12,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    alignSelf: "flex-start",
+  },
+  limitBadgeText: {
+    fontSize: 12,
     fontWeight: "600",
     color: "white",
   },
