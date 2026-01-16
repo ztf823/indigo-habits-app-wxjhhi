@@ -108,6 +108,13 @@ export default function HomeScreen() {
   // Auto-save timer
   const autoSaveTimer = useRef<NodeJS.Timeout | null>(null);
 
+  // Ref to track affirmations section layout
+  const affirmationsSectionRef = useRef<View>(null);
+  const [affirmationsLayout, setAffirmationsLayout] = useState<{
+    y: number;
+    height: number;
+  } | null>(null);
+
   const tabs = [
     {
       name: '(home)',
@@ -157,37 +164,42 @@ export default function HomeScreen() {
       nextIndex = currentIndex === tabs.length - 1 ? 0 : currentIndex + 1;
     }
 
-    console.log(`User swiped ${direction} from bottom 30%, navigating from ${tabs[currentIndex].label} to ${tabs[nextIndex].label}`);
+    console.log(`User swiped ${direction}, navigating from ${tabs[currentIndex].label} to ${tabs[nextIndex].label}`);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     router.push(tabs[nextIndex].route);
   }, [getCurrentIndex, router, tabs]);
 
-  // Create pan gesture that only activates in bottom 30% of screen
+  // Create pan gesture that blocks tab switching inside affirmations card area
   const panGesture = Gesture.Pan()
     .activeOffsetX([-20, 20]) // Require 20px horizontal movement to activate
     .failOffsetY([-15, 15]) // Fail if vertical movement exceeds 15px (preserves vertical scroll)
     .onStart((event) => {
-      // Check if gesture started in bottom 30% of screen
-      const startY = event.absoluteY;
-      const bottomThreshold = SCREEN_HEIGHT * 0.7; // Top 70% = no tab switch, bottom 30% = tab switch
-      
-      if (startY < bottomThreshold) {
-        // Gesture started in top 70% - cancel it to allow affirmation carousel
-        console.log('Gesture started in top 70% - allowing affirmation carousel only');
-        return;
+      // Check if gesture started inside affirmations section
+      if (affirmationsLayout) {
+        const gestureY = event.absoluteY;
+        const affirmationsTop = affirmationsLayout.y;
+        const affirmationsBottom = affirmationsLayout.y + affirmationsLayout.height;
+        
+        if (gestureY >= affirmationsTop && gestureY <= affirmationsBottom) {
+          console.log('Gesture started inside affirmations card - allowing carousel only, blocking tab switch');
+          // We'll check this in onEnd to prevent tab switching
+        } else {
+          console.log('Gesture started outside affirmations card - tab switching enabled');
+        }
       }
-      
-      console.log('Gesture started in bottom 30% - tab switching enabled');
     })
     .onEnd((event) => {
-      // Double-check Y position at gesture start
-      const startY = event.absoluteY;
-      const bottomThreshold = SCREEN_HEIGHT * 0.7;
-      
-      // Only process if gesture started in bottom 30%
-      if (startY < bottomThreshold) {
-        console.log('Gesture ended but started in top 70% - ignoring for tab switch');
-        return;
+      // Check if gesture started inside affirmations section
+      if (affirmationsLayout) {
+        const gestureY = event.absoluteY;
+        const affirmationsTop = affirmationsLayout.y;
+        const affirmationsBottom = affirmationsLayout.y + affirmationsLayout.height;
+        
+        // If gesture started inside affirmations area, block tab switching
+        if (gestureY >= affirmationsTop && gestureY <= affirmationsBottom) {
+          console.log('Gesture ended inside affirmations card - ignoring for tab switch');
+          return;
+        }
       }
       
       const { velocityX, translationX } = event;
@@ -711,7 +723,15 @@ export default function HomeScreen() {
           </View>
 
           {/* Affirmations Section with Snap Scrolling */}
-          <View style={styles.section}>
+          <View 
+            style={styles.section}
+            ref={affirmationsSectionRef}
+            onLayout={(event) => {
+              const { y, height } = event.nativeEvent.layout;
+              setAffirmationsLayout({ y, height });
+              console.log(`Affirmations section layout: y=${y}, height=${height}`);
+            }}
+          >
             <Text style={styles.sectionTitle}>Your Affirmations Today</Text>
             <ScrollView
               horizontal
