@@ -7,6 +7,7 @@ import { useRouter } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
 import * as Haptics from "expo-haptics";
 import { getProfile, updateProfile, clearAllData } from "@/utils/database";
+import { exportJournalsToPdf, getExportPreview } from "@/utils/pdfExport";
 
 export default function ProfileScreen() {
   const router = useRouter();
@@ -16,6 +17,7 @@ export default function ProfileScreen() {
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [hasPremium, setHasPremium] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
 
   const loadProfileData = useCallback(async () => {
     try {
@@ -210,6 +212,65 @@ export default function ProfileScreen() {
     } catch (error) {
       console.error("[Profile] Error restoring purchases:", error);
       Alert.alert("Error", "Failed to restore purchases. Please try again.");
+    }
+  };
+
+  const handleExportJournals = async () => {
+    try {
+      console.log("[Profile] User tapped Export All Journals button");
+      
+      // Get preview of what will be exported
+      const preview = await getExportPreview();
+      
+      if (preview.totalEntries === 0) {
+        Alert.alert(
+          "No Journal Entries",
+          "You don't have any journal entries to export yet. Start journaling to build your collection!",
+          [{ text: "OK" }]
+        );
+        return;
+      }
+
+      // Show confirmation with preview
+      Alert.alert(
+        "Export All Journals",
+        `Ready to export ${preview.totalEntries} journal ${preview.totalEntries === 1 ? 'entry' : 'entries'} to PDF.\n\n` +
+        `📷 ${preview.totalPhotos} ${preview.totalPhotos === 1 ? 'photo' : 'photos'}\n` +
+        `🎤 ${preview.totalAudioMemos} voice ${preview.totalAudioMemos === 1 ? 'memo' : 'memos'}\n\n` +
+        `Your journal will be bundled into one clean PDF file that you can save, email, or share.`,
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Export PDF",
+            onPress: async () => {
+              try {
+                setIsExporting(true);
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                
+                console.log("[Profile] Starting PDF export...");
+                await exportJournalsToPdf();
+                
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                console.log("[Profile] Journal export completed successfully");
+              } catch (error) {
+                console.error("[Profile] Error exporting journals:", error);
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+                
+                Alert.alert(
+                  "Export Failed",
+                  "Failed to export your journals. Please try again.",
+                  [{ text: "OK" }]
+                );
+              } finally {
+                setIsExporting(false);
+              }
+            },
+          },
+        ]
+      );
+    } catch (error) {
+      console.error("[Profile] Error preparing journal export:", error);
+      Alert.alert("Error", "Failed to prepare journal export. Please try again.");
     }
   };
 
@@ -491,6 +552,33 @@ export default function ProfileScreen() {
               color="#9CA3AF" 
             />
           </TouchableOpacity>
+
+          {/* Export All Journals Button */}
+          <TouchableOpacity 
+            style={[styles.settingItem, styles.exportItem]} 
+            onPress={handleExportJournals}
+            disabled={isExporting}
+          >
+            {isExporting ? (
+              <ActivityIndicator size="small" color="#4F46E5" />
+            ) : (
+              <IconSymbol 
+                ios_icon_name="doc.text.fill" 
+                android_material_icon_name="description" 
+                size={24} 
+                color="#4F46E5" 
+              />
+            )}
+            <Text style={[styles.settingText, styles.exportText]}>
+              {isExporting ? "Exporting..." : "Export All Journals"}
+            </Text>
+            <IconSymbol 
+              ios_icon_name="chevron.right" 
+              android_material_icon_name="chevron-right" 
+              size={20} 
+              color="#9CA3AF" 
+            />
+          </TouchableOpacity>
         </View>
 
         <View style={styles.footer}>
@@ -695,6 +783,15 @@ const styles = StyleSheet.create({
   },
   dangerText: {
     color: "#EF4444",
+    fontWeight: "600",
+  },
+  exportItem: {
+    borderWidth: 2,
+    borderColor: "#4F46E5",
+    backgroundColor: "rgba(79, 70, 229, 0.05)",
+  },
+  exportText: {
+    color: "#4F46E5",
     fontWeight: "600",
   },
   footer: {
