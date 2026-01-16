@@ -10,13 +10,31 @@ config.resolver.unstable_enablePackageExports = true;
 
 // Fix expo-sqlite web WASM import issue
 config.resolver.resolveRequest = (context, moduleName, platform) => {
-  // On web, prevent expo-sqlite from trying to import WASM files
-  if (platform === 'web' && moduleName.includes('expo-sqlite')) {
-    // Return a mock module path that won't cause import errors
-    return {
-      filePath: path.resolve(__dirname, 'node_modules/expo-sqlite/build/index.js'),
-      type: 'sourceFile',
-    };
+  // On web, intercept expo-sqlite WASM imports and return empty module
+  if (platform === 'web') {
+    // Block WASM file imports
+    if (moduleName.includes('.wasm')) {
+      return {
+        filePath: path.resolve(__dirname, 'node_modules/expo-sqlite/build/index.js'),
+        type: 'sourceFile',
+      };
+    }
+    
+    // Redirect expo-sqlite web worker imports to avoid WASM loading
+    if (moduleName.includes('expo-sqlite/web/worker')) {
+      return {
+        filePath: path.resolve(__dirname, 'node_modules/expo-sqlite/build/index.js'),
+        type: 'sourceFile',
+      };
+    }
+    
+    // Redirect expo-sqlite web module imports
+    if (moduleName.includes('expo-sqlite/web/SQLiteModule')) {
+      return {
+        filePath: path.resolve(__dirname, 'node_modules/expo-sqlite/build/index.js'),
+        type: 'sourceFile',
+      };
+    }
   }
   
   // Use default resolver for everything else
