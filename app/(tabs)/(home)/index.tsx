@@ -38,8 +38,10 @@ import {
   updateJournalEntry,
 } from "@/utils/database";
 import { playChime } from "@/utils/sounds";
+import { GestureDetector, Gesture } from 'react-native-gesture-handler';
+import { useRouter, usePathname } from 'expo-router';
 
-const { width: SCREEN_WIDTH } = Dimensions.get("window");
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 const AFFIRMATION_CARD_WIDTH = 300;
 const AFFIRMATION_CARD_MARGIN = 16;
 
@@ -84,6 +86,8 @@ const DEFAULT_HABITS = [
 ];
 
 export default function HomeScreen() {
+  const router = useRouter();
+  const pathname = usePathname();
   const [affirmations, setAffirmations] = useState<Affirmation[]>([]);
   const [habits, setHabits] = useState<Habit[]>([]);
   const [loading, setLoading] = useState(true);
@@ -103,6 +107,102 @@ export default function HomeScreen() {
 
   // Auto-save timer
   const autoSaveTimer = useRef<NodeJS.Timeout | null>(null);
+
+  const tabs = [
+    {
+      name: '(home)',
+      route: '/(tabs)/(home)/' as any,
+      label: 'Home',
+    },
+    {
+      name: 'habits',
+      route: '/(tabs)/habits' as any,
+      label: 'Habits',
+    },
+    {
+      name: 'history',
+      route: '/(tabs)/history' as any,
+      label: 'History',
+    },
+    {
+      name: 'progress',
+      route: '/(tabs)/progress' as any,
+      label: 'Progress',
+    },
+    {
+      name: 'profile',
+      route: '/(tabs)/profile' as any,
+      label: 'Profile',
+    },
+  ];
+
+  const getCurrentIndex = useCallback(() => {
+    const currentPath = pathname.split('/').filter(Boolean).pop() || '(home)';
+    const index = tabs.findIndex(tab => 
+      tab.name === currentPath || 
+      (tab.name === '(home)' && (currentPath === '' || currentPath === '(home)'))
+    );
+    return index >= 0 ? index : 0;
+  }, [pathname]);
+
+  const navigateToTab = useCallback((direction: 'left' | 'right') => {
+    const currentIndex = getCurrentIndex();
+    let nextIndex: number;
+
+    if (direction === 'right') {
+      // Swipe right = go to previous tab (or wrap to last)
+      nextIndex = currentIndex === 0 ? tabs.length - 1 : currentIndex - 1;
+    } else {
+      // Swipe left = go to next tab (or wrap to first)
+      nextIndex = currentIndex === tabs.length - 1 ? 0 : currentIndex + 1;
+    }
+
+    console.log(`User swiped ${direction} from bottom 30%, navigating from ${tabs[currentIndex].label} to ${tabs[nextIndex].label}`);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    router.push(tabs[nextIndex].route);
+  }, [getCurrentIndex, router, tabs]);
+
+  // Create pan gesture that only activates in bottom 30% of screen
+  const panGesture = Gesture.Pan()
+    .activeOffsetX([-20, 20]) // Require 20px horizontal movement to activate
+    .failOffsetY([-15, 15]) // Fail if vertical movement exceeds 15px (preserves vertical scroll)
+    .onStart((event) => {
+      // Check if gesture started in bottom 30% of screen
+      const startY = event.absoluteY;
+      const bottomThreshold = SCREEN_HEIGHT * 0.7; // Top 70% = no tab switch, bottom 30% = tab switch
+      
+      if (startY < bottomThreshold) {
+        // Gesture started in top 70% - cancel it to allow affirmation carousel
+        console.log('Gesture started in top 70% - allowing affirmation carousel only');
+        return;
+      }
+      
+      console.log('Gesture started in bottom 30% - tab switching enabled');
+    })
+    .onEnd((event) => {
+      // Double-check Y position at gesture start
+      const startY = event.absoluteY;
+      const bottomThreshold = SCREEN_HEIGHT * 0.7;
+      
+      // Only process if gesture started in bottom 30%
+      if (startY < bottomThreshold) {
+        console.log('Gesture ended but started in top 70% - ignoring for tab switch');
+        return;
+      }
+      
+      const { velocityX, translationX } = event;
+      
+      // Determine swipe direction based on velocity and translation
+      if (Math.abs(velocityX) > 300 || Math.abs(translationX) > 100) {
+        if (velocityX > 0 || translationX > 0) {
+          // Swiped right
+          navigateToTab('right');
+        } else {
+          // Swiped left
+          navigateToTab('left');
+        }
+      }
+    });
 
   const loadPremiumStatus = useCallback(async () => {
     try {
@@ -588,321 +688,323 @@ export default function HomeScreen() {
   });
 
   return (
-    <LinearGradient
-      colors={["#4F46E5", "#87CEEB"]}
-      style={styles.gradient}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 0, y: 1 }}
-    >
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.container}
-        showsVerticalScrollIndicator={false}
+    <GestureDetector gesture={panGesture}>
+      <LinearGradient
+        colors={["#4F46E5", "#87CEEB"]}
+        style={styles.gradient}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 0, y: 1 }}
       >
-        {/* Header with Date */}
-        <View style={styles.header}>
-          <Text style={styles.dateText}>{today}</Text>
-          {!isPremium && (
-            <View style={styles.limitBadge}>
-              <Text style={styles.limitBadgeText}>Free: {affirmations.length}/{FREE_MAX_AFFIRMATIONS} affirmations, {habits.length}/{FREE_MAX_HABITS} habits</Text>
-            </View>
-          )}
-        </View>
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.container}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Header with Date */}
+          <View style={styles.header}>
+            <Text style={styles.dateText}>{today}</Text>
+            {!isPremium && (
+              <View style={styles.limitBadge}>
+                <Text style={styles.limitBadgeText}>Free: {affirmations.length}/{FREE_MAX_AFFIRMATIONS} affirmations, {habits.length}/{FREE_MAX_HABITS} habits</Text>
+              </View>
+            )}
+          </View>
 
-        {/* Affirmations Section with Snap Scrolling */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Your Affirmations Today</Text>
-          <ScrollView
-            horizontal
-            pagingEnabled
-            showsHorizontalScrollIndicator={false}
-            snapToInterval={AFFIRMATION_CARD_WIDTH + AFFIRMATION_CARD_MARGIN}
-            decelerationRate="fast"
-            contentContainerStyle={styles.affirmationsScroll}
-          >
-            {affirmations.map((affirmation, index) => (
-              <View 
-                key={affirmation.id} 
-                style={[
-                  styles.affirmationCard,
-                  index === 0 && styles.affirmationCardFirst,
-                ]}
-              >
-                <View style={styles.affirmationHeader}>
+          {/* Affirmations Section with Snap Scrolling */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Your Affirmations Today</Text>
+            <ScrollView
+              horizontal
+              pagingEnabled
+              showsHorizontalScrollIndicator={false}
+              snapToInterval={AFFIRMATION_CARD_WIDTH + AFFIRMATION_CARD_MARGIN}
+              decelerationRate="fast"
+              contentContainerStyle={styles.affirmationsScroll}
+            >
+              {affirmations.map((affirmation, index) => (
+                <View 
+                  key={affirmation.id} 
+                  style={[
+                    styles.affirmationCard,
+                    index === 0 && styles.affirmationCardFirst,
+                  ]}
+                >
+                  <View style={styles.affirmationHeader}>
+                    <TouchableOpacity
+                      onPress={() => toggleFavoriteAffirmation(affirmation.id)}
+                      style={styles.iconButton}
+                    >
+                      <IconSymbol
+                        ios_icon_name={affirmation.isFavorite === 1 ? "star.fill" : "star"}
+                        android_material_icon_name={affirmation.isFavorite === 1 ? "star" : "star-border"}
+                        size={24}
+                        color={affirmation.isFavorite === 1 ? "#FFD700" : "#C0C0C0"}
+                      />
+                    </TouchableOpacity>
+                  </View>
+
+                  <Text style={styles.affirmationText}>{affirmation.text}</Text>
+
+                  <View style={styles.affirmationActions}>
+                    <TouchableOpacity
+                      style={styles.generateButton}
+                      onPress={() => generateNewAffirmation(affirmation.id)}
+                    >
+                      <Text style={styles.generateButtonText}>Generate</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ))}
+            </ScrollView>
+          </View>
+
+          {/* Daily Habits Section */}
+          <View style={styles.section}>
+            <View style={styles.habitsHeader}>
+              <Text style={styles.sectionTitle}>Daily Habits</Text>
+              <View style={styles.habitCounter}>
+                <Text style={styles.habitCounterText}>
+                  {completedHabits}/{totalHabits}
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.habitsCard}>
+              {habits.map((habit) => (
+                <View key={habit.id} style={styles.habitItem}>
                   <TouchableOpacity
-                    onPress={() => toggleFavoriteAffirmation(affirmation.id)}
+                    style={[
+                      styles.habitCheckbox,
+                      { backgroundColor: habit.completed ? habit.color : "white", borderColor: habit.color },
+                    ]}
+                    onPress={() => toggleHabit(habit.id)}
+                  >
+                    {habit.completed && (
+                      <IconSymbol
+                        ios_icon_name="checkmark"
+                        android_material_icon_name="check"
+                        size={20}
+                        color="white"
+                      />
+                    )}
+                  </TouchableOpacity>
+
+                  <Text
+                    style={[
+                      styles.habitTitle,
+                      habit.completed && styles.habitTitleCompleted,
+                    ]}
+                  >
+                    {habit.title}
+                  </Text>
+
+                  <TouchableOpacity
+                    onPress={() => toggleFavoriteHabit(habit.id)}
                     style={styles.iconButton}
                   >
                     <IconSymbol
-                      ios_icon_name={affirmation.isFavorite === 1 ? "star.fill" : "star"}
-                      android_material_icon_name={affirmation.isFavorite === 1 ? "star" : "star-border"}
-                      size={24}
-                      color={affirmation.isFavorite === 1 ? "#FFD700" : "#C0C0C0"}
-                    />
-                  </TouchableOpacity>
-                </View>
-
-                <Text style={styles.affirmationText}>{affirmation.text}</Text>
-
-                <View style={styles.affirmationActions}>
-                  <TouchableOpacity
-                    style={styles.generateButton}
-                    onPress={() => generateNewAffirmation(affirmation.id)}
-                  >
-                    <Text style={styles.generateButtonText}>Generate</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            ))}
-          </ScrollView>
-        </View>
-
-        {/* Daily Habits Section */}
-        <View style={styles.section}>
-          <View style={styles.habitsHeader}>
-            <Text style={styles.sectionTitle}>Daily Habits</Text>
-            <View style={styles.habitCounter}>
-              <Text style={styles.habitCounterText}>
-                {completedHabits}/{totalHabits}
-              </Text>
-            </View>
-          </View>
-
-          <View style={styles.habitsCard}>
-            {habits.map((habit) => (
-              <View key={habit.id} style={styles.habitItem}>
-                <TouchableOpacity
-                  style={[
-                    styles.habitCheckbox,
-                    { backgroundColor: habit.completed ? habit.color : "white", borderColor: habit.color },
-                  ]}
-                  onPress={() => toggleHabit(habit.id)}
-                >
-                  {habit.completed && (
-                    <IconSymbol
-                      ios_icon_name="checkmark"
-                      android_material_icon_name="check"
+                      ios_icon_name={habit.isFavorite === 1 ? "star.fill" : "star"}
+                      android_material_icon_name={habit.isFavorite === 1 ? "star" : "star-border"}
                       size={20}
-                      color="white"
-                    />
-                  )}
-                </TouchableOpacity>
-
-                <Text
-                  style={[
-                    styles.habitTitle,
-                    habit.completed && styles.habitTitleCompleted,
-                  ]}
-                >
-                  {habit.title}
-                </Text>
-
-                <TouchableOpacity
-                  onPress={() => toggleFavoriteHabit(habit.id)}
-                  style={styles.iconButton}
-                >
-                  <IconSymbol
-                    ios_icon_name={habit.isFavorite === 1 ? "star.fill" : "star"}
-                    android_material_icon_name={habit.isFavorite === 1 ? "star" : "star-border"}
-                    size={20}
-                    color={habit.isFavorite === 1 ? "#FFD700" : "#C0C0C0"}
-                  />
-                </TouchableOpacity>
-              </View>
-            ))}
-          </View>
-        </View>
-
-        {/* Journal Entry Section - Now Tappable */}
-        <View style={styles.section}>
-          <View style={styles.journalHeader}>
-            <Text style={styles.sectionTitle}>Today&apos;s Journal</Text>
-            <Text style={styles.journalDate}>{new Date().toLocaleDateString()}</Text>
-          </View>
-
-          <TouchableOpacity 
-            style={styles.journalCard}
-            onPress={openJournalModal}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.journalPreview} numberOfLines={3}>
-              {journalContent || "Tap here to start writing..."}
-            </Text>
-            
-            {journalPhoto && (
-              <View style={styles.journalPhotoPreview}>
-                <Image source={{ uri: journalPhoto }} style={styles.journalPhotoThumbnail} />
-              </View>
-            )}
-            
-            {audioUri && (
-              <View style={styles.journalAudioPreview}>
-                <IconSymbol
-                  ios_icon_name="waveform"
-                  android_material_icon_name="graphic-eq"
-                  size={16}
-                  color="#4F46E5"
-                />
-                <Text style={styles.journalAudioText}>Audio memo attached</Text>
-              </View>
-            )}
-          </TouchableOpacity>
-        </View>
-      </ScrollView>
-
-      {/* Full-Screen Journal Modal */}
-      <Modal
-        visible={journalModalVisible}
-        animationType="slide"
-        presentationStyle="fullScreen"
-        onRequestClose={closeJournalModal}
-      >
-        <KeyboardAvoidingView
-          style={styles.journalModalContainer}
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
-        >
-          <View style={styles.journalModalWhiteBackground}>
-            {/* Journal Modal Header */}
-            <View style={styles.journalModalHeader}>
-              <TouchableOpacity onPress={closeJournalModal} style={styles.journalModalClose}>
-                <IconSymbol
-                  ios_icon_name="chevron.down"
-                  android_material_icon_name="keyboard-arrow-down"
-                  size={28}
-                  color="#1F2937"
-                />
-              </TouchableOpacity>
-              
-              <TextInput
-                style={styles.journalModalTitleInput}
-                placeholder="Title (optional)"
-                placeholderTextColor="#9CA3AF"
-                value={journalTitle}
-                onChangeText={setJournalTitle}
-              />
-              
-              <TouchableOpacity
-                onPress={toggleJournalFavorite}
-                style={styles.iconButton}
-              >
-                <IconSymbol
-                  ios_icon_name={journalIsFavorite ? "star.fill" : "star"}
-                  android_material_icon_name={journalIsFavorite ? "star" : "star-border"}
-                  size={24}
-                  color={journalIsFavorite ? "#FFD700" : "#9CA3AF"}
-                />
-              </TouchableOpacity>
-            </View>
-
-            {/* Date Stamp */}
-            <View style={styles.journalModalDateStamp}>
-              <Text style={styles.journalModalDateText}>
-                {new Date().toLocaleDateString("en-US", {
-                  weekday: "long",
-                  month: "long",
-                  day: "numeric",
-                  year: "numeric",
-                })}
-              </Text>
-            </View>
-
-            {/* Journal Text Area */}
-            <View style={styles.journalModalContent}>
-              <TextInput
-                style={styles.journalModalInput}
-                placeholder="Write your thoughts..."
-                placeholderTextColor="#9CA3AF"
-                multiline
-                value={journalContent}
-                onChangeText={handleJournalTextChange}
-                autoFocus
-              />
-
-              {journalPhoto && (
-                <View style={styles.journalModalPhotoPreview}>
-                  <Image source={{ uri: journalPhoto }} style={styles.journalModalPhoto} />
-                  <TouchableOpacity
-                    onPress={() => setJournalPhoto(null)}
-                    style={styles.journalModalRemoveButton}
-                  >
-                    <IconSymbol
-                      ios_icon_name="xmark.circle.fill"
-                      android_material_icon_name="cancel"
-                      size={24}
-                      color="#EF4444"
+                      color={habit.isFavorite === 1 ? "#FFD700" : "#C0C0C0"}
                     />
                   </TouchableOpacity>
+                </View>
+              ))}
+            </View>
+          </View>
+
+          {/* Journal Entry Section - Now Tappable */}
+          <View style={styles.section}>
+            <View style={styles.journalHeader}>
+              <Text style={styles.sectionTitle}>Today&apos;s Journal</Text>
+              <Text style={styles.journalDate}>{new Date().toLocaleDateString()}</Text>
+            </View>
+
+            <TouchableOpacity 
+              style={styles.journalCard}
+              onPress={openJournalModal}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.journalPreview} numberOfLines={3}>
+                {journalContent || "Tap here to start writing..."}
+              </Text>
+              
+              {journalPhoto && (
+                <View style={styles.journalPhotoPreview}>
+                  <Image source={{ uri: journalPhoto }} style={styles.journalPhotoThumbnail} />
                 </View>
               )}
-
+              
               {audioUri && (
-                <View style={styles.journalModalAudioPreview}>
+                <View style={styles.journalAudioPreview}>
                   <IconSymbol
                     ios_icon_name="waveform"
                     android_material_icon_name="graphic-eq"
-                    size={20}
+                    size={16}
                     color="#4F46E5"
                   />
-                  <Text style={styles.journalModalAudioText}>Audio memo attached</Text>
-                  <TouchableOpacity
-                    onPress={() => setAudioUri(null)}
-                    style={styles.journalModalRemoveButton}
-                  >
+                  <Text style={styles.journalAudioText}>Audio memo attached</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
+
+        {/* Full-Screen Journal Modal */}
+        <Modal
+          visible={journalModalVisible}
+          animationType="slide"
+          presentationStyle="fullScreen"
+          onRequestClose={closeJournalModal}
+        >
+          <KeyboardAvoidingView
+            style={styles.journalModalContainer}
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
+          >
+            <View style={styles.journalModalWhiteBackground}>
+              {/* Journal Modal Header */}
+              <View style={styles.journalModalHeader}>
+                <TouchableOpacity onPress={closeJournalModal} style={styles.journalModalClose}>
+                  <IconSymbol
+                    ios_icon_name="chevron.down"
+                    android_material_icon_name="keyboard-arrow-down"
+                    size={28}
+                    color="#1F2937"
+                  />
+                </TouchableOpacity>
+                
+                <TextInput
+                  style={styles.journalModalTitleInput}
+                  placeholder="Title (optional)"
+                  placeholderTextColor="#9CA3AF"
+                  value={journalTitle}
+                  onChangeText={setJournalTitle}
+                />
+                
+                <TouchableOpacity
+                  onPress={toggleJournalFavorite}
+                  style={styles.iconButton}
+                >
+                  <IconSymbol
+                    ios_icon_name={journalIsFavorite ? "star.fill" : "star"}
+                    android_material_icon_name={journalIsFavorite ? "star" : "star-border"}
+                    size={24}
+                    color={journalIsFavorite ? "#FFD700" : "#9CA3AF"}
+                  />
+                </TouchableOpacity>
+              </View>
+
+              {/* Date Stamp */}
+              <View style={styles.journalModalDateStamp}>
+                <Text style={styles.journalModalDateText}>
+                  {new Date().toLocaleDateString("en-US", {
+                    weekday: "long",
+                    month: "long",
+                    day: "numeric",
+                    year: "numeric",
+                  })}
+                </Text>
+              </View>
+
+              {/* Journal Text Area */}
+              <View style={styles.journalModalContent}>
+                <TextInput
+                  style={styles.journalModalInput}
+                  placeholder="Write your thoughts..."
+                  placeholderTextColor="#9CA3AF"
+                  multiline
+                  value={journalContent}
+                  onChangeText={handleJournalTextChange}
+                  autoFocus
+                />
+
+                {journalPhoto && (
+                  <View style={styles.journalModalPhotoPreview}>
+                    <Image source={{ uri: journalPhoto }} style={styles.journalModalPhoto} />
+                    <TouchableOpacity
+                      onPress={() => setJournalPhoto(null)}
+                      style={styles.journalModalRemoveButton}
+                    >
+                      <IconSymbol
+                        ios_icon_name="xmark.circle.fill"
+                        android_material_icon_name="cancel"
+                        size={24}
+                        color="#EF4444"
+                      />
+                    </TouchableOpacity>
+                  </View>
+                )}
+
+                {audioUri && (
+                  <View style={styles.journalModalAudioPreview}>
                     <IconSymbol
-                      ios_icon_name="xmark.circle.fill"
-                      android_material_icon_name="cancel"
+                      ios_icon_name="waveform"
+                      android_material_icon_name="graphic-eq"
                       size={20}
-                      color="#EF4444"
+                      color="#4F46E5"
                     />
-                  </TouchableOpacity>
+                    <Text style={styles.journalModalAudioText}>Audio memo attached</Text>
+                    <TouchableOpacity
+                      onPress={() => setAudioUri(null)}
+                      style={styles.journalModalRemoveButton}
+                    >
+                      <IconSymbol
+                        ios_icon_name="xmark.circle.fill"
+                        android_material_icon_name="cancel"
+                        size={20}
+                        color="#EF4444"
+                      />
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </View>
+
+              {/* Journal Modal Actions */}
+              <View style={styles.journalModalActions}>
+                <TouchableOpacity onPress={pickImage} style={styles.journalModalActionButton}>
+                  <IconSymbol
+                    ios_icon_name="camera"
+                    android_material_icon_name="camera-alt"
+                    size={24}
+                    color="#4F46E5"
+                  />
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  onPress={isRecording ? stopRecording : startRecording}
+                  style={[
+                    styles.journalModalActionButton,
+                    isRecording && styles.journalModalRecordingButton,
+                  ]}
+                >
+                  <IconSymbol
+                    ios_icon_name={isRecording ? "stop.circle" : "mic"}
+                    android_material_icon_name={isRecording ? "stop" : "mic"}
+                    size={24}
+                    color={isRecording ? "#EF4444" : "#4F46E5"}
+                  />
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  onPress={closeJournalModal}
+                  style={styles.journalModalDoneButton}
+                >
+                  <Text style={styles.journalModalDoneText}>Done</Text>
+                </TouchableOpacity>
+              </View>
+
+              {isSaving && (
+                <View style={styles.journalModalSaving}>
+                  <ActivityIndicator size="small" color="#4F46E5" />
+                  <Text style={styles.journalModalSavingText}>Auto-saving...</Text>
                 </View>
               )}
             </View>
-
-            {/* Journal Modal Actions */}
-            <View style={styles.journalModalActions}>
-              <TouchableOpacity onPress={pickImage} style={styles.journalModalActionButton}>
-                <IconSymbol
-                  ios_icon_name="camera"
-                  android_material_icon_name="camera-alt"
-                  size={24}
-                  color="#4F46E5"
-                />
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                onPress={isRecording ? stopRecording : startRecording}
-                style={[
-                  styles.journalModalActionButton,
-                  isRecording && styles.journalModalRecordingButton,
-                ]}
-              >
-                <IconSymbol
-                  ios_icon_name={isRecording ? "stop.circle" : "mic"}
-                  android_material_icon_name={isRecording ? "stop" : "mic"}
-                  size={24}
-                  color={isRecording ? "#EF4444" : "#4F46E5"}
-                />
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                onPress={closeJournalModal}
-                style={styles.journalModalDoneButton}
-              >
-                <Text style={styles.journalModalDoneText}>Done</Text>
-              </TouchableOpacity>
-            </View>
-
-            {isSaving && (
-              <View style={styles.journalModalSaving}>
-                <ActivityIndicator size="small" color="#4F46E5" />
-                <Text style={styles.journalModalSavingText}>Auto-saving...</Text>
-              </View>
-            )}
-          </View>
-        </KeyboardAvoidingView>
-      </Modal>
-    </LinearGradient>
+          </KeyboardAvoidingView>
+        </Modal>
+      </LinearGradient>
+    </GestureDetector>
   );
 }
 
