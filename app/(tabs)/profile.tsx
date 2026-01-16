@@ -161,11 +161,11 @@ export default function ProfileScreen() {
     
     Alert.alert(
       "Unlock Premium",
-      "Get unlimited affirmations and habits for just $5.99/year!\n\n✓ Unlimited daily affirmations\n✓ Unlimited daily habits\n✓ All future features included",
+      "Get unlimited affirmations and habits for just $5.99/month!\n\n✓ Unlimited daily affirmations\n✓ Unlimited daily habits\n✓ All future features included",
       [
         { text: "Cancel", style: "cancel" },
         {
-          text: "Subscribe $5.99/year",
+          text: "Subscribe $5.99/month",
           onPress: async () => {
             try {
               console.log("[Profile] Processing subscription...");
@@ -382,7 +382,7 @@ export default function ProfileScreen() {
               <Text style={styles.premiumTitle}>Unlock Premium</Text>
             </View>
             <Text style={styles.premiumDescription}>
-              Get unlimited affirmations and habits for just $5.99/year
+              Get unlimited affirmations and habits for just $5.99/month
             </Text>
             <View style={styles.premiumFeatures}>
               <View style={styles.premiumFeature}>
@@ -414,7 +414,7 @@ export default function ProfileScreen() {
               </View>
             </View>
             <TouchableOpacity style={styles.premiumButton} onPress={handleUnlockPremium}>
-              <Text style={styles.premiumButtonText}>Subscribe for $5.99/year</Text>
+              <Text style={styles.premiumButtonText}>Subscribe for $5.99/month</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.restoreButton} onPress={handleRestorePurchases}>
               <Text style={styles.restoreButtonText}>Restore Purchases</Text>

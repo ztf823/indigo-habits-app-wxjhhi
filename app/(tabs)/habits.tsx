@@ -152,7 +152,6 @@ export default function HabitsScreen() {
         [
           { text: "Cancel", style: "cancel" },
           { text: "Upgrade", onPress: () => {
-            // Navigate to profile/premium screen
             console.log("User wants to upgrade to premium");
           }},
         ]
@@ -286,7 +285,6 @@ export default function HabitsScreen() {
         [
           { text: "Cancel", style: "cancel" },
           { text: "Upgrade", onPress: () => {
-            // Navigate to profile/premium screen
             console.log("User wants to upgrade to premium");
           }},
         ]
@@ -419,6 +417,11 @@ export default function HabitsScreen() {
         {/* Header */}
         <View style={styles.header}>
           <Text style={styles.headerTitle}>My Habits</Text>
+          {!isPremium && (
+            <Text style={styles.headerSubtitle}>
+              Free: {activeTab === "habits" ? `${habits.length}/${FREE_MAX_HABITS} habits` : `${affirmations.length}/${FREE_MAX_AFFIRMATIONS} affirmations`}
+            </Text>
+          )}
         </View>
 
         {/* Tabs */}
@@ -469,129 +472,181 @@ export default function HabitsScreen() {
         >
           {activeTab === "habits" ? (
             <>
-              {/* Demo mode banner */}
-              {Platform.OS === 'web' && (
-                <View style={styles.demoBanner}>
+              {habits.length === 0 ? (
+                <View style={styles.emptyState}>
                   <IconSymbol
-                    ios_icon_name="info.circle.fill"
-                    android_material_icon_name="info"
-                    size={20}
-                    color="#92400E"
+                    ios_icon_name="plus.circle.fill"
+                    android_material_icon_name="add-circle"
+                    size={64}
+                    color="rgba(255, 255, 255, 0.6)"
                   />
-                  <Text style={styles.demoText}>
-                    Demo Mode - Changes won&apos;t be saved until backend is ready
+                  <Text style={styles.emptyStateText}>No habits yet</Text>
+                  <Text style={styles.emptyStateSubtext}>
+                    Tap the + button to create your first habit
                   </Text>
                 </View>
+              ) : (
+                <>
+                  {habits.map((habit, index) => (
+                    <View key={habit.id} style={styles.habitCard}>
+                      <View style={styles.habitTop}>
+                        <View style={styles.habitLeft}>
+                          <View
+                            style={[styles.habitDot, { backgroundColor: habit.color }]}
+                          />
+                          <Text style={styles.habitTitle}>{habit.title}</Text>
+                        </View>
+                        <View style={styles.habitActions}>
+                          <TouchableOpacity
+                            onPress={() => openEditModal(habit)}
+                            style={styles.iconButton}
+                          >
+                            <IconSymbol
+                              ios_icon_name="pencil"
+                              android_material_icon_name="edit"
+                              size={20}
+                              color="#6366F1"
+                            />
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            onPress={() => handleDeleteHabit(habit.id)}
+                            style={styles.iconButton}
+                          >
+                            <IconSymbol
+                              ios_icon_name="trash"
+                              android_material_icon_name="delete"
+                              size={20}
+                              color="#EF4444"
+                            />
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                      
+                      {/* Daily/Repeat Toggle */}
+                      <View style={styles.habitBottom}>
+                        <TouchableOpacity
+                          style={[
+                            styles.repeatToggle,
+                            habit.isRepeating === 1 && styles.repeatToggleActive,
+                          ]}
+                          onPress={() => toggleHabitRepeating(habit.id)}
+                        >
+                          <IconSymbol
+                            ios_icon_name="repeat"
+                            android_material_icon_name="repeat"
+                            size={16}
+                            color={habit.isRepeating === 1 ? "white" : "#6366F1"}
+                          />
+                          <Text
+                            style={[
+                              styles.repeatToggleText,
+                              habit.isRepeating === 1 && styles.repeatToggleTextActive,
+                            ]}
+                          >
+                            {habit.isRepeating === 1 ? "Daily Repeat ON" : "Daily Repeat OFF"}
+                          </Text>
+                        </TouchableOpacity>
+                        {habit.isRepeating === 1 && (
+                          <Text style={styles.repeatHint}>
+                            Will appear on home screen
+                          </Text>
+                        )}
+                      </View>
+                    </View>
+                  ))}
+                </>
               )}
-
-              {habits.map((habit, index) => (
-                <View key={habit.id} style={styles.habitCard}>
-                  <View style={styles.habitLeft}>
-                    <View
-                      style={[styles.habitDot, { backgroundColor: habit.color }]}
-                    />
-                    <Text style={styles.habitTitle}>{habit.title}</Text>
-                  </View>
-                  <View style={styles.habitActions}>
-                    <TouchableOpacity
-                      onPress={() => openEditModal(habit)}
-                      style={styles.iconButton}
-                    >
-                      <IconSymbol
-                        ios_icon_name="pencil"
-                        android_material_icon_name="edit"
-                        size={20}
-                        color="#6366F1"
-                      />
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      onPress={() => handleDeleteHabit(habit.id)}
-                      style={styles.iconButton}
-                    >
-                      <IconSymbol
-                        ios_icon_name="trash"
-                        android_material_icon_name="delete"
-                        size={20}
-                        color="#EF4444"
-                      />
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              ))}
             </>
           ) : (
             <>
-              {/* Section header */}
-              <View style={styles.sectionHeader}>
-                <Text style={styles.sectionTitle}>All Affirmations</Text>
-                <Text style={styles.sectionSubtitle}>
-                  Manage custom affirmations and set them to repeat daily
-                </Text>
-              </View>
-
-              {affirmations.map((affirmation, index) => (
-                <View key={affirmation.id} style={styles.affirmationCard}>
-                  <Text style={styles.affirmationText}>{affirmation.text}</Text>
-                  <View style={styles.affirmationMeta}>
-                    <View style={styles.affirmationBadges}>
-                      {affirmation.isCustom === 1 && (
-                        <View style={styles.badge}>
-                          <Text style={styles.badgeText}>Custom</Text>
+              {affirmations.length === 0 ? (
+                <View style={styles.emptyState}>
+                  <IconSymbol
+                    ios_icon_name="plus.circle.fill"
+                    android_material_icon_name="add-circle"
+                    size={64}
+                    color="rgba(255, 255, 255, 0.6)"
+                  />
+                  <Text style={styles.emptyStateText}>No affirmations yet</Text>
+                  <Text style={styles.emptyStateSubtext}>
+                    Tap the + button to create your first affirmation
+                  </Text>
+                </View>
+              ) : (
+                <>
+                  {affirmations.map((affirmation, index) => (
+                    <View key={affirmation.id} style={styles.affirmationCard}>
+                      <Text style={styles.affirmationText}>{affirmation.text}</Text>
+                      
+                      <View style={styles.affirmationMeta}>
+                        <View style={styles.affirmationBadges}>
+                          {affirmation.isCustom === 1 && (
+                            <View style={styles.badge}>
+                              <Text style={styles.badgeText}>Custom</Text>
+                            </View>
+                          )}
+                          {affirmation.isFavorite === 1 && (
+                            <TouchableOpacity
+                              style={styles.badge}
+                              onPress={() => toggleAffirmationFavorite(affirmation.id)}
+                            >
+                              <IconSymbol
+                                ios_icon_name="star.fill"
+                                android_material_icon_name="star"
+                                size={14}
+                                color="#F59E0B"
+                              />
+                              <Text style={styles.badgeText}>Favorite</Text>
+                            </TouchableOpacity>
+                          )}
                         </View>
-                      )}
-                      {affirmation.isFavorite === 1 && (
                         <TouchableOpacity
-                          style={styles.badge}
-                          onPress={() => toggleAffirmationFavorite(affirmation.id)}
+                          onPress={() => deleteAffirmationItem(affirmation.id)}
+                          style={styles.iconButton}
                         >
                           <IconSymbol
-                            ios_icon_name="star.fill"
-                            android_material_icon_name="star"
-                            size={14}
-                            color="#F59E0B"
+                            ios_icon_name="trash"
+                            android_material_icon_name="delete"
+                            size={20}
+                            color="#EF4444"
                           />
-                          <Text style={styles.badgeText}>Favorite</Text>
                         </TouchableOpacity>
-                      )}
-                    </View>
-                    <View style={styles.affirmationActions}>
-                      <TouchableOpacity
-                        style={[
-                          styles.dailyButton,
-                          affirmation.isRepeating === 1 && styles.dailyButtonActive,
-                        ]}
-                        onPress={() => toggleAffirmationRepeating(affirmation.id)}
-                      >
-                        <IconSymbol
-                          ios_icon_name="repeat"
-                          android_material_icon_name="repeat"
-                          size={16}
-                          color={affirmation.isRepeating === 1 ? "white" : "#6366F1"}
-                        />
-                        <Text
+                      </View>
+
+                      {/* Daily/Repeat Toggle */}
+                      <View style={styles.affirmationBottom}>
+                        <TouchableOpacity
                           style={[
-                            styles.dailyButtonText,
-                            affirmation.isRepeating === 1 && styles.dailyButtonTextActive,
+                            styles.repeatToggle,
+                            affirmation.isRepeating === 1 && styles.repeatToggleActive,
                           ]}
+                          onPress={() => toggleAffirmationRepeating(affirmation.id)}
                         >
-                          Daily
-                        </Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        onPress={() => deleteAffirmationItem(affirmation.id)}
-                        style={styles.iconButton}
-                      >
-                        <IconSymbol
-                          ios_icon_name="trash"
-                          android_material_icon_name="delete"
-                          size={20}
-                          color="#EF4444"
-                        />
-                      </TouchableOpacity>
+                          <IconSymbol
+                            ios_icon_name="repeat"
+                            android_material_icon_name="repeat"
+                            size={16}
+                            color={affirmation.isRepeating === 1 ? "white" : "#6366F1"}
+                          />
+                          <Text
+                            style={[
+                              styles.repeatToggleText,
+                              affirmation.isRepeating === 1 && styles.repeatToggleTextActive,
+                            ]}
+                          >
+                            {affirmation.isRepeating === 1 ? "Daily Repeat ON" : "Daily Repeat OFF"}
+                          </Text>
+                        </TouchableOpacity>
+                        {affirmation.isRepeating === 1 && (
+                          <Text style={styles.repeatHint}>
+                            Will appear on home screen
+                          </Text>
+                        )}
+                      </View>
                     </View>
-                  </View>
-                </View>
-              ))}
+                  ))}
+                </>
+              )}
             </>
           )}
         </ScrollView>
@@ -722,12 +777,18 @@ const styles = StyleSheet.create({
   header: {
     paddingTop: Platform.OS === "android" ? 48 : 60,
     paddingHorizontal: 20,
-    paddingBottom: 20,
+    paddingBottom: 12,
   },
   headerTitle: {
     fontSize: 34,
     fontWeight: "800",
     color: "white",
+  },
+  headerSubtitle: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "rgba(255, 255, 255, 0.9)",
+    marginTop: 4,
   },
   tabs: {
     flexDirection: "row",
@@ -770,25 +831,24 @@ const styles = StyleSheet.create({
     fontSize: 16,
     marginTop: 12,
   },
-  demoBanner: {
-    flexDirection: "row",
+  emptyState: {
     alignItems: "center",
-    backgroundColor: "#FEF3C7",
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 16,
-    gap: 8,
+    justifyContent: "center",
+    paddingVertical: 60,
   },
-  demoText: {
-    flex: 1,
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#92400E",
+  emptyStateText: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: "white",
+    marginTop: 16,
+  },
+  emptyStateSubtext: {
+    fontSize: 14,
+    color: "rgba(255, 255, 255, 0.8)",
+    marginTop: 8,
+    textAlign: "center",
   },
   habitCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
     backgroundColor: "white",
     borderRadius: 16,
     padding: 16,
@@ -798,6 +858,12 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 3,
+  },
+  habitTop: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 12,
   },
   habitLeft: {
     flexDirection: "row",
@@ -820,21 +886,37 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: 8,
   },
+  habitBottom: {
+    gap: 8,
+  },
   iconButton: {
     padding: 8,
   },
-  sectionHeader: {
-    marginBottom: 16,
+  repeatToggle: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#EEF2FF",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    gap: 6,
+    alignSelf: "flex-start",
   },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: "white",
-    marginBottom: 4,
+  repeatToggleActive: {
+    backgroundColor: "#6366F1",
   },
-  sectionSubtitle: {
+  repeatToggleText: {
     fontSize: 14,
-    color: "rgba(255, 255, 255, 0.8)",
+    fontWeight: "600",
+    color: "#6366F1",
+  },
+  repeatToggleTextActive: {
+    color: "white",
+  },
+  repeatHint: {
+    fontSize: 12,
+    color: "#6B7280",
+    fontStyle: "italic",
   },
   affirmationCard: {
     backgroundColor: "white",
@@ -858,6 +940,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
+    marginBottom: 12,
   },
   affirmationBadges: {
     flexDirection: "row",
@@ -878,30 +961,8 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#6366F1",
   },
-  affirmationActions: {
-    flexDirection: "row",
+  affirmationBottom: {
     gap: 8,
-    alignItems: "center",
-  },
-  dailyButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#EEF2FF",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
-    gap: 4,
-  },
-  dailyButtonActive: {
-    backgroundColor: "#6366F1",
-  },
-  dailyButtonText: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#6366F1",
-  },
-  dailyButtonTextActive: {
-    color: "white",
   },
   fab: {
     position: "absolute",
