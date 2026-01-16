@@ -15,6 +15,7 @@ import {
   Image,
   Modal,
   KeyboardAvoidingView,
+  Dimensions,
 } from "react-native";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
@@ -37,6 +38,10 @@ import {
   updateJournalEntry,
 } from "@/utils/database";
 import { playChime } from "@/utils/sounds";
+
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
+const AFFIRMATION_CARD_WIDTH = 300;
+const AFFIRMATION_CARD_MARGIN = 16;
 
 interface Affirmation {
   id: string;
@@ -604,16 +609,25 @@ export default function HomeScreen() {
           )}
         </View>
 
-        {/* Affirmations Section */}
+        {/* Affirmations Section with Snap Scrolling */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Your Affirmations Today</Text>
           <ScrollView
             horizontal
+            pagingEnabled
             showsHorizontalScrollIndicator={false}
+            snapToInterval={AFFIRMATION_CARD_WIDTH + AFFIRMATION_CARD_MARGIN}
+            decelerationRate="fast"
             contentContainerStyle={styles.affirmationsScroll}
           >
-            {affirmations.map((affirmation) => (
-              <View key={affirmation.id} style={styles.affirmationCard}>
+            {affirmations.map((affirmation, index) => (
+              <View 
+                key={affirmation.id} 
+                style={[
+                  styles.affirmationCard,
+                  index === 0 && styles.affirmationCardFirst,
+                ]}
+              >
                 <View style={styles.affirmationHeader}>
                   <TouchableOpacity
                     onPress={() => toggleFavoriteAffirmation(affirmation.id)}
@@ -951,13 +965,16 @@ const styles = StyleSheet.create({
     backgroundColor: "white",
     borderRadius: 20,
     padding: 20,
-    marginRight: 16,
-    width: 300,
+    marginRight: AFFIRMATION_CARD_MARGIN,
+    width: AFFIRMATION_CARD_WIDTH,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
     shadowRadius: 12,
     elevation: 5,
+  },
+  affirmationCardFirst: {
+    marginLeft: 0,
   },
   affirmationHeader: {
     flexDirection: "row",
