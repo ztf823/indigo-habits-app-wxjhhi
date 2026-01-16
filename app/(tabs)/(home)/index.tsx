@@ -87,6 +87,7 @@ export default function HomeScreen() {
   // Journal state
   const [journalModalVisible, setJournalModalVisible] = useState(false);
   const [journalContent, setJournalContent] = useState("");
+  const [journalTitle, setJournalTitle] = useState("");
   const [journalPhoto, setJournalPhoto] = useState<string | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   const [recording, setRecording] = useState<Audio.Recording | null>(null);
@@ -382,7 +383,7 @@ export default function HomeScreen() {
   };
 
   const openJournalModal = () => {
-    console.log("User tapped pencil icon to open journal");
+    console.log("User tapped journal entry section to open full-screen journal");
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setJournalModalVisible(true);
   };
@@ -698,29 +699,20 @@ export default function HomeScreen() {
           </View>
         </View>
 
-        {/* Journal Entry Section */}
+        {/* Journal Entry Section - Now Tappable */}
         <View style={styles.section}>
           <View style={styles.journalHeader}>
-            <Text style={styles.sectionTitle}>Today's Journal</Text>
-            <View style={styles.journalHeaderRight}>
-              <Text style={styles.journalDate}>{new Date().toLocaleDateString()}</Text>
-              <TouchableOpacity
-                onPress={openJournalModal}
-                style={styles.iconButton}
-              >
-                <IconSymbol
-                  ios_icon_name="pencil"
-                  android_material_icon_name="edit"
-                  size={24}
-                  color="white"
-                />
-              </TouchableOpacity>
-            </View>
+            <Text style={styles.sectionTitle}>Today&apos;s Journal</Text>
+            <Text style={styles.journalDate}>{new Date().toLocaleDateString()}</Text>
           </View>
 
-          <View style={styles.journalCard}>
+          <TouchableOpacity 
+            style={styles.journalCard}
+            onPress={openJournalModal}
+            activeOpacity={0.7}
+          >
             <Text style={styles.journalPreview} numberOfLines={3}>
-              {journalContent || "Tap the pencil icon to start writing..."}
+              {journalContent || "Tap here to start writing..."}
             </Text>
             
             {journalPhoto && (
@@ -740,7 +732,7 @@ export default function HomeScreen() {
                 <Text style={styles.journalAudioText}>Audio memo attached</Text>
               </View>
             )}
-          </View>
+          </TouchableOpacity>
         </View>
       </ScrollView>
 
@@ -755,12 +747,7 @@ export default function HomeScreen() {
           style={styles.journalModalContainer}
           behavior={Platform.OS === "ios" ? "padding" : "height"}
         >
-          <LinearGradient
-            colors={["#4F46E5", "#87CEEB"]}
-            style={styles.journalModalGradient}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 0, y: 1 }}
-          >
+          <View style={styles.journalModalWhiteBackground}>
             {/* Journal Modal Header */}
             <View style={styles.journalModalHeader}>
               <TouchableOpacity onPress={closeJournalModal} style={styles.journalModalClose}>
@@ -768,11 +755,17 @@ export default function HomeScreen() {
                   ios_icon_name="chevron.down"
                   android_material_icon_name="keyboard-arrow-down"
                   size={28}
-                  color="white"
+                  color="#1F2937"
                 />
               </TouchableOpacity>
               
-              <Text style={styles.journalModalTitle}>Today's Journal</Text>
+              <TextInput
+                style={styles.journalModalTitleInput}
+                placeholder="Title (optional)"
+                placeholderTextColor="#9CA3AF"
+                value={journalTitle}
+                onChangeText={setJournalTitle}
+              />
               
               <TouchableOpacity
                 onPress={toggleJournalFavorite}
@@ -782,9 +775,21 @@ export default function HomeScreen() {
                   ios_icon_name={journalIsFavorite ? "star.fill" : "star"}
                   android_material_icon_name={journalIsFavorite ? "star" : "star-border"}
                   size={24}
-                  color={journalIsFavorite ? "#FFD700" : "white"}
+                  color={journalIsFavorite ? "#FFD700" : "#9CA3AF"}
                 />
               </TouchableOpacity>
+            </View>
+
+            {/* Date Stamp */}
+            <View style={styles.journalModalDateStamp}>
+              <Text style={styles.journalModalDateText}>
+                {new Date().toLocaleDateString("en-US", {
+                  weekday: "long",
+                  month: "long",
+                  day: "numeric",
+                  year: "numeric",
+                })}
+              </Text>
             </View>
 
             {/* Journal Text Area */}
@@ -792,7 +797,7 @@ export default function HomeScreen() {
               <TextInput
                 style={styles.journalModalInput}
                 placeholder="Write your thoughts..."
-                placeholderTextColor="rgba(255, 255, 255, 0.6)"
+                placeholderTextColor="#9CA3AF"
                 multiline
                 value={journalContent}
                 onChangeText={handleJournalTextChange}
@@ -822,7 +827,7 @@ export default function HomeScreen() {
                     ios_icon_name="waveform"
                     android_material_icon_name="graphic-eq"
                     size={20}
-                    color="white"
+                    color="#4F46E5"
                   />
                   <Text style={styles.journalModalAudioText}>Audio memo attached</Text>
                   <TouchableOpacity
@@ -847,7 +852,7 @@ export default function HomeScreen() {
                   ios_icon_name="camera"
                   android_material_icon_name="camera-alt"
                   size={24}
-                  color="white"
+                  color="#4F46E5"
                 />
               </TouchableOpacity>
 
@@ -862,7 +867,7 @@ export default function HomeScreen() {
                   ios_icon_name={isRecording ? "stop.circle" : "mic"}
                   android_material_icon_name={isRecording ? "stop" : "mic"}
                   size={24}
-                  color="white"
+                  color={isRecording ? "#EF4444" : "#4F46E5"}
                 />
               </TouchableOpacity>
 
@@ -876,11 +881,11 @@ export default function HomeScreen() {
 
             {isSaving && (
               <View style={styles.journalModalSaving}>
-                <ActivityIndicator size="small" color="white" />
+                <ActivityIndicator size="small" color="#4F46E5" />
                 <Text style={styles.journalModalSavingText}>Auto-saving...</Text>
               </View>
             )}
-          </LinearGradient>
+          </View>
         </KeyboardAvoidingView>
       </Modal>
     </LinearGradient>
@@ -1042,11 +1047,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 16,
   },
-  journalHeaderRight: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-  },
   journalDate: {
     fontSize: 14,
     fontWeight: "600",
@@ -1092,8 +1092,9 @@ const styles = StyleSheet.create({
   journalModalContainer: {
     flex: 1,
   },
-  journalModalGradient: {
+  journalModalWhiteBackground: {
     flex: 1,
+    backgroundColor: "white",
   },
   journalModalHeader: {
     flexDirection: "row",
@@ -1102,23 +1103,39 @@ const styles = StyleSheet.create({
     paddingTop: Platform.OS === "android" ? 48 : 60,
     paddingHorizontal: 20,
     paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#E5E7EB",
   },
   journalModalClose: {
     padding: 4,
   },
-  journalModalTitle: {
+  journalModalTitleInput: {
+    flex: 1,
     fontSize: 18,
     fontWeight: "700",
-    color: "white",
+    color: "#1F2937",
+    marginHorizontal: 12,
+  },
+  journalModalDateStamp: {
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#E5E7EB",
+  },
+  journalModalDateText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#6B7280",
   },
   journalModalContent: {
     flex: 1,
     paddingHorizontal: 20,
+    paddingTop: 20,
   },
   journalModalInput: {
     flex: 1,
     fontSize: 18,
-    color: "white",
+    color: "#1F2937",
     lineHeight: 28,
     textAlignVertical: "top",
   },
@@ -1144,13 +1161,13 @@ const styles = StyleSheet.create({
     gap: 8,
     marginTop: 16,
     padding: 12,
-    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    backgroundColor: "#F3F4F6",
     borderRadius: 8,
   },
   journalModalAudioText: {
     flex: 1,
     fontSize: 14,
-    color: "white",
+    color: "#6B7280",
   },
   journalModalActions: {
     flexDirection: "row",
@@ -1159,31 +1176,33 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 20,
     paddingBottom: Platform.OS === "android" ? 20 : 40,
+    borderTopWidth: 1,
+    borderTopColor: "#E5E7EB",
   },
   journalModalActionButton: {
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    backgroundColor: "#F3F4F6",
     justifyContent: "center",
     alignItems: "center",
   },
   journalModalRecordingButton: {
-    backgroundColor: "rgba(239, 68, 68, 0.3)",
+    backgroundColor: "#FEE2E2",
   },
   journalModalDoneButton: {
     flex: 1,
     marginLeft: 16,
     height: 56,
     borderRadius: 28,
-    backgroundColor: "white",
+    backgroundColor: "#4F46E5",
     justifyContent: "center",
     alignItems: "center",
   },
   journalModalDoneText: {
     fontSize: 18,
     fontWeight: "700",
-    color: "#4F46E5",
+    color: "white",
   },
   journalModalSaving: {
     position: "absolute",
@@ -1192,14 +1211,14 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    backgroundColor: "#F3F4F6",
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,
   },
   journalModalSavingText: {
     fontSize: 14,
-    color: "white",
+    color: "#6B7280",
     fontWeight: "600",
   },
 });
