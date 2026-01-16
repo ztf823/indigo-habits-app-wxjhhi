@@ -11,24 +11,29 @@ import {
   Image,
 } from "react-native";
 import { useRouter } from "expo-router";
-import { authenticatedApiCall, isBackendConfigured } from "@/utils/api";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
+import {
+  getAllJournalEntries,
+  getAllAffirmations,
+  updateAffirmation,
+} from "@/utils/database";
 
 interface HistoryEntry {
   id: string;
   content: string;
-  photoUrl?: string;
+  photoUri?: string;
   createdAt: string;
-  affirmation?: string;
+  affirmationText?: string;
+  date: string;
 }
 
 interface Affirmation {
   id: string;
   text: string;
-  isCustom: boolean;
-  isFavorite: boolean;
+  isCustom: number;
+  isFavorite: number;
   createdAt: string;
 }
 
@@ -41,31 +46,23 @@ export default function HistoryScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const router = useRouter();
 
-  useEffect(() => {
-    console.log("[History] Loading history for tab:", activeTab);
-    loadHistory();
-  }, [activeTab]);
-
-  const loadHistory = async () => {
-    if (!isBackendConfigured()) {
-      console.log("[History] Backend not configured - showing empty state");
-      setLoading(false);
-      return;
-    }
-
+  const loadHistory = useCallback(async () => {
     try {
+      console.log("[History] Loading history for tab:", activeTab);
+      
       if (activeTab === "journal") {
-        const response = await authenticatedApiCall("/api/journal-entries?limit=50");
-        setJournalEntries(response.entries || []);
-        console.log("[History] Loaded", response.entries?.length || 0, "journal entries");
+        const entries = await getAllJournalEntries() as HistoryEntry[];
+        setJournalEntries(entries);
+        console.log("[History] Loaded", entries.length, "journal entries");
       } else if (activeTab === "affirmations") {
-        const response = await authenticatedApiCall("/api/affirmations?limit=50");
-        setAffirmations(response.affirmations || []);
-        console.log("[History] Loaded", response.affirmations?.length || 0, "affirmations");
+        const allAffirmations = await getAllAffirmations() as Affirmation[];
+        setAffirmations(allAffirmations);
+        console.log("[History] Loaded", allAffirmations.length, "affirmations");
       } else if (activeTab === "favorites") {
-        const response = await authenticatedApiCall("/api/affirmations/favorites");
-        setFavorites(response.affirmations || []);
-        console.log("[History] Loaded", response.affirmations?.length || 0, "favorites");
+        const allAffirmations = await getAllAffirmations() as Affirmation[];
+        const favoriteAffirmations = allAffirmations.filter(a => a.isFavorite === 1);
+        setFavorites(favoriteAffirmations);
+        console.log("[History] Loaded", favoriteAffirmations.length, "favorites");
       }
     } catch (error) {
       console.error("[History] Error loading history:", error);
@@ -73,7 +70,11 @@ export default function HistoryScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, [activeTab]);
+
+  useEffect(() => {
+    loadHistory();
+  }, [loadHistory]);
 
   const onRefresh = () => {
     console.log("[History] User pulled to refresh");
@@ -86,9 +87,11 @@ export default function HistoryScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
     try {
-      await authenticatedApiCall(`/api/affirmations/${affirmationId}/favorite`, {
-        method: "POST",
-      });
+      const affirmation = [...affirmations, ...favorites].find(a => a.id === affirmationId);
+      if (!affirmation) return;
+      
+      const newFavorite = affirmation.isFavorite === 1 ? 0 : 1;
+      await updateAffirmation(affirmationId, { isFavorite: newFavorite === 1 });
       loadHistory();
     } catch (error) {
       console.error("[History] Error toggling favorite:", error);
@@ -206,7 +209,7 @@ export default function HistoryScreen() {
                     <Text style={styles.entryContent} numberOfLines={3}>
                       {entry.content}
                     </Text>
-                    {entry.photoUrl && (
+                    {entry.photoUri && (
                       <View style={styles.photoIndicator}>
                         <IconSymbol
                           ios_icon_name="photo"
@@ -243,15 +246,15 @@ export default function HistoryScreen() {
                       <Text style={styles.affirmationDate}>{formatDate(affirmation.createdAt)}</Text>
                       <TouchableOpacity onPress={() => toggleFavorite(affirmation.id)}>
                         <IconSymbol
-                          ios_icon_name={affirmation.isFavorite ? "star.fill" : "star"}
-                          android_material_icon_name={affirmation.isFavorite ? "star" : "star-border"}
+                          ios_icon_name={affirmation.isFavorite === 1 ? "star.fill" : "star"}
+                          android_material_icon_name={affirmation.isFavorite === 1 ? "star" : "star-border"}
                           size={24}
-                          color={affirmation.isFavorite ? "#FFD700" : "#999"}
+                          color={affirmation.isFavorite === 1 ? "#FFD700" : "#999"}
                         />
                       </TouchableOpacity>
                     </View>
                     <Text style={styles.affirmationText}>{affirmation.text}</Text>
-                    {affirmation.isCustom && (
+                    {affirmation.isCustom === 1 && (
                       <View style={styles.customBadge}>
                         <Text style={styles.customBadgeText}>Custom</Text>
                       </View>

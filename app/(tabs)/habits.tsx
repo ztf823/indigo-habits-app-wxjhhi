@@ -1,4 +1,6 @@
 
+import { LinearGradient } from "expo-linear-gradient";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -10,188 +12,177 @@ import {
   Modal,
   ActivityIndicator,
   RefreshControl,
+  Platform,
 } from "react-native";
-import { LinearGradient } from "expo-linear-gradient";
-import React, { useState, useEffect } from "react";
 import * as Haptics from "expo-haptics";
 import { IconSymbol } from "@/components/IconSymbol";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import {
+  getAllHabits,
+  getAllAffirmations,
+  createHabit,
+  updateHabit,
+  deleteHabit,
+  createAffirmation,
+  updateAffirmation,
+  deleteAffirmation,
+  getProfile,
+} from "@/utils/database";
+import { getRandomAffirmation } from "@/utils/affirmations";
 
 interface Habit {
   id: string;
   title: string;
   color: string;
-  isActive: boolean;
-  isRepeating: boolean;
+  isActive: number;
+  isRepeating: number;
+  orderIndex?: number;
 }
 
 interface Affirmation {
   id: string;
   text: string;
-  isCustom: boolean;
-  isFavorite: boolean;
-  isRepeating: boolean;
-  order?: number;
+  isCustom: number;
+  isFavorite: number;
+  isRepeating: number;
+  orderIndex?: number;
 }
 
-const STORAGE_KEYS = {
-  AFFIRMATIONS: "indigo_habits_affirmations",
-  HABITS: "indigo_habits_habits",
-  HAS_PREMIUM: "indigo_habits_has_premium",
-};
-
 const COLORS = [
-  "#4F46E5", // Indigo
   "#10B981", // Green
+  "#3B82F6", // Blue
   "#F59E0B", // Amber
   "#EF4444", // Red
   "#8B5CF6", // Purple
   "#EC4899", // Pink
   "#06B6D4", // Cyan
-  "#F97316", // Orange
 ];
 
 export default function HabitsScreen() {
   const [activeTab, setActiveTab] = useState<"habits" | "affirmations">("habits");
   const [habits, setHabits] = useState<Habit[]>([]);
   const [affirmations, setAffirmations] = useState<Affirmation[]>([]);
-  const [showAddHabitModal, setShowAddHabitModal] = useState(false);
-  const [showEditHabitModal, setShowEditHabitModal] = useState(false);
-  const [showAddAffirmationModal, setShowAddAffirmationModal] = useState(false);
-  const [newHabitTitle, setNewHabitTitle] = useState("");
-  const [newAffirmationText, setNewAffirmationText] = useState("");
-  const [selectedColor, setSelectedColor] = useState(COLORS[0]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [isPremium, setIsPremium] = useState(false);
+
+  // Habit modal state
+  const [habitModalVisible, setHabitModalVisible] = useState(false);
   const [editingHabit, setEditingHabit] = useState<Habit | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const [hasPremium, setHasPremium] = useState(false);
+  const [habitTitle, setHabitTitle] = useState("");
+  const [habitColor, setHabitColor] = useState(COLORS[0]);
+
+  // Affirmation modal state
+  const [affirmationModalVisible, setAffirmationModalVisible] = useState(false);
+  const [affirmationText, setAffirmationText] = useState("");
+
+  const loadData = useCallback(async () => {
+    try {
+      setLoading(true);
+      await Promise.all([
+        loadPremiumStatus(),
+        loadHabits(),
+        loadAffirmations(),
+      ]);
+    } catch (error) {
+      console.error("Error loading data:", error);
+      Alert.alert("Error", "Failed to load data. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  }, [activeTab]);
 
   useEffect(() => {
     loadData();
-  }, [activeTab]);
-
-  const loadData = async () => {
-    setIsLoading(true);
-    await loadPremiumStatus();
-    if (activeTab === "habits") {
-      await loadHabits();
-    } else {
-      await loadAffirmations();
-    }
-    setIsLoading(false);
-  };
+  }, [loadData]);
 
   const loadPremiumStatus = async () => {
     try {
-      const premiumStatus = await AsyncStorage.getItem(STORAGE_KEYS.HAS_PREMIUM);
-      setHasPremium(premiumStatus === "true");
-      console.log("[Habits] Premium status:", premiumStatus === "true");
+      const profile = await getProfile();
+      setIsPremium(profile?.isPremium === 1);
     } catch (error) {
-      console.error("[Habits] Error loading premium status:", error);
+      console.error("Error loading premium status:", error);
     }
   };
 
   const loadHabits = async () => {
     try {
-      const storedHabits = await AsyncStorage.getItem(STORAGE_KEYS.HABITS);
-      if (storedHabits) {
-        const parsed = JSON.parse(storedHabits);
-        setHabits(parsed.filter((h: Habit) => h.isActive));
-        console.log("[Habits] Loaded", parsed.length, "habits");
-      } else {
-        setHabits([]);
-      }
+      const dbHabits = await getAllHabits() as Habit[];
+      setHabits(dbHabits);
     } catch (error) {
-      console.error("[Habits] Error loading habits:", error);
+      console.error("Error loading habits:", error);
     }
   };
 
   const loadAffirmations = async () => {
     try {
-      const storedAffirmations = await AsyncStorage.getItem(STORAGE_KEYS.AFFIRMATIONS);
-      if (storedAffirmations) {
-        const parsed = JSON.parse(storedAffirmations);
-        setAffirmations(parsed);
-        console.log("[Habits] Loaded", parsed.length, "affirmations");
-      } else {
-        setAffirmations([]);
-      }
+      const dbAffirmations = await getAllAffirmations() as Affirmation[];
+      setAffirmations(dbAffirmations);
     } catch (error) {
-      console.error("[Habits] Error loading affirmations:", error);
+      console.error("Error loading affirmations:", error);
     }
   };
 
   const onRefresh = async () => {
-    setIsRefreshing(true);
+    setRefreshing(true);
     await loadData();
-    setIsRefreshing(false);
+    setRefreshing(false);
   };
 
   const handleAddHabit = async () => {
-    if (!newHabitTitle.trim()) {
-      Alert.alert("Error", "Please enter a habit name");
+    if (!habitTitle.trim()) {
+      Alert.alert("Error", "Please enter a habit title");
       return;
     }
-
-    // Check limit for free users
-    const repeatingCount = habits.filter(h => h.isRepeating).length;
-    if (!hasPremium && repeatingCount >= 5) {
-      Alert.alert(
-        "Limit Reached",
-        "Free users can have up to 5 daily habits. Upgrade to Premium for unlimited habits!",
-        [{ text: "OK" }]
-      );
-      return;
-    }
-
-    const newHabit: Habit = {
-      id: `habit-${Date.now()}`,
-      title: newHabitTitle.trim(),
-      color: selectedColor,
-      isActive: true,
-      isRepeating: false,
-    };
-
-    const updatedHabits = [...habits, newHabit];
-    setHabits(updatedHabits);
 
     try {
-      await AsyncStorage.setItem(STORAGE_KEYS.HABITS, JSON.stringify(updatedHabits));
-      console.log("[Habits] Habit added:", newHabit.id);
+      console.log("User adding new habit:", habitTitle);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    } catch (error) {
-      console.error("[Habits] Error saving habit:", error);
-    }
 
-    setNewHabitTitle("");
-    setSelectedColor(COLORS[0]);
-    setShowAddHabitModal(false);
+      const newHabit = {
+        id: `habit_${Date.now()}`,
+        title: habitTitle.trim(),
+        color: habitColor,
+        isRepeating: false,
+        orderIndex: habits.length,
+      };
+
+      await createHabit(newHabit);
+      await loadHabits();
+
+      setHabitModalVisible(false);
+      setHabitTitle("");
+      setHabitColor(COLORS[0]);
+    } catch (error) {
+      console.error("Error adding habit:", error);
+      Alert.alert("Error", "Failed to add habit. Please try again.");
+    }
   };
 
   const handleEditHabit = async () => {
-    if (!editingHabit || !newHabitTitle.trim()) {
-      Alert.alert("Error", "Please enter a habit name");
+    if (!habitTitle.trim() || !editingHabit) {
+      Alert.alert("Error", "Please enter a habit title");
       return;
     }
 
-    const updatedHabits = habits.map((h) =>
-      h.id === editingHabit.id
-        ? { ...h, title: newHabitTitle.trim(), color: selectedColor }
-        : h
-    );
-    setHabits(updatedHabits);
-
     try {
-      await AsyncStorage.setItem(STORAGE_KEYS.HABITS, JSON.stringify(updatedHabits));
-      console.log("[Habits] Habit updated:", editingHabit.id);
+      console.log("User editing habit:", editingHabit.id);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    } catch (error) {
-      console.error("[Habits] Error updating habit:", error);
-    }
 
-    setShowEditHabitModal(false);
-    setEditingHabit(null);
-    setNewHabitTitle("");
+      await updateHabit(editingHabit.id, {
+        title: habitTitle.trim(),
+        color: habitColor,
+      });
+
+      await loadHabits();
+
+      setHabitModalVisible(false);
+      setEditingHabit(null);
+      setHabitTitle("");
+      setHabitColor(COLORS[0]);
+    } catch (error) {
+      console.error("Error editing habit:", error);
+      Alert.alert("Error", "Failed to edit habit. Please try again.");
+    }
   };
 
   const handleDeleteHabit = async (id: string) => {
@@ -204,15 +195,14 @@ export default function HabitsScreen() {
           text: "Delete",
           style: "destructive",
           onPress: async () => {
-            const updatedHabits = habits.filter((h) => h.id !== id);
-            setHabits(updatedHabits);
-
             try {
-              await AsyncStorage.setItem(STORAGE_KEYS.HABITS, JSON.stringify(updatedHabits));
-              console.log("[Habits] Habit deleted:", id);
+              console.log("User deleting habit:", id);
               Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              await deleteHabit(id);
+              await loadHabits();
             } catch (error) {
-              console.error("[Habits] Error deleting habit:", error);
+              console.error("Error deleting habit:", error);
+              Alert.alert("Error", "Failed to delete habit. Please try again.");
             }
           },
         },
@@ -221,179 +211,186 @@ export default function HabitsScreen() {
   };
 
   const openEditModal = (habit: Habit) => {
+    console.log("User editing habit:", habit.id);
     setEditingHabit(habit);
-    setNewHabitTitle(habit.title);
-    setSelectedColor(habit.color);
-    setShowEditHabitModal(true);
+    setHabitTitle(habit.title);
+    setHabitColor(habit.color);
+    setHabitModalVisible(true);
   };
 
   const toggleHabitRepeating = async (habitId: string) => {
-    const habit = habits.find((h) => h.id === habitId);
-    if (!habit) return;
-
-    const newRepeating = !habit.isRepeating;
-
-    // Check limit for free users
-    if (!hasPremium && newRepeating) {
-      const repeatingCount = habits.filter(h => h.isRepeating).length;
-      if (repeatingCount >= 5) {
-        Alert.alert(
-          "Limit Reached",
-          "Free users can have up to 5 daily habits. Upgrade to Premium for unlimited!",
-          [{ text: "OK" }]
-        );
-        return;
-      }
-    }
-
-    const updatedHabits = habits.map((h) =>
-      h.id === habitId ? { ...h, isRepeating: newRepeating } : h
-    );
-    setHabits(updatedHabits);
-
     try {
-      await AsyncStorage.setItem(STORAGE_KEYS.HABITS, JSON.stringify(updatedHabits));
-      console.log("[Habits] Habit repeating toggled:", habitId, newRepeating);
+      console.log("User toggling habit repeating:", habitId);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+
+      const habit = habits.find((h) => h.id === habitId);
+      if (!habit) return;
+
+      const newRepeating = habit.isRepeating === 1 ? 0 : 1;
+
+      setHabits((prev) =>
+        prev.map((h) =>
+          h.id === habitId ? { ...h, isRepeating: newRepeating } : h
+        )
+      );
+
+      await updateHabit(habitId, { isRepeating: newRepeating === 1 });
     } catch (error) {
-      console.error("[Habits] Error toggling repeating:", error);
+      console.error("Error toggling habit repeating:", error);
     }
   };
 
   const moveHabitUp = async (index: number) => {
     if (index === 0) return;
 
-    const newHabits = [...habits];
-    [newHabits[index - 1], newHabits[index]] = [newHabits[index], newHabits[index - 1]];
-    setHabits(newHabits);
-
     try {
-      await AsyncStorage.setItem(STORAGE_KEYS.HABITS, JSON.stringify(newHabits));
+      console.log("User moving habit up:", index);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+
+      const newHabits = [...habits];
+      [newHabits[index], newHabits[index - 1]] = [newHabits[index - 1], newHabits[index]];
+
+      setHabits(newHabits);
+
+      // Update order in database
+      await Promise.all(
+        newHabits.map((habit, idx) =>
+          updateHabit(habit.id, { orderIndex: idx })
+        )
+      );
     } catch (error) {
-      console.error("[Habits] Error reordering habits:", error);
+      console.error("Error moving habit:", error);
     }
   };
 
   const moveHabitDown = async (index: number) => {
     if (index === habits.length - 1) return;
 
-    const newHabits = [...habits];
-    [newHabits[index], newHabits[index + 1]] = [newHabits[index + 1], newHabits[index]];
-    setHabits(newHabits);
-
     try {
-      await AsyncStorage.setItem(STORAGE_KEYS.HABITS, JSON.stringify(newHabits));
+      console.log("User moving habit down:", index);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+
+      const newHabits = [...habits];
+      [newHabits[index], newHabits[index + 1]] = [newHabits[index + 1], newHabits[index]];
+
+      setHabits(newHabits);
+
+      // Update order in database
+      await Promise.all(
+        newHabits.map((habit, idx) =>
+          updateHabit(habit.id, { orderIndex: idx })
+        )
+      );
     } catch (error) {
-      console.error("[Habits] Error reordering habits:", error);
+      console.error("Error moving habit:", error);
     }
   };
 
   const handleAddCustomAffirmation = async () => {
-    if (!newAffirmationText.trim()) {
+    if (!affirmationText.trim()) {
       Alert.alert("Error", "Please enter an affirmation");
       return;
     }
 
-    // Check limit for free users
-    const repeatingCount = affirmations.filter(a => a.isRepeating).length;
-    if (!hasPremium && repeatingCount >= 5) {
-      Alert.alert(
-        "Limit Reached",
-        "Free users can have up to 5 daily affirmations. Upgrade to Premium for unlimited!",
-        [{ text: "OK" }]
-      );
-      return;
-    }
-
-    const newAffirmation: Affirmation = {
-      id: `affirmation-${Date.now()}`,
-      text: newAffirmationText.trim(),
-      isCustom: true,
-      isFavorite: false,
-      isRepeating: false,
-    };
-
-    const updatedAffirmations = [...affirmations, newAffirmation];
-    setAffirmations(updatedAffirmations);
-
     try {
-      await AsyncStorage.setItem(STORAGE_KEYS.AFFIRMATIONS, JSON.stringify(updatedAffirmations));
-      console.log("[Habits] Affirmation added:", newAffirmation.id);
+      console.log("User adding custom affirmation");
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    } catch (error) {
-      console.error("[Habits] Error saving affirmation:", error);
-    }
 
-    setNewAffirmationText("");
-    setShowAddAffirmationModal(false);
+      const newAffirmation = {
+        id: `affirmation_${Date.now()}`,
+        text: affirmationText.trim(),
+        isCustom: true,
+        isFavorite: false,
+        isRepeating: false,
+        orderIndex: affirmations.length,
+      };
+
+      await createAffirmation(newAffirmation);
+      await loadAffirmations();
+
+      setAffirmationModalVisible(false);
+      setAffirmationText("");
+    } catch (error) {
+      console.error("Error adding affirmation:", error);
+      Alert.alert("Error", "Failed to add affirmation. Please try again.");
+    }
   };
 
   const toggleAffirmationRepeating = async (affirmationId: string) => {
-    const affirmation = affirmations.find((a) => a.id === affirmationId);
-    if (!affirmation) return;
-
-    const newRepeating = !affirmation.isRepeating;
-
-    // Check limit for free users
-    if (!hasPremium && newRepeating) {
-      const repeatingCount = affirmations.filter(a => a.isRepeating).length;
-      if (repeatingCount >= 5) {
-        Alert.alert(
-          "Limit Reached",
-          "Free users can have up to 5 daily affirmations. Upgrade to Premium for unlimited!",
-          [{ text: "OK" }]
-        );
-        return;
-      }
-    }
-
-    const updatedAffirmations = affirmations.map((a) =>
-      a.id === affirmationId ? { ...a, isRepeating: newRepeating } : a
-    );
-    setAffirmations(updatedAffirmations);
-
     try {
-      await AsyncStorage.setItem(STORAGE_KEYS.AFFIRMATIONS, JSON.stringify(updatedAffirmations));
-      console.log("[Habits] Affirmation repeating toggled:", affirmationId, newRepeating);
+      console.log("User toggling affirmation repeating:", affirmationId);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+
+      const affirmation = affirmations.find((a) => a.id === affirmationId);
+      if (!affirmation) return;
+
+      const newRepeating = affirmation.isRepeating === 1 ? 0 : 1;
+
+      setAffirmations((prev) =>
+        prev.map((a) =>
+          a.id === affirmationId ? { ...a, isRepeating: newRepeating } : a
+        )
+      );
+
+      await updateAffirmation(affirmationId, { isRepeating: newRepeating === 1 });
     } catch (error) {
-      console.error("[Habits] Error toggling repeating:", error);
+      console.error("Error toggling affirmation repeating:", error);
     }
   };
 
   const moveAffirmationUp = async (index: number) => {
     if (index === 0) return;
 
-    const newAffirmations = [...affirmations];
-    [newAffirmations[index - 1], newAffirmations[index]] = [newAffirmations[index], newAffirmations[index - 1]];
-    setAffirmations(newAffirmations);
-
     try {
-      await AsyncStorage.setItem(STORAGE_KEYS.AFFIRMATIONS, JSON.stringify(newAffirmations));
+      console.log("User moving affirmation up:", index);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+
+      const newAffirmations = [...affirmations];
+      [newAffirmations[index], newAffirmations[index - 1]] = [
+        newAffirmations[index - 1],
+        newAffirmations[index],
+      ];
+
+      setAffirmations(newAffirmations);
+
+      // Update order in database
+      await Promise.all(
+        newAffirmations.map((affirmation, idx) =>
+          updateAffirmation(affirmation.id, { orderIndex: idx })
+        )
+      );
     } catch (error) {
-      console.error("[Habits] Error reordering affirmations:", error);
+      console.error("Error moving affirmation:", error);
     }
   };
 
   const moveAffirmationDown = async (index: number) => {
     if (index === affirmations.length - 1) return;
 
-    const newAffirmations = [...affirmations];
-    [newAffirmations[index], newAffirmations[index + 1]] = [newAffirmations[index + 1], newAffirmations[index]];
-    setAffirmations(newAffirmations);
-
     try {
-      await AsyncStorage.setItem(STORAGE_KEYS.AFFIRMATIONS, JSON.stringify(newAffirmations));
+      console.log("User moving affirmation down:", index);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+
+      const newAffirmations = [...affirmations];
+      [newAffirmations[index], newAffirmations[index + 1]] = [
+        newAffirmations[index + 1],
+        newAffirmations[index],
+      ];
+
+      setAffirmations(newAffirmations);
+
+      // Update order in database
+      await Promise.all(
+        newAffirmations.map((affirmation, idx) =>
+          updateAffirmation(affirmation.id, { orderIndex: idx })
+        )
+      );
     } catch (error) {
-      console.error("[Habits] Error reordering affirmations:", error);
+      console.error("Error moving affirmation:", error);
     }
   };
 
-  const deleteAffirmation = async (affirmationId: string) => {
+  const deleteAffirmationItem = async (affirmationId: string) => {
     Alert.alert(
       "Delete Affirmation",
       "Are you sure you want to delete this affirmation?",
@@ -403,15 +400,14 @@ export default function HabitsScreen() {
           text: "Delete",
           style: "destructive",
           onPress: async () => {
-            const updatedAffirmations = affirmations.filter((a) => a.id !== affirmationId);
-            setAffirmations(updatedAffirmations);
-
             try {
-              await AsyncStorage.setItem(STORAGE_KEYS.AFFIRMATIONS, JSON.stringify(updatedAffirmations));
-              console.log("[Habits] Affirmation deleted:", affirmationId);
+              console.log("User deleting affirmation:", affirmationId);
               Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              await deleteAffirmation(affirmationId);
+              await loadAffirmations();
             } catch (error) {
-              console.error("[Habits] Error deleting affirmation:", error);
+              console.error("Error deleting affirmation:", error);
+              Alert.alert("Error", "Failed to delete affirmation. Please try again.");
             }
           },
         },
@@ -419,32 +415,47 @@ export default function HabitsScreen() {
     );
   };
 
-  if (isLoading) {
+  if (loading) {
     return (
-      <LinearGradient colors={["#4F46E5", "#7C3AED", "#87CEEB"]} style={styles.container}>
+      <LinearGradient
+        colors={["#4F46E5", "#06B6D4"]}
+        style={styles.gradient}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 0, y: 1 }}
+      >
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#FFF" />
+          <ActivityIndicator size="large" color="white" />
           <Text style={styles.loadingText}>Loading...</Text>
         </View>
       </LinearGradient>
     );
   }
 
-  const dailyHabits = habits.filter(h => h.isRepeating);
-  const dailyAffirmations = affirmations.filter(a => a.isRepeating);
-
   return (
-    <LinearGradient colors={["#4F46E5", "#7C3AED", "#87CEEB"]} style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Manage</Text>
-        
-        {/* Tab Selector */}
-        <View style={styles.tabContainer}>
+    <LinearGradient
+      colors={["#4F46E5", "#06B6D4"]}
+      style={styles.gradient}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 0, y: 1 }}
+    >
+      <View style={styles.container}>
+        {/* Header */}
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>Manage</Text>
+        </View>
+
+        {/* Tabs */}
+        <View style={styles.tabs}>
           <TouchableOpacity
             style={[styles.tab, activeTab === "habits" && styles.activeTab]}
             onPress={() => setActiveTab("habits")}
           >
-            <Text style={[styles.tabText, activeTab === "habits" && styles.activeTabText]}>
+            <Text
+              style={[
+                styles.tabText,
+                activeTab === "habits" && styles.activeTabText,
+              ]}
+            >
               Habits
             </Text>
           </TouchableOpacity>
@@ -452,252 +463,237 @@ export default function HabitsScreen() {
             style={[styles.tab, activeTab === "affirmations" && styles.activeTab]}
             onPress={() => setActiveTab("affirmations")}
           >
-            <Text style={[styles.tabText, activeTab === "affirmations" && styles.activeTabText]}>
+            <Text
+              style={[
+                styles.tabText,
+                activeTab === "affirmations" && styles.activeTabText,
+              ]}
+            >
               Affirmations
             </Text>
           </TouchableOpacity>
         </View>
+
+        {/* Content */}
+        <ScrollView
+          style={styles.content}
+          contentContainerStyle={styles.contentContainer}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="white" />
+          }
+        >
+          {activeTab === "habits" ? (
+            <>
+              {habits.map((habit, index) => (
+                <View key={habit.id} style={styles.item}>
+                  <View
+                    style={[styles.colorIndicator, { backgroundColor: habit.color }]}
+                  />
+                  <View style={styles.itemContent}>
+                    <Text style={styles.itemTitle}>{habit.title}</Text>
+                    {habit.isRepeating === 1 && (
+                      <Text style={styles.itemSubtitle}>Repeating daily</Text>
+                    )}
+                  </View>
+                  <View style={styles.itemActions}>
+                    <TouchableOpacity
+                      onPress={() => moveHabitUp(index)}
+                      disabled={index === 0}
+                      style={styles.actionButton}
+                    >
+                      <IconSymbol
+                        ios_icon_name="chevron.up"
+                        android_material_icon_name="keyboard-arrow-up"
+                        size={20}
+                        color={index === 0 ? "#999" : "white"}
+                      />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => moveHabitDown(index)}
+                      disabled={index === habits.length - 1}
+                      style={styles.actionButton}
+                    >
+                      <IconSymbol
+                        ios_icon_name="chevron.down"
+                        android_material_icon_name="keyboard-arrow-down"
+                        size={20}
+                        color={index === habits.length - 1 ? "#999" : "white"}
+                      />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => toggleHabitRepeating(habit.id)}
+                      style={styles.actionButton}
+                    >
+                      <IconSymbol
+                        ios_icon_name="repeat"
+                        android_material_icon_name="repeat"
+                        size={20}
+                        color={habit.isRepeating === 1 ? "#10B981" : "white"}
+                      />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => openEditModal(habit)}
+                      style={styles.actionButton}
+                    >
+                      <IconSymbol
+                        ios_icon_name="pencil"
+                        android_material_icon_name="edit"
+                        size={20}
+                        color="white"
+                      />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => handleDeleteHabit(habit.id)}
+                      style={styles.actionButton}
+                    >
+                      <IconSymbol
+                        ios_icon_name="trash"
+                        android_material_icon_name="delete"
+                        size={20}
+                        color="#EF4444"
+                      />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ))}
+
+              <TouchableOpacity
+                style={styles.addButton}
+                onPress={() => {
+                  setEditingHabit(null);
+                  setHabitTitle("");
+                  setHabitColor(COLORS[0]);
+                  setHabitModalVisible(true);
+                }}
+              >
+                <IconSymbol
+                  ios_icon_name="plus"
+                  android_material_icon_name="add"
+                  size={24}
+                  color="white"
+                />
+                <Text style={styles.addButtonText}>Add Habit</Text>
+              </TouchableOpacity>
+            </>
+          ) : (
+            <>
+              {affirmations.map((affirmation, index) => (
+                <View key={affirmation.id} style={styles.item}>
+                  <View style={styles.itemContent}>
+                    <Text style={styles.itemTitle}>{affirmation.text}</Text>
+                    <View style={styles.itemMeta}>
+                      {affirmation.isCustom === 1 && (
+                        <Text style={styles.itemBadge}>Custom</Text>
+                      )}
+                      {affirmation.isRepeating === 1 && (
+                        <Text style={styles.itemBadge}>Repeating</Text>
+                      )}
+                    </View>
+                  </View>
+                  <View style={styles.itemActions}>
+                    <TouchableOpacity
+                      onPress={() => moveAffirmationUp(index)}
+                      disabled={index === 0}
+                      style={styles.actionButton}
+                    >
+                      <IconSymbol
+                        ios_icon_name="chevron.up"
+                        android_material_icon_name="keyboard-arrow-up"
+                        size={20}
+                        color={index === 0 ? "#999" : "white"}
+                      />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => moveAffirmationDown(index)}
+                      disabled={index === affirmations.length - 1}
+                      style={styles.actionButton}
+                    >
+                      <IconSymbol
+                        ios_icon_name="chevron.down"
+                        android_material_icon_name="keyboard-arrow-down"
+                        size={20}
+                        color={index === affirmations.length - 1 ? "#999" : "white"}
+                      />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => toggleAffirmationRepeating(affirmation.id)}
+                      style={styles.actionButton}
+                    >
+                      <IconSymbol
+                        ios_icon_name="repeat"
+                        android_material_icon_name="repeat"
+                        size={20}
+                        color={affirmation.isRepeating === 1 ? "#10B981" : "white"}
+                      />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => deleteAffirmationItem(affirmation.id)}
+                      style={styles.actionButton}
+                    >
+                      <IconSymbol
+                        ios_icon_name="trash"
+                        android_material_icon_name="delete"
+                        size={20}
+                        color="#EF4444"
+                      />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ))}
+
+              <TouchableOpacity
+                style={styles.addButton}
+                onPress={() => {
+                  setAffirmationText("");
+                  setAffirmationModalVisible(true);
+                }}
+              >
+                <IconSymbol
+                  ios_icon_name="plus"
+                  android_material_icon_name="add"
+                  size={24}
+                  color="white"
+                />
+                <Text style={styles.addButtonText}>Add Custom Affirmation</Text>
+              </TouchableOpacity>
+            </>
+          )}
+        </ScrollView>
       </View>
 
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        refreshControl={
-          <RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} tintColor="#FFF" />
-        }
-      >
-        {activeTab === "habits" ? (
-          <>
-            {/* Daily Habits Info */}
-            <View style={styles.infoCard}>
-              <Text style={styles.infoTitle}>Daily Habits on Home: {dailyHabits.length}/5</Text>
-              <Text style={styles.infoText}>
-                Toggle &quot;Daily&quot; to show habits on your home screen. {!hasPremium && "Free users: max 5 daily habits."}
-              </Text>
-            </View>
-
-            {habits.length === 0 ? (
-              <View style={styles.emptyState}>
-                <IconSymbol
-                  ios_icon_name="checkmark.circle"
-                  android_material_icon_name="check-circle"
-                  size={64}
-                  color="#FFF"
-                />
-                <Text style={styles.emptyStateText}>No habits yet</Text>
-                <Text style={styles.emptyStateSubtext}>
-                  Tap the + button below to add your first habit
-                </Text>
-              </View>
-            ) : (
-              <View style={styles.itemsList}>
-                {habits.map((habit, index) => (
-                  <View key={habit.id} style={styles.itemCard}>
-                    <View style={styles.itemInfo}>
-                      <View
-                        style={[styles.colorIndicator, { backgroundColor: habit.color }]}
-                      />
-                      <Text style={styles.itemTitle}>{habit.title}</Text>
-                    </View>
-                    <View style={styles.itemActions}>
-                      <TouchableOpacity
-                        style={[
-                          styles.repeatButton,
-                          habit.isRepeating && styles.repeatButtonActive,
-                        ]}
-                        onPress={() => toggleHabitRepeating(habit.id)}
-                      >
-                        <Text
-                          style={[
-                            styles.repeatButtonText,
-                            habit.isRepeating && styles.repeatButtonTextActive,
-                          ]}
-                        >
-                          {habit.isRepeating ? "Daily" : "Repeat"}
-                        </Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={styles.iconButton}
-                        onPress={() => moveHabitUp(index)}
-                        disabled={index === 0}
-                      >
-                        <IconSymbol
-                          ios_icon_name="chevron.up"
-                          android_material_icon_name="arrow-upward"
-                          size={20}
-                          color={index === 0 ? "#CCC" : "#4F46E5"}
-                        />
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={styles.iconButton}
-                        onPress={() => moveHabitDown(index)}
-                        disabled={index === habits.length - 1}
-                      >
-                        <IconSymbol
-                          ios_icon_name="chevron.down"
-                          android_material_icon_name="arrow-downward"
-                          size={20}
-                          color={index === habits.length - 1 ? "#CCC" : "#4F46E5"}
-                        />
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={styles.iconButton}
-                        onPress={() => openEditModal(habit)}
-                      >
-                        <IconSymbol
-                          ios_icon_name="pencil"
-                          android_material_icon_name="edit"
-                          size={20}
-                          color="#4F46E5"
-                        />
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={styles.iconButton}
-                        onPress={() => handleDeleteHabit(habit.id)}
-                      >
-                        <IconSymbol
-                          ios_icon_name="trash"
-                          android_material_icon_name="delete"
-                          size={20}
-                          color="#EF4444"
-                        />
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                ))}
-              </View>
-            )}
-          </>
-        ) : (
-          <>
-            {/* Daily Affirmations Info */}
-            <View style={styles.infoCard}>
-              <Text style={styles.infoTitle}>Daily Affirmations on Home: {dailyAffirmations.length}/5</Text>
-              <Text style={styles.infoText}>
-                Toggle &quot;Daily&quot; to show affirmations on your home screen. {!hasPremium && "Free users: max 5 daily affirmations."}
-              </Text>
-            </View>
-
-            {affirmations.length === 0 ? (
-              <View style={styles.emptyState}>
-                <IconSymbol
-                  ios_icon_name="sparkles"
-                  android_material_icon_name="auto-awesome"
-                  size={64}
-                  color="#FFF"
-                />
-                <Text style={styles.emptyStateText}>No affirmations yet</Text>
-                <Text style={styles.emptyStateSubtext}>
-                  Tap the + button to add your first affirmation
-                </Text>
-              </View>
-            ) : (
-              <View style={styles.itemsList}>
-                {affirmations.map((affirmation, index) => (
-                  <View key={affirmation.id} style={styles.affirmationCard}>
-                    <View style={styles.affirmationContent}>
-                      <Text style={styles.affirmationText}>{affirmation.text}</Text>
-                    </View>
-                    <View style={styles.affirmationActions}>
-                      <TouchableOpacity
-                        style={[
-                          styles.repeatButton,
-                          affirmation.isRepeating && styles.repeatButtonActive,
-                        ]}
-                        onPress={() => toggleAffirmationRepeating(affirmation.id)}
-                      >
-                        <Text
-                          style={[
-                            styles.repeatButtonText,
-                            affirmation.isRepeating && styles.repeatButtonTextActive,
-                          ]}
-                        >
-                          {affirmation.isRepeating ? "Daily" : "Repeat"}
-                        </Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={styles.iconButton}
-                        onPress={() => moveAffirmationUp(index)}
-                        disabled={index === 0}
-                      >
-                        <IconSymbol
-                          ios_icon_name="chevron.up"
-                          android_material_icon_name="arrow-upward"
-                          size={20}
-                          color={index === 0 ? "#CCC" : "#4F46E5"}
-                        />
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={styles.iconButton}
-                        onPress={() => moveAffirmationDown(index)}
-                        disabled={index === affirmations.length - 1}
-                      >
-                        <IconSymbol
-                          ios_icon_name="chevron.down"
-                          android_material_icon_name="arrow-downward"
-                          size={20}
-                          color={index === affirmations.length - 1 ? "#CCC" : "#4F46E5"}
-                        />
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={styles.iconButton}
-                        onPress={() => deleteAffirmation(affirmation.id)}
-                      >
-                        <IconSymbol
-                          ios_icon_name="trash"
-                          android_material_icon_name="delete"
-                          size={20}
-                          color="#EF4444"
-                        />
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                ))}
-              </View>
-            )}
-          </>
-        )}
-      </ScrollView>
-
-      {/* Add Button */}
-      <TouchableOpacity
-        style={styles.addButton}
-        onPress={() => {
-          if (activeTab === "habits") {
-            setShowAddHabitModal(true);
-          } else {
-            setShowAddAffirmationModal(true);
-          }
-        }}
-      >
-        <IconSymbol
-          ios_icon_name="plus"
-          android_material_icon_name="add"
-          size={28}
-          color="#FFF"
-        />
-      </TouchableOpacity>
-
-      {/* Add Habit Modal */}
+      {/* Habit Modal */}
       <Modal
-        visible={showAddHabitModal}
-        transparent
+        visible={habitModalVisible}
         animationType="slide"
-        onRequestClose={() => setShowAddHabitModal(false)}
+        presentationStyle="pageSheet"
+        onRequestClose={() => setHabitModalVisible(false)}
       >
-        <View style={styles.modalOverlay}>
+        <View style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <TouchableOpacity onPress={() => setHabitModalVisible(false)}>
+              <Text style={styles.modalCancel}>Cancel</Text>
+            </TouchableOpacity>
+            <Text style={styles.modalTitle}>
+              {editingHabit ? "Edit Habit" : "New Habit"}
+            </Text>
+            <TouchableOpacity
+              onPress={editingHabit ? handleEditHabit : handleAddHabit}
+            >
+              <Text style={styles.modalSave}>Save</Text>
+            </TouchableOpacity>
+          </View>
+
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Add New Habit</Text>
-            
+            <Text style={styles.label}>Habit Name</Text>
             <TextInput
               style={styles.input}
-              placeholder="Habit name (e.g., Morning meditation)"
-              placeholderTextColor="#9CA3AF"
-              value={newHabitTitle}
-              onChangeText={setNewHabitTitle}
+              placeholder="e.g., Meditate, Exercise, Read"
+              value={habitTitle}
+              onChangeText={setHabitTitle}
               autoFocus
             />
 
-            <Text style={styles.colorLabel}>Choose a color:</Text>
+            <Text style={styles.label}>Color</Text>
             <View style={styles.colorPicker}>
               {COLORS.map((color) => (
                 <TouchableOpacity
@@ -705,135 +701,45 @@ export default function HabitsScreen() {
                   style={[
                     styles.colorOption,
                     { backgroundColor: color },
-                    selectedColor === color && styles.colorOptionSelected,
+                    habitColor === color && styles.selectedColor,
                   ]}
-                  onPress={() => setSelectedColor(color)}
+                  onPress={() => setHabitColor(color)}
                 />
               ))}
-            </View>
-
-            <View style={styles.modalButtons}>
-              <TouchableOpacity
-                style={[styles.modalButton, styles.modalButtonCancel]}
-                onPress={() => {
-                  setShowAddHabitModal(false);
-                  setNewHabitTitle("");
-                  setSelectedColor(COLORS[0]);
-                }}
-              >
-                <Text style={styles.modalButtonText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.modalButton, styles.modalButtonSave]}
-                onPress={handleAddHabit}
-              >
-                <Text style={[styles.modalButtonText, { color: "#FFF" }]}>Add</Text>
-              </TouchableOpacity>
             </View>
           </View>
         </View>
       </Modal>
 
-      {/* Edit Habit Modal */}
+      {/* Affirmation Modal */}
       <Modal
-        visible={showEditHabitModal}
-        transparent
+        visible={affirmationModalVisible}
         animationType="slide"
-        onRequestClose={() => setShowEditHabitModal(false)}
+        presentationStyle="pageSheet"
+        onRequestClose={() => setAffirmationModalVisible(false)}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Edit Habit</Text>
-            
-            <TextInput
-              style={styles.input}
-              placeholder="Habit name"
-              placeholderTextColor="#9CA3AF"
-              value={newHabitTitle}
-              onChangeText={setNewHabitTitle}
-              autoFocus
-            />
-
-            <Text style={styles.colorLabel}>Choose a color:</Text>
-            <View style={styles.colorPicker}>
-              {COLORS.map((color) => (
-                <TouchableOpacity
-                  key={color}
-                  style={[
-                    styles.colorOption,
-                    { backgroundColor: color },
-                    selectedColor === color && styles.colorOptionSelected,
-                  ]}
-                  onPress={() => setSelectedColor(color)}
-                />
-              ))}
-            </View>
-
-            <View style={styles.modalButtons}>
-              <TouchableOpacity
-                style={[styles.modalButton, styles.modalButtonCancel]}
-                onPress={() => {
-                  setShowEditHabitModal(false);
-                  setEditingHabit(null);
-                  setNewHabitTitle("");
-                }}
-              >
-                <Text style={styles.modalButtonText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.modalButton, styles.modalButtonSave]}
-                onPress={handleEditHabit}
-              >
-                <Text style={[styles.modalButtonText, { color: "#FFF" }]}>Save</Text>
-              </TouchableOpacity>
-            </View>
+        <View style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <TouchableOpacity onPress={() => setAffirmationModalVisible(false)}>
+              <Text style={styles.modalCancel}>Cancel</Text>
+            </TouchableOpacity>
+            <Text style={styles.modalTitle}>New Affirmation</Text>
+            <TouchableOpacity onPress={handleAddCustomAffirmation}>
+              <Text style={styles.modalSave}>Save</Text>
+            </TouchableOpacity>
           </View>
-        </View>
-      </Modal>
 
-      {/* Add Custom Affirmation Modal */}
-      <Modal
-        visible={showAddAffirmationModal}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setShowAddAffirmationModal(false)}
-      >
-        <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Add Custom Affirmation</Text>
-            
+            <Text style={styles.label}>Affirmation Text</Text>
             <TextInput
               style={[styles.input, styles.textArea]}
-              placeholder="Enter your affirmation..."
-              placeholderTextColor="#9CA3AF"
-              value={newAffirmationText}
-              onChangeText={setNewAffirmationText}
+              placeholder="e.g., I am capable of achieving my goals"
+              value={affirmationText}
+              onChangeText={setAffirmationText}
               multiline
               numberOfLines={4}
               autoFocus
             />
-
-            <Text style={styles.helperText}>
-              You can set this affirmation to repeat daily after adding it
-            </Text>
-
-            <View style={styles.modalButtons}>
-              <TouchableOpacity
-                style={[styles.modalButton, styles.modalButtonCancel]}
-                onPress={() => {
-                  setShowAddAffirmationModal(false);
-                  setNewAffirmationText("");
-                }}
-              >
-                <Text style={styles.modalButtonText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.modalButton, styles.modalButtonSave]}
-                onPress={handleAddCustomAffirmation}
-              >
-                <Text style={[styles.modalButtonText, { color: "#FFF" }]}>Add</Text>
-              </TouchableOpacity>
-            </View>
           </View>
         </View>
       </Modal>
@@ -842,8 +748,52 @@ export default function HabitsScreen() {
 }
 
 const styles = StyleSheet.create({
+  gradient: {
+    flex: 1,
+  },
   container: {
     flex: 1,
+  },
+  header: {
+    paddingTop: Platform.OS === "android" ? 48 : 60,
+    paddingHorizontal: 20,
+    paddingBottom: 16,
+  },
+  headerTitle: {
+    fontSize: 32,
+    fontWeight: "800",
+    color: "white",
+  },
+  tabs: {
+    flexDirection: "row",
+    paddingHorizontal: 20,
+    marginBottom: 16,
+    gap: 12,
+  },
+  tab: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 12,
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    alignItems: "center",
+  },
+  activeTab: {
+    backgroundColor: "white",
+  },
+  tabText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "white",
+  },
+  activeTabText: {
+    color: "#4F46E5",
+  },
+  content: {
+    flex: 1,
+  },
+  contentContainer: {
+    paddingHorizontal: 20,
+    paddingBottom: 100,
   },
   loadingContainer: {
     flex: 1,
@@ -851,262 +801,135 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   loadingText: {
-    marginTop: 16,
+    color: "white",
     fontSize: 16,
-    color: "#FFF",
-    fontWeight: "500",
+    marginTop: 12,
   },
-  header: {
-    paddingTop: 60,
-    paddingHorizontal: 20,
-    paddingBottom: 20,
-  },
-  title: {
-    fontSize: 32,
-    fontWeight: "bold",
-    color: "#FFF",
-    marginBottom: 16,
-  },
-  tabContainer: {
+  item: {
     flexDirection: "row",
-    backgroundColor: "rgba(255,255,255,0.2)",
-    borderRadius: 12,
-    padding: 4,
-  },
-  tab: {
-    flex: 1,
-    paddingVertical: 10,
     alignItems: "center",
-    borderRadius: 8,
-  },
-  activeTab: {
-    backgroundColor: "#FFF",
-  },
-  tabText: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#FFF",
-  },
-  activeTabText: {
-    color: "#4F46E5",
-  },
-  scrollContent: {
-    padding: 20,
-    paddingBottom: 100,
-  },
-  infoCard: {
-    backgroundColor: "rgba(255,255,255,0.95)",
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
     borderRadius: 12,
     padding: 16,
-    marginBottom: 16,
+    marginBottom: 12,
   },
-  infoTitle: {
+  colorIndicator: {
+    width: 4,
+    height: 40,
+    borderRadius: 2,
+    marginRight: 12,
+  },
+  itemContent: {
+    flex: 1,
+  },
+  itemTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "white",
+    marginBottom: 4,
+  },
+  itemSubtitle: {
+    fontSize: 14,
+    color: "rgba(255, 255, 255, 0.7)",
+  },
+  itemMeta: {
+    flexDirection: "row",
+    gap: 8,
+    marginTop: 4,
+  },
+  itemBadge: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "rgba(255, 255, 255, 0.9)",
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  itemActions: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  actionButton: {
+    padding: 4,
+  },
+  addButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    borderRadius: 12,
+    padding: 16,
+    marginTop: 8,
+    gap: 8,
+  },
+  addButtonText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "white",
+  },
+  modalContainer: {
+    flex: 1,
+    backgroundColor: "white",
+  },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingTop: Platform.OS === "android" ? 48 : 60,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#E5E7EB",
+  },
+  modalCancel: {
+    fontSize: 16,
+    color: "#6B7280",
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#1F2937",
+  },
+  modalSave: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#4F46E5",
+  },
+  modalContent: {
+    padding: 20,
+  },
+  label: {
     fontSize: 16,
     fontWeight: "600",
     color: "#1F2937",
     marginBottom: 8,
   },
-  infoText: {
-    fontSize: 14,
-    color: "#6B7280",
-    lineHeight: 20,
-  },
-  emptyState: {
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 60,
-  },
-  emptyStateText: {
-    fontSize: 20,
-    fontWeight: "600",
-    color: "#FFF",
-    marginTop: 16,
-  },
-  emptyStateSubtext: {
-    fontSize: 14,
-    color: "#E0E7FF",
-    marginTop: 8,
-    textAlign: "center",
-  },
-  itemsList: {
-    gap: 12,
-  },
-  itemCard: {
-    backgroundColor: "#FFF",
-    borderRadius: 12,
-    padding: 16,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  itemInfo: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 12,
-  },
-  colorIndicator: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    marginRight: 12,
-  },
-  itemTitle: {
-    fontSize: 16,
-    fontWeight: "500",
-    color: "#1F2937",
-    flex: 1,
-  },
-  itemActions: {
-    flexDirection: "row",
-    gap: 8,
-    alignItems: "center",
-    flexWrap: "wrap",
-  },
-  iconButton: {
-    padding: 6,
-  },
-  repeatButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#E0E7FF",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
-  },
-  repeatButtonActive: {
-    backgroundColor: "#4F46E5",
-  },
-  repeatButtonText: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#4F46E5",
-  },
-  repeatButtonTextActive: {
-    color: "#FFF",
-  },
-  affirmationCard: {
-    backgroundColor: "#FFF",
-    borderRadius: 12,
-    padding: 16,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  affirmationContent: {
-    marginBottom: 12,
-  },
-  affirmationText: {
-    fontSize: 16,
-    color: "#1F2937",
-    lineHeight: 24,
-  },
-  affirmationActions: {
-    flexDirection: "row",
-    gap: 8,
-    alignItems: "center",
-    flexWrap: "wrap",
-  },
-  addButton: {
-    position: "absolute",
-    bottom: 100,
-    right: 20,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: "#4F46E5",
-    justifyContent: "center",
-    alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 20,
-  },
-  modalContent: {
-    backgroundColor: "#FFF",
-    borderRadius: 16,
-    padding: 24,
-    width: "100%",
-    maxHeight: "80%",
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: "600",
-    color: "#1F2937",
-    marginBottom: 16,
-  },
   input: {
+    backgroundColor: "#F3F4F6",
+    borderRadius: 12,
+    padding: 16,
     fontSize: 16,
-    color: "#374151",
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 16,
+    color: "#1F2937",
+    marginBottom: 24,
   },
   textArea: {
-    minHeight: 100,
+    minHeight: 120,
     textAlignVertical: "top",
-  },
-  helperText: {
-    fontSize: 13,
-    color: "#6B7280",
-    marginBottom: 16,
-    fontStyle: "italic",
-  },
-  colorLabel: {
-    fontSize: 14,
-    fontWeight: "500",
-    color: "#374151",
-    marginBottom: 12,
   },
   colorPicker: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 12,
-    marginBottom: 24,
   },
   colorOption: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    borderWidth: 2,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    borderWidth: 3,
     borderColor: "transparent",
   },
-  colorOptionSelected: {
+  selectedColor: {
     borderColor: "#1F2937",
-    borderWidth: 3,
-  },
-  modalButtons: {
-    flexDirection: "row",
-    gap: 12,
-  },
-  modalButton: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 8,
-    alignItems: "center",
-  },
-  modalButtonCancel: {
-    backgroundColor: "#F3F4F6",
-  },
-  modalButtonSave: {
-    backgroundColor: "#4F46E5",
-  },
-  modalButtonText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#374151",
   },
 });

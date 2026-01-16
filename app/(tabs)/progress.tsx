@@ -2,7 +2,7 @@
 import { LinearGradient } from "expo-linear-gradient";
 import React, { useState, useEffect } from "react";
 import { IconSymbol } from "@/components/IconSymbol";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { getStreakData } from "@/utils/database";
 import {
   View,
   Text,
@@ -27,11 +27,6 @@ interface Badge {
   earnedAt?: string;
   glowColor: string;
 }
-
-const STORAGE_KEYS = {
-  HABITS: "indigo_habits_habits",
-  STREAK_DATA: "indigo_habits_streak_data",
-};
 
 const BADGES: Badge[] = [
   { id: "1", name: "Indigo Warrior", description: "3-day streak", daysRequired: 3, earned: false, glowColor: "#4B0082" },
@@ -60,39 +55,24 @@ export default function ProgressScreen() {
 
   useEffect(() => {
     loadProgress();
-  }, []);
+  }, [loadProgress]);
 
   const loadProgress = async () => {
     setIsLoading(true);
     
     try {
-      // Load streak data
-      const storedStreakData = await AsyncStorage.getItem(STORAGE_KEYS.STREAK_DATA);
-      if (storedStreakData) {
-        const parsed = JSON.parse(storedStreakData);
-        setStreaks(parsed);
-        console.log("[Progress] Loaded streak data:", parsed);
-      } else {
-        // Calculate from habits
-        const storedHabits = await AsyncStorage.getItem(STORAGE_KEYS.HABITS);
-        if (storedHabits) {
-          const habits = JSON.parse(storedHabits);
-          const completedCount = habits.filter((h: any) => h.completed).length;
-          const newStreakData = {
-            currentStreak: completedCount > 0 ? 1 : 0,
-            longestStreak: completedCount > 0 ? 1 : 0,
-            totalCompletions: completedCount,
-          };
-          setStreaks(newStreakData);
-          await AsyncStorage.setItem(STORAGE_KEYS.STREAK_DATA, JSON.stringify(newStreakData));
-        }
-      }
+      console.log("[Progress] Loading progress from SQLite...");
+      
+      // Load streak data from database
+      const streakData = await getStreakData();
+      setStreaks(streakData as StreakData);
+      console.log("[Progress] Loaded streak data:", streakData);
 
       // Update badges based on current streak
       const updatedBadges = BADGES.map(badge => ({
         ...badge,
-        earned: streaks.longestStreak >= badge.daysRequired,
-        earnedAt: streaks.longestStreak >= badge.daysRequired ? new Date().toISOString() : undefined,
+        earned: (streakData as StreakData).longestStreak >= badge.daysRequired,
+        earnedAt: (streakData as StreakData).longestStreak >= badge.daysRequired ? new Date().toISOString() : undefined,
       }));
       setBadges(updatedBadges);
       

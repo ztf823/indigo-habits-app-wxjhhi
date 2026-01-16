@@ -1,19 +1,12 @@
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Image, ActivityIndicator, Platform } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { IconSymbol } from "@/components/IconSymbol";
 import { useRouter } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
 import * as Haptics from "expo-haptics";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-
-const STORAGE_KEYS = {
-  PROFILE_IMAGE: "@indigo_habits_profile_image",
-  USER_NAME: "@indigo_habits_user_name",
-  USER_EMAIL: "@indigo_habits_user_email",
-  HAS_PREMIUM: "indigo_habits_has_premium",
-};
+import { getProfile, updateProfile, clearAllData } from "@/utils/database";
 
 export default function ProfileScreen() {
   const router = useRouter();
@@ -24,46 +17,43 @@ export default function ProfileScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [hasPremium, setHasPremium] = useState(false);
 
-  useEffect(() => {
-    console.log("[Profile] Loading profile data from local storage");
-    loadProfileData();
-  }, []);
-
-  const loadProfileData = async () => {
+  const loadProfileData = useCallback(async () => {
     try {
       setIsLoading(true);
+      console.log("[Profile] Loading profile data from SQLite...");
       
-      // Load profile data from AsyncStorage
-      const [storedImage, storedName, storedEmail, premiumStatus] = await Promise.all([
-        AsyncStorage.getItem(STORAGE_KEYS.PROFILE_IMAGE),
-        AsyncStorage.getItem(STORAGE_KEYS.USER_NAME),
-        AsyncStorage.getItem(STORAGE_KEYS.USER_EMAIL),
-        AsyncStorage.getItem(STORAGE_KEYS.HAS_PREMIUM),
-      ]);
+      // Load profile data from database
+      const profile = await getProfile();
+      
+      if (profile) {
+        if ((profile as any).photoUri) {
+          setProfileImage((profile as any).photoUri);
+          console.log("[Profile] Loaded profile image from database");
+        }
+        
+        if ((profile as any).name) {
+          setUserName((profile as any).name);
+          console.log("[Profile] Loaded user name from database:", (profile as any).name);
+        }
+        
+        if ((profile as any).email) {
+          setUserEmail((profile as any).email);
+          console.log("[Profile] Loaded user email from database:", (profile as any).email);
+        }
 
-      if (storedImage) {
-        setProfileImage(storedImage);
-        console.log("[Profile] Loaded profile image from storage");
+        setHasPremium((profile as any).isPremium === 1);
+        console.log("[Profile] Premium status:", (profile as any).isPremium === 1);
       }
-      
-      if (storedName) {
-        setUserName(storedName);
-        console.log("[Profile] Loaded user name from storage:", storedName);
-      }
-      
-      if (storedEmail) {
-        setUserEmail(storedEmail);
-        console.log("[Profile] Loaded user email from storage:", storedEmail);
-      }
-
-      setHasPremium(premiumStatus === "true");
-      console.log("[Profile] Premium status:", premiumStatus === "true");
     } catch (error) {
       console.error("[Profile] Error loading profile data:", error);
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    loadProfileData();
+  }, [loadProfileData]);
 
   const handlePickImage = async () => {
     try {
@@ -104,11 +94,11 @@ export default function ProfileScreen() {
       setIsUploadingImage(true);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
-      // Save to AsyncStorage
-      await AsyncStorage.setItem(STORAGE_KEYS.PROFILE_IMAGE, imageUri);
+      // Save to database
+      await updateProfile({ photoUri: imageUri });
       setProfileImage(imageUri);
       
-      console.log("[Profile] Profile picture saved to local storage");
+      console.log("[Profile] Profile picture saved to database");
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       
       Alert.alert("Success", "Profile picture updated!");
@@ -128,7 +118,7 @@ export default function ProfileScreen() {
       async (text) => {
         if (text && text.trim()) {
           try {
-            await AsyncStorage.setItem(STORAGE_KEYS.USER_NAME, text.trim());
+            await updateProfile({ name: text.trim() });
             setUserName(text.trim());
             console.log("[Profile] User name updated:", text.trim());
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -151,7 +141,7 @@ export default function ProfileScreen() {
       async (text) => {
         if (text && text.trim()) {
           try {
-            await AsyncStorage.setItem(STORAGE_KEYS.USER_EMAIL, text.trim());
+            await updateProfile({ email: text.trim() });
             setUserEmail(text.trim());
             console.log("[Profile] User email updated:", text.trim());
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -182,7 +172,7 @@ export default function ProfileScreen() {
               
               // TODO: Integrate with Superwall for actual subscription
               // For now, simulate successful purchase
-              await AsyncStorage.setItem(STORAGE_KEYS.HAS_PREMIUM, "true");
+              await updateProfile({ isPremium: true });
               setHasPremium(true);
               
               Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -208,10 +198,10 @@ export default function ProfileScreen() {
     
     try {
       // TODO: Integrate with Superwall to restore purchases
-      // For now, check local storage
-      const premiumStatus = await AsyncStorage.getItem(STORAGE_KEYS.HAS_PREMIUM);
+      // For now, check database
+      const profile = await getProfile();
       
-      if (premiumStatus === "true") {
+      if (profile && (profile as any).isPremium === 1) {
         setHasPremium(true);
         Alert.alert("Success", "Premium subscription restored!");
       } else {
@@ -237,8 +227,8 @@ export default function ProfileScreen() {
             try {
               console.log("[Profile] Clearing all app data");
               
-              // Clear all AsyncStorage data
-              await AsyncStorage.clear();
+              // Clear all database data
+              await clearAllData();
               
               Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
               Alert.alert("Success", "All data has been cleared. The app will now restart.", [
@@ -251,8 +241,8 @@ export default function ProfileScreen() {
                     setUserEmail("Keep building your habits");
                     setHasPremium(false);
                     
-                    // Navigate back to splash
-                    router.replace("/splash");
+                    // Navigate back to home
+                    router.replace("/(tabs)/(home)/");
                   },
                 },
               ]);

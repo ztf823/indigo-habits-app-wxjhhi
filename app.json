@@ -2,7 +2,7 @@
 {
   "expo": {
     "name": "Indigo Habits",
-    "slug": "Indigo Habits",
+    "slug": "indigo-habits",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/6d55fc54-d63d-4404-853f-c341ea5517d1.png",
@@ -45,6 +45,7 @@
       "expo-font",
       "expo-router",
       "expo-web-browser",
+      "expo-sqlite",
       [
         "expo-image-picker",
         {
@@ -62,7 +63,7 @@
         "origin": false
       },
       "eas": {
-        "projectId": "your-project-id-here"
+        "projectId": "indigo-habits-production"
       }
     }
   }

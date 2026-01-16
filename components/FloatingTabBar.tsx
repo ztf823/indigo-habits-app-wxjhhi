@@ -58,7 +58,7 @@ export default function FloatingTabBar({
       damping: 20,
       stiffness: 90,
     });
-  }, [currentIndex]);
+  }, [currentIndex, indicatorPosition]);
 
   const handleTabPress = (route: Href, index: number) => {
     if (onTabPress) {

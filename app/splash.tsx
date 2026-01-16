@@ -57,7 +57,7 @@ export default function SplashScreen() {
     }, 2500);
 
     return () => clearTimeout(timer);
-  }, []);
+  }, [router, fadeAnim, logoScale, textOpacity, shinePosition]);
 
   return (
     <Animated.View style={[styles.container, { opacity: fadeAnim }]}>

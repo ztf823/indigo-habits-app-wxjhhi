@@ -3,7 +3,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { authenticatedApiCall } from "@/utils/api";
 import { IconSymbol } from "@/components/IconSymbol";
 import { LinearGradient } from "expo-linear-gradient";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -28,13 +28,7 @@ export default function EntryDetailScreen() {
   const [entry, setEntry] = useState<EntryDetail | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    if (id) {
-      loadEntry();
-    }
-  }, [id]);
-
-  const loadEntry = async () => {
+  const loadEntry = useCallback(async () => {
     try {
       const data = await authenticatedApiCall(`/api/journal-entries/${id}`);
       setEntry(data);
@@ -43,7 +37,13 @@ export default function EntryDetailScreen() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [id]);
+
+  useEffect(() => {
+    if (id) {
+      loadEntry();
+    }
+  }, [id, loadEntry]);
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);

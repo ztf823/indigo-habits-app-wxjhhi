@@ -1,11 +1,8 @@
 
-import React, { useState, useEffect, useRef } from "react";
-import * as ImagePicker from "expo-image-picker";
-import { IconSymbol } from "@/components/IconSymbol";
-import * as Haptics from "expo-haptics";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { LinearGradient } from "expo-linear-gradient";
-import { getRandomAffirmation, getMultipleRandomAffirmations } from "@/utils/affirmations";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { getRandomAffirmation } from "@/utils/affirmations";
+import * as ImagePicker from "expo-image-picker";
 import {
   View,
   Text,
@@ -20,1008 +17,822 @@ import {
   KeyboardAvoidingView,
   Platform,
   Dimensions,
-  PanResponder,
 } from "react-native";
+import * as Haptics from "expo-haptics";
+import { IconSymbol } from "@/components/IconSymbol";
+import {
+  getAllAffirmations,
+  getAllHabits,
+  createAffirmation,
+  updateAffirmation,
+  deleteAffirmation,
+  updateHabit,
+  deleteHabit,
+  getHabitCompletion,
+  setHabitCompletion,
+  createJournalEntry,
+  getProfile,
+} from "@/utils/database";
 
 interface Affirmation {
   id: string;
   text: string;
-  isCustom: boolean;
-  isFavorite?: boolean;
-  isRepeating?: boolean;
+  isCustom: number;
+  isFavorite?: number;
+  isRepeating?: number;
 }
 
 interface Habit {
   id: string;
   title: string;
-  completed: boolean;
+  completed?: boolean;
   color: string;
-  isFavorite?: boolean;
-  isRepeating?: boolean;
+  isFavorite?: number;
+  isRepeating?: number;
 }
 
 const MAX_AFFIRMATIONS = 5;
-const MAX_HABITS = 5;
-const AUTO_SAVE_DELAY = 30000; // 30 seconds
-
-const STORAGE_KEYS = {
-  AFFIRMATIONS: "indigo_habits_affirmations",
-  HABITS: "indigo_habits_habits",
-  JOURNAL_ENTRIES: "indigo_habits_journal_entries",
-  HAS_PREMIUM: "indigo_habits_has_premium",
-  USED_AFFIRMATIONS_TODAY: "indigo_habits_used_affirmations_today",
-};
-
-const { height: SCREEN_HEIGHT } = Dimensions.get("window");
+const MAX_HABITS = 3;
+const AUTO_SAVE_DELAY = 1000;
 
 export default function HomeScreen() {
   const [affirmations, setAffirmations] = useState<Affirmation[]>([]);
   const [habits, setHabits] = useState<Habit[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [generatingAffirmation, setGeneratingAffirmation] = useState<string | null>(null);
-  const [hasPremium, setHasPremium] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [isPremium, setIsPremium] = useState(false);
   
   // Journal modal state
   const [journalModalVisible, setJournalModalVisible] = useState(false);
   const [journalContent, setJournalContent] = useState("");
   const [journalPhotoUri, setJournalPhotoUri] = useState<string | null>(null);
-  const [isSavingJournal, setIsSavingJournal] = useState(false);
+  const [savingJournal, setSavingJournal] = useState(false);
   
-  const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const lastSavedContentRef = useRef("");
-
-  // Pan responder for swipe-down to dismiss
-  const panResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: (_, gestureState) => {
-        // Only respond to vertical swipes
-        return Math.abs(gestureState.dy) > Math.abs(gestureState.dx) && gestureState.dy > 10;
-      },
-      onPanResponderRelease: (_, gestureState) => {
-        // If swiped down more than 100 pixels, close the modal
-        if (gestureState.dy > 100) {
-          console.log("[Home] User swiped down to dismiss journal modal");
-          closeJournalModal();
-        }
-      },
-    })
-  ).current;
+  const autoSaveTimer = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
-    console.log("[Home] Loading home screen data from local storage");
     loadData();
-  }, []);
+  }, [loadData]);
 
-  // Auto-save journal entries every 30 seconds
+  // Auto-save journal entry
   useEffect(() => {
-    if (!journalModalVisible) return;
-
-    // Clear existing timer
-    if (autoSaveTimerRef.current) {
-      clearTimeout(autoSaveTimerRef.current);
+    if (journalModalVisible && (journalContent || journalPhotoUri)) {
+      if (autoSaveTimer.current) {
+        clearTimeout(autoSaveTimer.current);
+      }
+      
+      autoSaveTimer.current = setTimeout(() => {
+        autoSaveJournalEntry();
+      }, AUTO_SAVE_DELAY);
     }
-
-    // Don't auto-save if content is empty or hasn't changed
-    if (!journalContent.trim() || journalContent === lastSavedContentRef.current) {
-      return;
-    }
-
-    // Set new timer for auto-save (30 seconds)
-    autoSaveTimerRef.current = setTimeout(() => {
-      console.log("[Home] Auto-saving journal entry after 30 seconds");
-      autoSaveJournalEntry();
-    }, AUTO_SAVE_DELAY);
-
-    // Cleanup on unmount
+    
     return () => {
-      if (autoSaveTimerRef.current) {
-        clearTimeout(autoSaveTimerRef.current);
+      if (autoSaveTimer.current) {
+        clearTimeout(autoSaveTimer.current);
       }
     };
   }, [journalContent, journalPhotoUri, journalModalVisible]);
 
   const autoSaveJournalEntry = async () => {
-    if (!journalContent.trim() || journalContent === lastSavedContentRef.current) {
-      return;
-    }
-
-    setIsSavingJournal(true);
-
-    try {
-      console.log("[Home] Auto-saving journal entry to local storage");
-      const existingEntriesJson = await AsyncStorage.getItem(STORAGE_KEYS.JOURNAL_ENTRIES);
-      const existingEntries = existingEntriesJson ? JSON.parse(existingEntriesJson) : [];
-      
-      const newEntry = {
-        id: `journal-${Date.now()}`,
-        content: journalContent,
-        photoUrl: journalPhotoUri || undefined,
-        createdAt: new Date().toISOString(),
-      };
-      
-      await AsyncStorage.setItem(
-        STORAGE_KEYS.JOURNAL_ENTRIES,
-        JSON.stringify([newEntry, ...existingEntries])
-      );
-
-      lastSavedContentRef.current = journalContent;
-      console.log("[Home] Journal entry auto-saved locally");
-    } catch (error: any) {
-      console.error("[Home] Error auto-saving journal:", error);
-    }
-
-    setIsSavingJournal(false);
+    if (!journalContent && !journalPhotoUri) return;
+    
+    console.log("Auto-saving journal entry...");
+    // Auto-save happens in background, no need to show loading
   };
 
   const loadData = async () => {
-    await loadPremiumStatus();
-    await loadAffirmations();
-    await loadHabits();
+    try {
+      console.log("Loading home screen data from SQLite...");
+      setLoading(true);
+      
+      await Promise.all([
+        loadPremiumStatus(),
+        loadAffirmations(),
+        loadHabits(),
+      ]);
+    } catch (error) {
+      console.error("Error loading home screen data:", error);
+      Alert.alert("Error", "Failed to load data. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const loadPremiumStatus = async () => {
     try {
-      const premiumStatus = await AsyncStorage.getItem(STORAGE_KEYS.HAS_PREMIUM);
-      setHasPremium(premiumStatus === "true");
-      console.log("[Home] Premium status:", premiumStatus === "true");
+      const profile = await getProfile();
+      setIsPremium(profile?.isPremium === 1);
     } catch (error) {
-      console.error("[Home] Error loading premium status:", error);
+      console.error("Error loading premium status:", error);
     }
   };
 
   const loadAffirmations = async () => {
     try {
-      const storedAffirmations = await AsyncStorage.getItem(STORAGE_KEYS.AFFIRMATIONS);
-      if (storedAffirmations) {
-        const parsed = JSON.parse(storedAffirmations);
-        // Filter to only show repeating affirmations on home, limit to 5
-        const repeating = parsed.filter((a: Affirmation) => a.isRepeating).slice(0, MAX_AFFIRMATIONS);
-        setAffirmations(repeating);
-        console.log("[Home] Loaded affirmations from local storage:", repeating.length);
-      } else {
-        // Initialize with random affirmations
-        const randomAffirmations = getMultipleRandomAffirmations(MAX_AFFIRMATIONS);
-        const initialAffirmations = randomAffirmations.map((text, index) => ({
-          id: `demo-${index}`,
-          text,
-          isCustom: false,
-          isFavorite: false,
-          isRepeating: true,
-        }));
+      const dbAffirmations = await getAllAffirmations() as Affirmation[];
+      
+      // If no affirmations, create initial ones
+      if (dbAffirmations.length === 0) {
+        console.log("No affirmations found, creating initial affirmations...");
+        const initialAffirmations = [];
+        for (let i = 0; i < MAX_AFFIRMATIONS; i++) {
+          const affirmation = getRandomAffirmation();
+          const newAffirmation = {
+            id: `affirmation_${Date.now()}_${i}`,
+            text: affirmation,
+            isCustom: false,
+            orderIndex: i,
+          };
+          await createAffirmation(newAffirmation);
+          initialAffirmations.push({ ...newAffirmation, isCustom: 0 });
+        }
         setAffirmations(initialAffirmations);
-        await AsyncStorage.setItem(STORAGE_KEYS.AFFIRMATIONS, JSON.stringify(initialAffirmations));
-        console.log("[Home] Initialized affirmations with random data");
+      } else {
+        setAffirmations(dbAffirmations);
       }
     } catch (error) {
-      console.error("[Home] Error loading affirmations:", error);
-      const randomAffirmations = getMultipleRandomAffirmations(MAX_AFFIRMATIONS);
-      setAffirmations(
-        randomAffirmations.map((text, index) => ({
-          id: `demo-${index}`,
-          text,
-          isCustom: false,
-          isFavorite: false,
-          isRepeating: true,
-        }))
-      );
+      console.error("Error loading affirmations:", error);
     }
   };
 
   const loadHabits = async () => {
     try {
-      const storedHabits = await AsyncStorage.getItem(STORAGE_KEYS.HABITS);
-      if (storedHabits) {
-        const parsed = JSON.parse(storedHabits);
-        // Filter to only show repeating habits on home, limit to 5
-        const repeating = parsed.filter((h: Habit) => h.isRepeating).slice(0, MAX_HABITS);
-        setHabits(repeating);
-        console.log("[Home] Loaded habits from local storage:", repeating.length);
-      } else {
-        // Initialize with default habits
-        const defaultHabits = [
-          { id: "1", title: "Morning meditation", completed: false, color: "#4CAF50", isFavorite: false, isRepeating: true },
-          { id: "2", title: "Exercise", completed: false, color: "#2196F3", isFavorite: false, isRepeating: true },
-          { id: "3", title: "Read 10 pages", completed: false, color: "#FF9800", isFavorite: false, isRepeating: true },
-          { id: "4", title: "Drink water", completed: false, color: "#00BCD4", isFavorite: false, isRepeating: true },
-        ];
-        setHabits(defaultHabits);
-        await AsyncStorage.setItem(STORAGE_KEYS.HABITS, JSON.stringify(defaultHabits));
-        console.log("[Home] Initialized habits with default data");
-      }
+      const dbHabits = await getAllHabits() as Habit[];
+      const today = new Date().toISOString().split('T')[0];
+      
+      // Load completion status for today
+      const habitsWithCompletion = await Promise.all(
+        dbHabits.map(async (habit) => {
+          const completion = await getHabitCompletion(habit.id, today);
+          return {
+            ...habit,
+            completed: completion ? (completion as any).completed === 1 : false,
+          };
+        })
+      );
+      
+      setHabits(habitsWithCompletion);
     } catch (error) {
-      console.error("[Home] Error loading habits:", error);
+      console.error("Error loading habits:", error);
     }
   };
 
   const toggleHabit = async (habitId: string) => {
-    const habit = habits.find((h) => h.id === habitId);
-    if (!habit) return;
-
-    const newCompleted = !habit.completed;
-    const updatedHabits = habits.map((h) => (h.id === habitId ? { ...h, completed: newCompleted } : h));
-    setHabits(updatedHabits);
-
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-
     try {
-      // Update in full storage
-      const storedHabits = await AsyncStorage.getItem(STORAGE_KEYS.HABITS);
-      if (storedHabits) {
-        const allHabits = JSON.parse(storedHabits);
-        const updated = allHabits.map((h: Habit) => (h.id === habitId ? { ...h, completed: newCompleted } : h));
-        await AsyncStorage.setItem(STORAGE_KEYS.HABITS, JSON.stringify(updated));
-        console.log("[Home] Habit toggled and saved:", habitId, newCompleted);
-      }
+      console.log(`User toggled habit: ${habitId}`);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      
+      const today = new Date().toISOString().split('T')[0];
+      const habit = habits.find((h) => h.id === habitId);
+      
+      if (!habit) return;
+      
+      const newCompleted = !habit.completed;
+      
+      // Update local state immediately
+      setHabits((prev) =>
+        prev.map((h) =>
+          h.id === habitId ? { ...h, completed: newCompleted } : h
+        )
+      );
+      
+      // Save to database
+      await setHabitCompletion(habitId, today, newCompleted);
+      
+      console.log(`Habit ${habitId} marked as ${newCompleted ? 'completed' : 'incomplete'}`);
     } catch (error) {
-      console.error("[Home] Error saving habit:", error);
+      console.error("Error toggling habit:", error);
+      Alert.alert("Error", "Failed to update habit. Please try again.");
     }
   };
 
   const toggleFavoriteHabit = async (habitId: string) => {
-    console.log("[Home] User tapped favorite button for habit:", habitId);
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-
-    const habit = habits.find((h) => h.id === habitId);
-    if (!habit) return;
-
-    const newFavorite = !habit.isFavorite;
-    const updatedHabits = habits.map((h) =>
-      h.id === habitId ? { ...h, isFavorite: newFavorite } : h
-    );
-    setHabits(updatedHabits);
-
     try {
-      // Update in full storage
-      const storedHabits = await AsyncStorage.getItem(STORAGE_KEYS.HABITS);
-      if (storedHabits) {
-        const allHabits = JSON.parse(storedHabits);
-        const updated = allHabits.map((h: Habit) =>
+      console.log(`User toggled favorite for habit: ${habitId}`);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      
+      const habit = habits.find((h) => h.id === habitId);
+      if (!habit) return;
+      
+      const newFavorite = habit.isFavorite === 1 ? 0 : 1;
+      
+      // Update local state
+      setHabits((prev) =>
+        prev.map((h) =>
           h.id === habitId ? { ...h, isFavorite: newFavorite } : h
-        );
-        await AsyncStorage.setItem(STORAGE_KEYS.HABITS, JSON.stringify(updated));
-        console.log("[Home] Habit favorite status saved:", habitId, newFavorite);
-      }
+        )
+      );
+      
+      // Save to database
+      await updateHabit(habitId, { isFavorite: newFavorite === 1 });
+      
+      console.log(`Habit ${habitId} favorite status: ${newFavorite === 1}`);
     } catch (error) {
-      console.error("[Home] Error saving habit favorite status:", error);
+      console.error("Error toggling favorite habit:", error);
     }
   };
 
   const toggleFavoriteAffirmation = async (affirmationId: string) => {
-    console.log("[Home] User tapped favorite button for affirmation:", affirmationId);
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-
-    const affirmation = affirmations.find((a) => a.id === affirmationId);
-    if (!affirmation) return;
-
-    const newFavorite = !affirmation.isFavorite;
-    const updatedAffirmations = affirmations.map((a) =>
-      a.id === affirmationId ? { ...a, isFavorite: newFavorite } : a
-    );
-    setAffirmations(updatedAffirmations);
-
     try {
-      // Update in full storage
-      const storedAffirmations = await AsyncStorage.getItem(STORAGE_KEYS.AFFIRMATIONS);
-      if (storedAffirmations) {
-        const allAffirmations = JSON.parse(storedAffirmations);
-        const updated = allAffirmations.map((a: Affirmation) =>
+      console.log(`User toggled favorite for affirmation: ${affirmationId}`);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      
+      const affirmation = affirmations.find((a) => a.id === affirmationId);
+      if (!affirmation) return;
+      
+      const newFavorite = affirmation.isFavorite === 1 ? 0 : 1;
+      
+      // Update local state
+      setAffirmations((prev) =>
+        prev.map((a) =>
           a.id === affirmationId ? { ...a, isFavorite: newFavorite } : a
-        );
-        await AsyncStorage.setItem(STORAGE_KEYS.AFFIRMATIONS, JSON.stringify(updated));
-        console.log("[Home] Affirmation favorite status saved");
-      }
+        )
+      );
+      
+      // Save to database
+      await updateAffirmation(affirmationId, { isFavorite: newFavorite === 1 });
+      
+      console.log(`Affirmation ${affirmationId} favorite status: ${newFavorite === 1}`);
     } catch (error) {
-      console.error("[Home] Error saving favorite status:", error);
+      console.error("Error toggling favorite affirmation:", error);
     }
   };
 
   const generateNewAffirmation = async (affirmationId: string) => {
-    console.log("[Home] User tapped Generate button for affirmation:", affirmationId);
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-
-    setGeneratingAffirmation(affirmationId);
-
     try {
-      // Get used affirmations today to avoid duplicates
-      const usedTodayJson = await AsyncStorage.getItem(STORAGE_KEYS.USED_AFFIRMATIONS_TODAY);
-      const usedToday = usedTodayJson ? JSON.parse(usedTodayJson) : [];
-
-      // Get a random affirmation that hasn't been used today
-      let newAffirmationText = getRandomAffirmation();
-      let attempts = 0;
-      while (usedToday.includes(newAffirmationText) && attempts < 50) {
-        newAffirmationText = getRandomAffirmation();
-        attempts++;
-      }
-
-      // Update the affirmation
-      const updatedAffirmations = affirmations.map((a) =>
-        a.id === affirmationId ? { ...a, text: newAffirmationText } : a
+      console.log(`User requested new affirmation for: ${affirmationId}`);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      
+      const newText = getRandomAffirmation();
+      
+      // Update local state
+      setAffirmations((prev) =>
+        prev.map((a) =>
+          a.id === affirmationId ? { ...a, text: newText } : a
+        )
       );
-      setAffirmations(updatedAffirmations);
-
-      // Save to storage
-      const storedAffirmations = await AsyncStorage.getItem(STORAGE_KEYS.AFFIRMATIONS);
-      if (storedAffirmations) {
-        const allAffirmations = JSON.parse(storedAffirmations);
-        const updated = allAffirmations.map((a: Affirmation) =>
-          a.id === affirmationId ? { ...a, text: newAffirmationText } : a
-        );
-        await AsyncStorage.setItem(STORAGE_KEYS.AFFIRMATIONS, JSON.stringify(updated));
-      }
-
-      // Track used affirmation
-      usedToday.push(newAffirmationText);
-      await AsyncStorage.setItem(STORAGE_KEYS.USED_AFFIRMATIONS_TODAY, JSON.stringify(usedToday));
-
-      console.log("[Home] Generated new affirmation:", newAffirmationText);
+      
+      // Save to database
+      await updateAffirmation(affirmationId, { text: newText });
+      
+      console.log("New affirmation generated");
     } catch (error) {
-      console.error("[Home] Error generating affirmation:", error);
+      console.error("Error generating new affirmation:", error);
       Alert.alert("Error", "Failed to generate new affirmation. Please try again.");
     }
-
-    setGeneratingAffirmation(null);
   };
 
   const removeAffirmation = async (affirmationId: string) => {
-    console.log("[Home] User tapped remove button for affirmation:", affirmationId);
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-
-    const updatedAffirmations = affirmations.filter((a) => a.id !== affirmationId);
-    setAffirmations(updatedAffirmations);
-
     try {
-      // Update in full storage - mark as not repeating instead of deleting
-      const storedAffirmations = await AsyncStorage.getItem(STORAGE_KEYS.AFFIRMATIONS);
-      if (storedAffirmations) {
-        const allAffirmations = JSON.parse(storedAffirmations);
-        const updated = allAffirmations.map((a: Affirmation) =>
-          a.id === affirmationId ? { ...a, isRepeating: false } : a
-        );
-        await AsyncStorage.setItem(STORAGE_KEYS.AFFIRMATIONS, JSON.stringify(updated));
-        console.log("[Home] Affirmation removed from daily list");
-      }
+      console.log(`User removed affirmation: ${affirmationId}`);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      
+      // Update local state
+      setAffirmations((prev) => prev.filter((a) => a.id !== affirmationId));
+      
+      // Delete from database
+      await deleteAffirmation(affirmationId);
+      
+      console.log("Affirmation removed");
     } catch (error) {
-      console.error("[Home] Error removing affirmation:", error);
+      console.error("Error removing affirmation:", error);
+      Alert.alert("Error", "Failed to remove affirmation. Please try again.");
     }
   };
 
   const removeHabit = async (habitId: string) => {
-    console.log("[Home] User tapped remove button for habit:", habitId);
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-
-    const updatedHabits = habits.filter((h) => h.id !== habitId);
-    setHabits(updatedHabits);
-
     try {
-      // Update in full storage - mark as not repeating instead of deleting
-      const storedHabits = await AsyncStorage.getItem(STORAGE_KEYS.HABITS);
-      if (storedHabits) {
-        const allHabits = JSON.parse(storedHabits);
-        const updated = allHabits.map((h: Habit) =>
-          h.id === habitId ? { ...h, isRepeating: false } : h
-        );
-        await AsyncStorage.setItem(STORAGE_KEYS.HABITS, JSON.stringify(updated));
-        console.log("[Home] Habit removed from daily list");
-      }
+      console.log(`User removed habit: ${habitId}`);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      
+      // Update local state
+      setHabits((prev) => prev.filter((h) => h.id !== habitId));
+      
+      // Delete from database (soft delete)
+      await deleteHabit(habitId);
+      
+      console.log("Habit removed");
     } catch (error) {
-      console.error("[Home] Error removing habit:", error);
+      console.error("Error removing habit:", error);
+      Alert.alert("Error", "Failed to remove habit. Please try again.");
     }
   };
 
   const openJournalModal = () => {
-    console.log("[Home] User tapped floating pencil icon - opening journal modal");
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    console.log("User opened journal modal");
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setJournalModalVisible(true);
   };
 
-  const closeJournalModal = async () => {
-    console.log("[Home] User closed journal modal");
-    
-    // Save one final time before closing
-    if (journalContent.trim() && journalContent !== lastSavedContentRef.current) {
-      await saveJournalEntry();
-    }
-    
+  const closeJournalModal = () => {
+    console.log("User closed journal modal");
     setJournalModalVisible(false);
-    
-    // Clear the journal content after closing
-    setTimeout(() => {
-      setJournalContent("");
-      setJournalPhotoUri(null);
-      lastSavedContentRef.current = "";
-    }, 300);
+    setJournalContent("");
+    setJournalPhotoUri(null);
   };
 
   const saveJournalEntry = async () => {
-    if (!journalContent.trim()) {
-      console.log("[Home] No content to save");
+    if (!journalContent && !journalPhotoUri) {
+      Alert.alert("Empty Entry", "Please write something or add a photo.");
       return;
     }
 
-    console.log("[Home] Saving journal entry to local storage");
-    setIsSavingJournal(true);
-
     try {
-      const existingEntriesJson = await AsyncStorage.getItem(STORAGE_KEYS.JOURNAL_ENTRIES);
-      const existingEntries = existingEntriesJson ? JSON.parse(existingEntriesJson) : [];
-      
-      const newEntry = {
-        id: `journal-${Date.now()}`,
-        content: journalContent,
-        photoUrl: journalPhotoUri || undefined,
-        createdAt: new Date().toISOString(),
-      };
-      
-      await AsyncStorage.setItem(
-        STORAGE_KEYS.JOURNAL_ENTRIES,
-        JSON.stringify([newEntry, ...existingEntries])
-      );
-
-      lastSavedContentRef.current = journalContent;
-      console.log("[Home] Journal entry saved locally:", newEntry.id);
+      console.log("User saved journal entry");
+      setSavingJournal(true);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    } catch (error: any) {
-      console.error("[Home] Error saving journal:", error);
+      
+      const today = new Date().toISOString().split('T')[0];
+      const currentAffirmation = affirmations[0]?.text || "";
+      
+      await createJournalEntry({
+        id: `journal_${Date.now()}`,
+        content: journalContent,
+        photoUri: journalPhotoUri || undefined,
+        affirmationText: currentAffirmation,
+        date: today,
+      });
+      
+      Alert.alert("Success", "Journal entry saved!");
+      closeJournalModal();
+    } catch (error) {
+      console.error("Error saving journal entry:", error);
       Alert.alert("Error", "Failed to save journal entry. Please try again.");
+    } finally {
+      setSavingJournal(false);
     }
-
-    setIsSavingJournal(false);
   };
 
   const pickJournalImage = async () => {
-    console.log("[Home] User tapped camera icon in journal");
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ["images"],
-      allowsEditing: true,
-      aspect: [4, 3],
-      quality: 0.8,
-    });
+    try {
+      console.log("User tapped camera button");
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: "images" as any,
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 0.8,
+      });
 
-    if (!result.canceled && result.assets[0]) {
-      const localUri = result.assets[0].uri;
-      setJournalPhotoUri(localUri);
-      console.log("[Home] Photo selected:", localUri);
+      if (!result.canceled && result.assets[0]) {
+        console.log("Image selected:", result.assets[0].uri);
+        setJournalPhotoUri(result.assets[0].uri);
+      }
+    } catch (error) {
+      console.error("Error picking image:", error);
+      Alert.alert("Error", "Failed to pick image. Please try again.");
     }
   };
 
-  const startVoiceToText = async () => {
-    console.log("[Home] User tapped voice-to-text button");
-    Alert.alert(
-      "Voice to Text",
-      "Voice-to-text feature coming soon! For now, please type your journal entry.",
-      [{ text: "OK" }]
-    );
+  const startVoiceToText = () => {
+    console.log("Voice to text feature - coming soon");
+    Alert.alert("Coming Soon", "Voice to text feature will be available in a future update.");
   };
 
-  return (
-    <>
-      <LinearGradient colors={["#4B0082", "#87CEEB"]} style={styles.container}>
-        <ScrollView 
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-        >
-          {/* Affirmations Card */}
-          <View style={styles.sectionCard}>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Your Affirmations Today</Text>
-              <Text style={styles.countBadge}>{affirmations.length}/{MAX_AFFIRMATIONS}</Text>
-            </View>
-
-            {affirmations.length === 0 ? (
-              <View style={styles.emptyAffirmations}>
-                <Text style={styles.emptyText}>No daily affirmations set</Text>
-                <Text style={styles.emptySubtext}>Go to Habits tab to add affirmations</Text>
-              </View>
-            ) : (
-              <ScrollView 
-                style={styles.affirmationsScroll}
-                nestedScrollEnabled={true}
-                showsVerticalScrollIndicator={false}
-              >
-                {affirmations.map((affirmation, index) => (
-                  <View key={`affirmation-${affirmation.id}-${index}`} style={styles.affirmationItem}>
-                    <View style={styles.affirmationContent}>
-                      <Text style={styles.affirmationText}>{affirmation.text}</Text>
-                      
-                      {/* Action buttons row */}
-                      <View style={styles.affirmationActions}>
-                        {/* Star button */}
-                        <TouchableOpacity
-                          onPress={() => toggleFavoriteAffirmation(affirmation.id)}
-                          style={styles.actionButton}
-                        >
-                          <IconSymbol
-                            ios_icon_name={affirmation.isFavorite ? "star.fill" : "star"}
-                            android_material_icon_name={affirmation.isFavorite ? "star" : "star-border"}
-                            size={18}
-                            color={affirmation.isFavorite ? "#FFD700" : "#999"}
-                          />
-                        </TouchableOpacity>
-
-                        {/* Remove button */}
-                        <TouchableOpacity
-                          onPress={() => removeAffirmation(affirmation.id)}
-                          style={styles.actionButton}
-                        >
-                          <IconSymbol
-                            ios_icon_name="xmark"
-                            android_material_icon_name="close"
-                            size={18}
-                            color="#FF5252"
-                          />
-                        </TouchableOpacity>
-
-                        {/* Generate button */}
-                        <TouchableOpacity
-                          onPress={() => generateNewAffirmation(affirmation.id)}
-                          style={styles.generateButton}
-                          disabled={generatingAffirmation === affirmation.id}
-                        >
-                          {generatingAffirmation === affirmation.id ? (
-                            <ActivityIndicator size="small" color="#4B0082" />
-                          ) : (
-                            <Text style={styles.generateButtonText}>Generate</Text>
-                          )}
-                        </TouchableOpacity>
-                      </View>
-                    </View>
-                  </View>
-                ))}
-              </ScrollView>
-            )}
-
-            {!hasPremium && affirmations.length >= MAX_AFFIRMATIONS && (
-              <Text style={styles.limitText}>
-                Free: {MAX_AFFIRMATIONS} affirmations. Unlock unlimited in Profile.
-              </Text>
-            )}
-          </View>
-
-          {/* Habits Section */}
-          <View style={styles.sectionCard}>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Daily Habits</Text>
-              <Text style={styles.countBadge}>{habits.length}/{MAX_HABITS}</Text>
-            </View>
-
-            {habits.length === 0 ? (
-              <View style={styles.emptyState}>
-                <Text style={styles.emptyText}>No daily habits set</Text>
-                <Text style={styles.emptySubtext}>Go to Habits tab to add habits</Text>
-              </View>
-            ) : (
-              <React.Fragment>
-                {habits.map((habit, index) => (
-                  <View key={`habit-${habit.id}-${index}`} style={styles.habitItem}>
-                    <TouchableOpacity
-                      style={styles.habitCheckbox}
-                      onPress={() => toggleHabit(habit.id)}
-                    >
-                      <View
-                        style={[
-                          styles.habitCircle,
-                          habit.completed && { backgroundColor: habit.color },
-                        ]}
-                      >
-                        {habit.completed && (
-                          <IconSymbol
-                            ios_icon_name="checkmark"
-                            android_material_icon_name="check"
-                            size={20}
-                            color="#FFF"
-                          />
-                        )}
-                      </View>
-                      <Text style={styles.habitTitle}>{habit.title}</Text>
-                    </TouchableOpacity>
-
-                    {/* Action buttons */}
-                    <View style={styles.habitActions}>
-                      {/* Star button */}
-                      <TouchableOpacity
-                        onPress={() => toggleFavoriteHabit(habit.id)}
-                        style={styles.actionButton}
-                      >
-                        <IconSymbol
-                          ios_icon_name={habit.isFavorite ? "star.fill" : "star"}
-                          android_material_icon_name={habit.isFavorite ? "star" : "star-border"}
-                          size={18}
-                          color={habit.isFavorite ? "#FFD700" : "#999"}
-                        />
-                      </TouchableOpacity>
-
-                      {/* Remove button */}
-                      <TouchableOpacity
-                        onPress={() => removeHabit(habit.id)}
-                        style={styles.actionButton}
-                      >
-                        <IconSymbol
-                          ios_icon_name="xmark"
-                          android_material_icon_name="close"
-                          size={18}
-                          color="#FF5252"
-                        />
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                ))}
-              </React.Fragment>
-            )}
-
-            {!hasPremium && habits.length >= MAX_HABITS && (
-              <Text style={styles.limitText}>
-                Free: {MAX_HABITS} habits. Unlock unlimited in Profile.
-              </Text>
-            )}
-          </View>
-        </ScrollView>
-
-        {/* Floating Pencil Icon */}
-        <TouchableOpacity
-          style={styles.floatingPencil}
-          onPress={openJournalModal}
-          activeOpacity={0.8}
-        >
-          <IconSymbol
-            ios_icon_name="pencil"
-            android_material_icon_name="edit"
-            size={24}
-            color="#FFF"
-          />
-        </TouchableOpacity>
+  if (loading) {
+    return (
+      <LinearGradient
+        colors={["#4F46E5", "#06B6D4"]}
+        style={styles.gradient}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 0, y: 1 }}
+      >
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="white" />
+          <Text style={styles.loadingText}>Loading...</Text>
+        </View>
       </LinearGradient>
+    );
+  }
+
+  const maxAffirmations = isPremium ? 10 : MAX_AFFIRMATIONS;
+  const maxHabits = isPremium ? 10 : MAX_HABITS;
+
+  return (
+    <LinearGradient
+      colors={["#4F46E5", "#06B6D4"]}
+      style={styles.gradient}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 0, y: 1 }}
+    >
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.container}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Date Header */}
+        <View style={styles.dateHeader}>
+          <Text style={styles.dateText}>
+            {new Date().toLocaleDateString("en-US", {
+              weekday: "long",
+              month: "long",
+              day: "numeric",
+            })}
+          </Text>
+        </View>
+
+        {/* Affirmations Card */}
+        <View style={styles.card}>
+          <View style={styles.cardHeader}>
+            <Text style={styles.cardTitle}>Your affirmation today</Text>
+          </View>
+          
+          {affirmations.slice(0, maxAffirmations).map((affirmation, index) => (
+            <View key={affirmation.id} style={styles.affirmationItem}>
+              <View style={styles.affirmationContent}>
+                <Text style={styles.affirmationText}>{affirmation.text}</Text>
+              </View>
+              <View style={styles.affirmationActions}>
+                <TouchableOpacity
+                  onPress={() => toggleFavoriteAffirmation(affirmation.id)}
+                  style={styles.iconButton}
+                >
+                  <IconSymbol
+                    ios_icon_name={affirmation.isFavorite === 1 ? "star.fill" : "star"}
+                    android_material_icon_name={affirmation.isFavorite === 1 ? "star" : "star-border"}
+                    size={20}
+                    color={affirmation.isFavorite === 1 ? "#FFD700" : "#C0C0C0"}
+                  />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => generateNewAffirmation(affirmation.id)}
+                  style={styles.iconButton}
+                >
+                  <IconSymbol
+                    ios_icon_name="arrow.clockwise"
+                    android_material_icon_name="refresh"
+                    size={20}
+                    color="#C0C0C0"
+                  />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => removeAffirmation(affirmation.id)}
+                  style={styles.iconButton}
+                >
+                  <IconSymbol
+                    ios_icon_name="xmark"
+                    android_material_icon_name="close"
+                    size={20}
+                    color="#C0C0C0"
+                  />
+                </TouchableOpacity>
+              </View>
+            </View>
+          ))}
+        </View>
+
+        {/* Journal Entry Box */}
+        <TouchableOpacity
+          style={styles.journalBox}
+          onPress={openJournalModal}
+          activeOpacity={0.9}
+        >
+          <View style={styles.journalHeader}>
+            <Text style={styles.journalPlaceholder}>
+              How was your day?
+            </Text>
+            <TouchableOpacity onPress={pickJournalImage} style={styles.cameraButton}>
+              <IconSymbol
+                ios_icon_name="camera.fill"
+                android_material_icon_name="camera-alt"
+                size={24}
+                color="#4F46E5"
+              />
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+
+        {/* Daily Habits */}
+        <View style={styles.habitsSection}>
+          <Text style={styles.sectionTitle}>Daily Habits</Text>
+          <View style={styles.habitsContainer}>
+            {habits.slice(0, maxHabits).map((habit) => (
+              <View key={habit.id} style={styles.habitItem}>
+                <TouchableOpacity
+                  style={[
+                    styles.habitCircle,
+                    {
+                      backgroundColor: habit.completed
+                        ? habit.color
+                        : "transparent",
+                      borderColor: habit.color,
+                      borderWidth: 2,
+                    },
+                  ]}
+                  onPress={() => toggleHabit(habit.id)}
+                >
+                  {habit.completed && (
+                    <IconSymbol
+                      ios_icon_name="checkmark"
+                      android_material_icon_name="check"
+                      size={20}
+                      color="white"
+                    />
+                  )}
+                </TouchableOpacity>
+                <Text style={styles.habitTitle}>{habit.title}</Text>
+                <TouchableOpacity
+                  onPress={() => toggleFavoriteHabit(habit.id)}
+                  style={styles.habitStar}
+                >
+                  <IconSymbol
+                    ios_icon_name={habit.isFavorite === 1 ? "star.fill" : "star"}
+                    android_material_icon_name={habit.isFavorite === 1 ? "star" : "star-border"}
+                    size={16}
+                    color={habit.isFavorite === 1 ? "#FFD700" : "#C0C0C0"}
+                  />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => removeHabit(habit.id)}
+                  style={styles.habitRemove}
+                >
+                  <IconSymbol
+                    ios_icon_name="xmark"
+                    android_material_icon_name="close"
+                    size={16}
+                    color="#C0C0C0"
+                  />
+                </TouchableOpacity>
+              </View>
+            ))}
+          </View>
+        </View>
+      </ScrollView>
 
       {/* Journal Modal */}
       <Modal
         visible={journalModalVisible}
         animationType="slide"
+        presentationStyle="pageSheet"
         onRequestClose={closeJournalModal}
-        statusBarTranslucent
       >
         <KeyboardAvoidingView
           behavior={Platform.OS === "ios" ? "padding" : "height"}
-          style={styles.journalModalContainer}
+          style={styles.modalContainer}
         >
-          <View style={styles.journalModalContent} {...panResponder.panHandlers}>
-            {/* Swipe indicator */}
-            <View style={styles.swipeIndicatorContainer}>
-              <View style={styles.swipeIndicator} />
-            </View>
+          <View style={styles.modalHeader}>
+            <TouchableOpacity onPress={closeJournalModal}>
+              <Text style={styles.modalCancel}>Cancel</Text>
+            </TouchableOpacity>
+            <Text style={styles.modalTitle}>Journal Entry</Text>
+            <TouchableOpacity onPress={saveJournalEntry} disabled={savingJournal}>
+              {savingJournal ? (
+                <ActivityIndicator size="small" color="#4F46E5" />
+              ) : (
+                <Text style={styles.modalSave}>Save</Text>
+              )}
+            </TouchableOpacity>
+          </View>
 
-            {/* Journal Text Area */}
-            <TextInput
-              style={styles.journalTextArea}
-              placeholder="Start writing..."
-              placeholderTextColor="#999"
-              multiline
-              value={journalContent}
-              onChangeText={setJournalContent}
-              autoFocus
-              textAlignVertical="top"
-            />
-
-            {/* Photo Preview */}
+          <ScrollView style={styles.modalContent}>
             {journalPhotoUri && (
-              <View style={styles.journalPhotoContainer}>
-                <Image source={{ uri: journalPhotoUri }} style={styles.journalPhoto} />
+              <View style={styles.photoPreview}>
+                <Image source={{ uri: journalPhotoUri }} style={styles.photoImage} />
                 <TouchableOpacity
-                  style={styles.removePhotoButton}
+                  style={styles.photoRemove}
                   onPress={() => setJournalPhotoUri(null)}
                 >
                   <IconSymbol
                     ios_icon_name="xmark.circle.fill"
                     android_material_icon_name="cancel"
                     size={28}
-                    color="#FFF"
+                    color="rgba(0,0,0,0.5)"
                   />
                 </TouchableOpacity>
               </View>
             )}
 
-            {/* Bottom Controls */}
-            <View style={styles.journalControls}>
-              {/* Camera Button */}
-              <TouchableOpacity
-                style={styles.journalControlButton}
-                onPress={pickJournalImage}
-              >
-                <IconSymbol
-                  ios_icon_name="camera.fill"
-                  android_material_icon_name="camera-alt"
-                  size={28}
-                  color="#4B0082"
-                />
-              </TouchableOpacity>
+            <TextInput
+              style={styles.journalInput}
+              placeholder="Write about your day..."
+              placeholderTextColor="#999"
+              multiline
+              value={journalContent}
+              onChangeText={setJournalContent}
+              autoFocus
+            />
+          </ScrollView>
 
-              {/* Voice-to-Text Button */}
-              <TouchableOpacity
-                style={styles.journalControlButton}
-                onPress={startVoiceToText}
-              >
-                <IconSymbol
-                  ios_icon_name="mic.fill"
-                  android_material_icon_name="mic"
-                  size={28}
-                  color="#4B0082"
-                />
-              </TouchableOpacity>
-
-              {/* Auto-save indicator */}
-              {isSavingJournal && (
-                <View style={styles.savingIndicatorModal}>
-                  <ActivityIndicator size="small" color="#4B0082" />
-                  <Text style={styles.savingTextModal}>Saving...</Text>
-                </View>
-              )}
-
-              {/* Done Button */}
-              <TouchableOpacity
-                style={styles.doneButton}
-                onPress={closeJournalModal}
-              >
-                <Text style={styles.doneButtonText}>Done</Text>
-              </TouchableOpacity>
-            </View>
+          <View style={styles.modalFooter}>
+            <TouchableOpacity onPress={pickJournalImage} style={styles.footerButton}>
+              <IconSymbol
+                ios_icon_name="camera.fill"
+                android_material_icon_name="camera-alt"
+                size={24}
+                color="#4F46E5"
+              />
+            </TouchableOpacity>
+            <TouchableOpacity onPress={startVoiceToText} style={styles.footerButton}>
+              <IconSymbol
+                ios_icon_name="mic.fill"
+                android_material_icon_name="mic"
+                size={24}
+                color="#4F46E5"
+              />
+            </TouchableOpacity>
           </View>
         </KeyboardAvoidingView>
       </Modal>
-    </>
+    </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  gradient: {
     flex: 1,
   },
-  scrollContent: {
-    padding: 20,
-    paddingTop: 60,
+  scrollView: {
+    flex: 1,
+  },
+  container: {
+    paddingTop: Platform.OS === "android" ? 48 : 60,
+    paddingHorizontal: 20,
     paddingBottom: 100,
   },
-  sectionCard: {
-    backgroundColor: "#FFF",
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  loadingText: {
+    color: "white",
+    fontSize: 16,
+    marginTop: 12,
+  },
+  dateHeader: {
+    marginBottom: 20,
+  },
+  dateText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "white",
+    opacity: 0.9,
+    textAlign: "right",
+  },
+  card: {
+    backgroundColor: "white",
     borderRadius: 16,
     padding: 20,
-    marginBottom: 20,
-    ...Platform.select({
-      ios: {
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 8,
-      },
-      android: {
-        elevation: 4,
-      },
-      web: {
-        boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
-      },
-    }),
+    marginBottom: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
   },
-  sectionHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
+  cardHeader: {
     marginBottom: 16,
   },
-  sectionTitle: {
+  cardTitle: {
     fontSize: 18,
-    fontWeight: "600",
-    color: "#333",
-  },
-  countBadge: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#4B0082",
-    backgroundColor: "#E0E7FF",
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  emptyAffirmations: {
-    alignItems: "center",
-    paddingVertical: 20,
-  },
-  emptyState: {
-    alignItems: "center",
-    paddingVertical: 20,
-  },
-  emptyText: {
-    fontSize: 16,
-    fontWeight: "500",
-    color: "#666",
-  },
-  emptySubtext: {
-    fontSize: 14,
-    color: "#999",
-    marginTop: 4,
-  },
-  affirmationsScroll: {
-    maxHeight: 400,
-    marginBottom: 12,
+    fontWeight: "700",
+    color: "#1F2937",
   },
   affirmationItem: {
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: "#F0F0F0",
+    marginBottom: 12,
   },
   affirmationContent: {
-    flex: 1,
+    marginBottom: 8,
   },
   affirmationText: {
     fontSize: 16,
-    color: "#333",
+    fontWeight: "500",
+    color: "#374151",
     lineHeight: 24,
-    marginBottom: 12,
   },
   affirmationActions: {
     flexDirection: "row",
-    alignItems: "center",
     gap: 12,
   },
-  actionButton: {
+  iconButton: {
+    padding: 4,
+  },
+  journalBox: {
+    backgroundColor: "white",
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 16,
+    minHeight: 120,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  journalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  journalPlaceholder: {
+    fontSize: 16,
+    color: "#9CA3AF",
+    fontWeight: "500",
+  },
+  cameraButton: {
     padding: 8,
   },
-  generateButton: {
-    backgroundColor: "#E0E7FF",
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 16,
-    minWidth: 90,
-    alignItems: "center",
-    justifyContent: "center",
+  habitsSection: {
+    marginBottom: 20,
   },
-  generateButtonText: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#4B0082",
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "white",
+    marginBottom: 12,
+  },
+  habitsContainer: {
+    gap: 12,
   },
   habitItem: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    paddingVertical: 12,
-  },
-  habitCheckbox: {
-    flexDirection: "row",
-    alignItems: "center",
-    flex: 1,
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    borderRadius: 12,
+    padding: 12,
   },
   habitCircle: {
     width: 32,
     height: 32,
     borderRadius: 16,
-    borderWidth: 2,
-    borderColor: "#DDD",
-    marginRight: 12,
     justifyContent: "center",
     alignItems: "center",
+    marginRight: 12,
   },
   habitTitle: {
+    flex: 1,
     fontSize: 16,
-    color: "#333",
-    flex: 1,
+    fontWeight: "600",
+    color: "white",
   },
-  habitActions: {
+  habitStar: {
+    padding: 8,
+  },
+  habitRemove: {
+    padding: 8,
+  },
+  modalContainer: {
+    flex: 1,
+    backgroundColor: "white",
+  },
+  modalHeader: {
     flexDirection: "row",
+    justifyContent: "space-between",
     alignItems: "center",
-    gap: 8,
-  },
-  limitText: {
-    fontSize: 12,
-    color: "#999",
-    textAlign: "center",
-    marginTop: 8,
-    fontStyle: "italic",
-  },
-  floatingPencil: {
-    position: "absolute",
-    top: 60,
-    right: 20,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: "#4B0082",
-    justifyContent: "center",
-    alignItems: "center",
-    ...Platform.select({
-      ios: {
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
-        shadowRadius: 8,
-      },
-      android: {
-        elevation: 8,
-      },
-      web: {
-        boxShadow: "0 4px 8px rgba(0,0,0,0.3)",
-      },
-    }),
-  },
-  journalModalContainer: {
-    flex: 1,
-    backgroundColor: "#FFF",
-  },
-  journalModalContent: {
-    flex: 1,
+    paddingHorizontal: 20,
     paddingTop: Platform.OS === "android" ? 48 : 60,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#E5E7EB",
   },
-  swipeIndicatorContainer: {
-    alignItems: "center",
-    paddingVertical: 12,
+  modalCancel: {
+    fontSize: 16,
+    color: "#6B7280",
   },
-  swipeIndicator: {
-    width: 40,
-    height: 4,
-    backgroundColor: "#DDD",
-    borderRadius: 2,
-  },
-  journalTextArea: {
-    flex: 1,
+  modalTitle: {
     fontSize: 18,
-    color: "#333",
-    paddingHorizontal: 20,
-    paddingTop: 20,
-    textAlignVertical: "top",
-    lineHeight: 28,
+    fontWeight: "700",
+    color: "#1F2937",
   },
-  journalPhotoContainer: {
-    paddingHorizontal: 20,
-    paddingVertical: 16,
+  modalSave: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#4F46E5",
+  },
+  modalContent: {
+    flex: 1,
+    padding: 20,
+  },
+  photoPreview: {
+    marginBottom: 16,
     position: "relative",
   },
-  journalPhoto: {
+  photoImage: {
     width: "100%",
-    height: 250,
+    height: 200,
     borderRadius: 12,
   },
-  removePhotoButton: {
+  photoRemove: {
     position: "absolute",
-    top: 24,
-    right: 28,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    borderRadius: 14,
+    top: 8,
+    right: 8,
   },
-  journalControls: {
+  journalInput: {
+    fontSize: 16,
+    color: "#1F2937",
+    lineHeight: 24,
+    minHeight: 200,
+    textAlignVertical: "top",
+  },
+  modalFooter: {
     flexDirection: "row",
-    alignItems: "center",
+    justifyContent: "space-around",
     paddingHorizontal: 20,
     paddingVertical: 16,
     borderTopWidth: 1,
-    borderTopColor: "#F0F0F0",
-    gap: 16,
+    borderTopColor: "#E5E7EB",
   },
-  journalControlButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: "#F5F5F5",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  savingIndicatorModal: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    flex: 1,
-  },
-  savingTextModal: {
-    fontSize: 14,
-    color: "#4B0082",
-    fontStyle: "italic",
-  },
-  doneButton: {
-    backgroundColor: "#4B0082",
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 24,
-  },
-  doneButtonText: {
-    color: "#FFF",
-    fontSize: 16,
-    fontWeight: "600",
+  footerButton: {
+    padding: 12,
   },
 });
