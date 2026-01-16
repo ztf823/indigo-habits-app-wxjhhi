@@ -16,10 +16,10 @@ const BADGE_ICON_MAP: Record<string, { ios: string; android: string }> = {
   "Indigo Guardian": { ios: "shield.fill", android: "shield" }, // shield icon
   "Indigo Sentinel": { ios: "eye.fill", android: "visibility" }, // eye icon
   "Indigo Champion": { ios: "trophy.fill", android: "emoji-events" }, // trophy icon
-  "Indigo Legend": { ios: "scroll.fill", android: "description" }, // scroll icon
+  "Indigo Legend": { ios: "crown.fill", android: "workspace-premium" }, // crown icon 👑
   "Indigo Sovereign": { ios: "crown.fill", android: "workspace-premium" }, // crown icon
   "Indigo Eternal": { ios: "infinity", android: "all-inclusive" }, // infinity icon
-  "Indigo Vanguard": { ios: "flag.fill", android: "flag" }, // flag icon
+  "Indigo Vanguard": { ios: "sword", android: "sports-martial-arts" }, // sword icon 🗡️
   "Indigo Titan": { ios: "mountain.2.fill", android: "terrain" }, // mountain icon
   "Indigo Immortal": { ios: "flame.fill", android: "local-fire-department" }, // phoenix icon (using flame as closest)
   "Indigo Apex": { ios: "triangle.fill", android: "change-history" }, // peak icon (triangle)
