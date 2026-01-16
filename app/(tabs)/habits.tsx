@@ -58,10 +58,8 @@ const COLORS = [
   "#EF4444", // Red
 ];
 
-// Free users: 5 affirmations and 5 habits
-// Pro users: unlimited
-const FREE_MAX_AFFIRMATIONS = 5;
-const FREE_MAX_HABITS = 5;
+// Home screen display limits
+const FREE_HOME_DISPLAY_LIMIT = 5;
 
 // Default habits matching home screen
 const DEFAULT_HABITS = [
@@ -173,21 +171,7 @@ export default function HabitsScreen() {
       return;
     }
 
-    // Check limit for free users
-    if (!isPremium && habits.length >= FREE_MAX_HABITS) {
-      Alert.alert(
-        "Limit Reached",
-        `Free users can create up to ${FREE_MAX_HABITS} habits. Upgrade to Premium for unlimited habits!`,
-        [
-          { text: "Cancel", style: "cancel" },
-          { text: "Upgrade", onPress: () => {
-            console.log("User wants to upgrade to premium");
-          }},
-        ]
-      );
-      return;
-    }
-
+    // NO LIMIT - Free users can create unlimited habits
     try {
       console.log("User adding new habit:", habitTitle);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -196,7 +180,7 @@ export default function HabitsScreen() {
         id: `habit_${Date.now()}`,
         title: habitTitle.trim(),
         color: habitColor,
-        isRepeating: false,
+        isRepeating: false, // New habits start with Daily Repeat OFF
         orderIndex: habits.length,
       };
 
@@ -279,13 +263,31 @@ export default function HabitsScreen() {
 
   const toggleHabitRepeating = async (habitId: string) => {
     try {
-      console.log("User toggling habit daily repeat:", habitId);
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-
       const habit = habits.find((h) => h.id === habitId);
       if (!habit) return;
 
       const newRepeating = habit.isRepeating === 1 ? 0 : 1;
+      
+      // Check if free user is trying to enable more than 5 habits
+      if (!isPremium && newRepeating === 1) {
+        const currentRepeatingCount = habits.filter(h => h.isRepeating === 1).length;
+        if (currentRepeatingCount >= FREE_HOME_DISPLAY_LIMIT) {
+          Alert.alert(
+            "Display Limit Reached",
+            `Free users can display up to ${FREE_HOME_DISPLAY_LIMIT} habits on the home screen. Turn off Daily Repeat for another habit first, or upgrade to Premium for unlimited display.`,
+            [
+              { text: "OK", style: "cancel" },
+              { text: "Upgrade", onPress: () => {
+                console.log("User wants to upgrade to premium");
+              }},
+            ]
+          );
+          return;
+        }
+      }
+
+      console.log("User toggling habit daily repeat:", habitId);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
       setHabits((prev) =>
         prev.map((h) =>
@@ -306,21 +308,7 @@ export default function HabitsScreen() {
       return;
     }
 
-    // Check limit for free users
-    if (!isPremium && affirmations.length >= FREE_MAX_AFFIRMATIONS) {
-      Alert.alert(
-        "Limit Reached",
-        `Free users can create up to ${FREE_MAX_AFFIRMATIONS} affirmations. Upgrade to Premium for unlimited affirmations!`,
-        [
-          { text: "Cancel", style: "cancel" },
-          { text: "Upgrade", onPress: () => {
-            console.log("User wants to upgrade to premium");
-          }},
-        ]
-      );
-      return;
-    }
-
+    // NO LIMIT - Free users can create unlimited affirmations
     try {
       console.log("User adding custom affirmation");
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -330,7 +318,7 @@ export default function HabitsScreen() {
         text: affirmationText.trim(),
         isCustom: true,
         isFavorite: false,
-        isRepeating: false,
+        isRepeating: false, // New affirmations start with Daily Repeat OFF
         orderIndex: affirmations.length,
       };
 
@@ -349,13 +337,31 @@ export default function HabitsScreen() {
 
   const toggleAffirmationRepeating = async (affirmationId: string) => {
     try {
-      console.log("User toggling affirmation daily repeat:", affirmationId);
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-
       const affirmation = affirmations.find((a) => a.id === affirmationId);
       if (!affirmation) return;
 
       const newRepeating = affirmation.isRepeating === 1 ? 0 : 1;
+      
+      // Check if free user is trying to enable more than 5 affirmations
+      if (!isPremium && newRepeating === 1) {
+        const currentRepeatingCount = affirmations.filter(a => a.isRepeating === 1).length;
+        if (currentRepeatingCount >= FREE_HOME_DISPLAY_LIMIT) {
+          Alert.alert(
+            "Display Limit Reached",
+            `Free users can display up to ${FREE_HOME_DISPLAY_LIMIT} affirmations on the home screen. Turn off Daily Repeat for another affirmation first, or upgrade to Premium for unlimited display.`,
+            [
+              { text: "OK", style: "cancel" },
+              { text: "Upgrade", onPress: () => {
+                console.log("User wants to upgrade to premium");
+              }},
+            ]
+          );
+          return;
+        }
+      }
+
+      console.log("User toggling affirmation daily repeat:", affirmationId);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
       setAffirmations((prev) =>
         prev.map((a) =>
@@ -435,6 +441,9 @@ export default function HabitsScreen() {
     );
   }
 
+  const repeatingHabits = habits.filter(h => h.isRepeating === 1).length;
+  const repeatingAffirmations = affirmations.filter(a => a.isRepeating === 1).length;
+
   return (
     <LinearGradient
       colors={["#6366F1", "#87CEEB"]}
@@ -445,12 +454,15 @@ export default function HabitsScreen() {
       <View style={styles.container}>
         {/* Header */}
         <View style={styles.header}>
-          <Text style={styles.headerTitle}>Manage Habits</Text>
-          {!isPremium && (
-            <Text style={styles.headerSubtitle}>
-              Free: {activeTab === "habits" ? `${habits.length}/${FREE_MAX_HABITS} habits` : `${affirmations.length}/${FREE_MAX_AFFIRMATIONS} affirmations`}
-            </Text>
-          )}
+          <Text style={styles.headerTitle}>
+            {activeTab === "habits" ? "Manage Habits" : "Manage Affirmations"}
+          </Text>
+          <Text style={styles.headerSubtitle}>
+            {activeTab === "habits" 
+              ? `${habits.length} total • ${repeatingHabits} on home screen${!isPremium ? ` (max ${FREE_HOME_DISPLAY_LIMIT})` : ''}`
+              : `${affirmations.length} total • ${repeatingAffirmations} on home screen${!isPremium ? ` (max ${FREE_HOME_DISPLAY_LIMIT})` : ''}`
+            }
+          </Text>
         </View>
 
         {/* Tabs */}

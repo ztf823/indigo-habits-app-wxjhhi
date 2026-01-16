@@ -71,10 +71,8 @@ interface JournalEntry {
   isFavorite?: number;
 }
 
-// Free users: 5 affirmations and 5 habits
-// Pro users: unlimited
-const FREE_MAX_AFFIRMATIONS = 5;
-const FREE_MAX_HABITS = 5;
+// Home screen display limits
+const FREE_HOME_DISPLAY_LIMIT = 5;
 
 // Default habits to create on first launch
 const DEFAULT_HABITS = [
@@ -231,15 +229,12 @@ export default function HomeScreen() {
     try {
       const dbAffirmations = (await getAllAffirmations()) as Affirmation[];
       
-      // Filter for repeating affirmations
+      // Filter for repeating affirmations only
       let repeatingAffirmations = dbAffirmations.filter(a => a.isRepeating === 1);
       
-      // Determine max affirmations based on premium status
-      const maxAffirmations = isPremium ? repeatingAffirmations.length : FREE_MAX_AFFIRMATIONS;
-      
       // If we have less than the limit, fill with random ones
-      if (repeatingAffirmations.length < maxAffirmations) {
-        const needed = maxAffirmations - repeatingAffirmations.length;
+      if (repeatingAffirmations.length < FREE_HOME_DISPLAY_LIMIT) {
+        const needed = FREE_HOME_DISPLAY_LIMIT - repeatingAffirmations.length;
         console.log(`Creating ${needed} default affirmations...`);
         
         for (let i = 0; i < needed; i++) {
@@ -257,13 +252,13 @@ export default function HomeScreen() {
         }
       }
       
-      // Apply limit: free users get 5, premium users get all
+      // Apply display limit: free users get 5, premium users get all
       const displayAffirmations = isPremium 
         ? repeatingAffirmations 
-        : repeatingAffirmations.slice(0, FREE_MAX_AFFIRMATIONS);
+        : repeatingAffirmations.slice(0, FREE_HOME_DISPLAY_LIMIT);
       
       setAffirmations(displayAffirmations);
-      console.log(`Loaded ${displayAffirmations.length} affirmations (${isPremium ? 'unlimited' : 'free limit'})`);
+      console.log(`Loaded ${displayAffirmations.length} affirmations for home screen (${isPremium ? 'Premium: unlimited' : `Free: max ${FREE_HOME_DISPLAY_LIMIT}`})`);
     } catch (error) {
       console.error("Error loading affirmations:", error);
     }
@@ -274,7 +269,7 @@ export default function HomeScreen() {
       const dbHabits = (await getAllHabits()) as Habit[];
       const today = new Date().toISOString().split("T")[0];
 
-      // Filter for repeating habits
+      // Filter for repeating habits only
       let repeatingHabits = dbHabits.filter(h => h.isRepeating === 1);
 
       // If no repeating habits exist, create default ones
@@ -307,13 +302,13 @@ export default function HomeScreen() {
         })
       );
 
-      // Apply limit: free users get 5, premium users get all
+      // Apply display limit: free users get 5, premium users get all
       const displayHabits = isPremium 
         ? habitsWithCompletion 
-        : habitsWithCompletion.slice(0, FREE_MAX_HABITS);
+        : habitsWithCompletion.slice(0, FREE_HOME_DISPLAY_LIMIT);
 
       setHabits(displayHabits);
-      console.log(`Loaded ${displayHabits.length} habits (${isPremium ? 'unlimited' : 'free limit'})`);
+      console.log(`Loaded ${displayHabits.length} habits for home screen (${isPremium ? 'Premium: unlimited' : `Free: max ${FREE_HOME_DISPLAY_LIMIT}`})`);
     } catch (error) {
       console.error("Error loading habits:", error);
     }
@@ -717,7 +712,9 @@ export default function HomeScreen() {
             <Text style={styles.dateText}>{today}</Text>
             {!isPremium && (
               <View style={styles.limitBadge}>
-                <Text style={styles.limitBadgeText}>Free: {affirmations.length}/{FREE_MAX_AFFIRMATIONS} affirmations, {habits.length}/{FREE_MAX_HABITS} habits</Text>
+                <Text style={styles.limitBadgeText}>
+                  Free: Showing {affirmations.length}/{FREE_HOME_DISPLAY_LIMIT} affirmations, {habits.length}/{FREE_HOME_DISPLAY_LIMIT} habits
+                </Text>
               </View>
             )}
           </View>
