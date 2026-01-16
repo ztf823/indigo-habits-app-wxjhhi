@@ -28,6 +28,7 @@ import {
   getProfile,
 } from "@/utils/database";
 import { getRandomAffirmation } from "@/utils/affirmations";
+import { playChime } from "@/utils/sounds";
 
 interface Habit {
   id: string;
@@ -152,6 +153,8 @@ export default function HabitsScreen() {
       setHabitModalVisible(false);
       setHabitTitle("");
       setHabitColor(COLORS[0]);
+      
+      playChime();
     } catch (error) {
       console.error("Error adding habit:", error);
       Alert.alert("Error", "Failed to add habit. Please try again.");
@@ -179,6 +182,8 @@ export default function HabitsScreen() {
       setEditingHabit(null);
       setHabitTitle("");
       setHabitColor(COLORS[0]);
+      
+      playChime();
     } catch (error) {
       console.error("Error editing habit:", error);
       Alert.alert("Error", "Failed to edit habit. Please try again.");
@@ -200,6 +205,7 @@ export default function HabitsScreen() {
               Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
               await deleteHabit(id);
               await loadHabits();
+              playChime();
             } catch (error) {
               console.error("Error deleting habit:", error);
               Alert.alert("Error", "Failed to delete habit. Please try again.");
@@ -235,6 +241,7 @@ export default function HabitsScreen() {
       );
 
       await updateHabit(habitId, { isRepeating: newRepeating === 1 });
+      playChime();
     } catch (error) {
       console.error("Error toggling habit repeating:", error);
     }
@@ -310,6 +317,8 @@ export default function HabitsScreen() {
 
       setAffirmationModalVisible(false);
       setAffirmationText("");
+      
+      playChime();
     } catch (error) {
       console.error("Error adding affirmation:", error);
       Alert.alert("Error", "Failed to add affirmation. Please try again.");
@@ -333,6 +342,7 @@ export default function HabitsScreen() {
       );
 
       await updateAffirmation(affirmationId, { isRepeating: newRepeating === 1 });
+      playChime();
     } catch (error) {
       console.error("Error toggling affirmation repeating:", error);
     }
@@ -405,6 +415,7 @@ export default function HabitsScreen() {
               Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
               await deleteAffirmation(affirmationId);
               await loadAffirmations();
+              playChime();
             } catch (error) {
               console.error("Error deleting affirmation:", error);
               Alert.alert("Error", "Failed to delete affirmation. Please try again.");
@@ -418,7 +429,7 @@ export default function HabitsScreen() {
   if (loading) {
     return (
       <LinearGradient
-        colors={["#4F46E5", "#06B6D4"]}
+        colors={["#4F46E5", "#87CEEB"]}
         style={styles.gradient}
         start={{ x: 0, y: 0 }}
         end={{ x: 0, y: 1 }}
@@ -433,7 +444,7 @@ export default function HabitsScreen() {
 
   return (
     <LinearGradient
-      colors={["#4F46E5", "#06B6D4"]}
+      colors={["#4F46E5", "#87CEEB"]}
       style={styles.gradient}
       start={{ x: 0, y: 0 }}
       end={{ x: 0, y: 1 }}
@@ -441,7 +452,7 @@ export default function HabitsScreen() {
       <View style={styles.container}>
         {/* Header */}
         <View style={styles.header}>
-          <Text style={styles.headerTitle}>Manage</Text>
+          <Text style={styles.headerTitle}>My Habits</Text>
         </View>
 
         {/* Tabs */}

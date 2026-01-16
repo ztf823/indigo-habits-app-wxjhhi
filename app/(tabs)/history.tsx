@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   RefreshControl,
   Image,
+  Platform,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
@@ -17,16 +18,20 @@ import React, { useState, useEffect, useCallback } from "react";
 import {
   getAllJournalEntries,
   getAllAffirmations,
+  getAllHabits,
   updateAffirmation,
+  getHabitCompletionsForDate,
 } from "@/utils/database";
 
-interface HistoryEntry {
+interface JournalEntry {
   id: string;
   content: string;
   photoUri?: string;
+  audioUri?: string;
   createdAt: string;
   affirmationText?: string;
   date: string;
+  isFavorite?: number;
 }
 
 interface Affirmation {
@@ -37,9 +42,15 @@ interface Affirmation {
   createdAt: string;
 }
 
+interface Habit {
+  id: string;
+  title: string;
+  color: string;
+}
+
 export default function HistoryScreen() {
   const [activeTab, setActiveTab] = useState<"journal" | "affirmations" | "favorites">("journal");
-  const [journalEntries, setJournalEntries] = useState<HistoryEntry[]>([]);
+  const [journalEntries, setJournalEntries] = useState<JournalEntry[]>([]);
   const [affirmations, setAffirmations] = useState<Affirmation[]>([]);
   const [favorites, setFavorites] = useState<Affirmation[]>([]);
   const [loading, setLoading] = useState(true);
@@ -51,7 +62,7 @@ export default function HistoryScreen() {
       console.log("[History] Loading history for tab:", activeTab);
       
       if (activeTab === "journal") {
-        const entries = await getAllJournalEntries() as HistoryEntry[];
+        const entries = await getAllJournalEntries() as JournalEntry[];
         setJournalEntries(entries);
         console.log("[History] Loaded", entries.length, "journal entries");
       } else if (activeTab === "affirmations") {
@@ -127,7 +138,12 @@ export default function HistoryScreen() {
   };
 
   return (
-    <LinearGradient colors={["#4B0082", "#87CEEB"]} style={styles.container}>
+    <LinearGradient
+      colors={["#4F46E5", "#87CEEB"]}
+      style={styles.container}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 0, y: 1 }}
+    >
       <View style={styles.header}>
         <Text style={styles.headerTitle}>History</Text>
       </View>
@@ -177,7 +193,13 @@ export default function HistoryScreen() {
         <ScrollView
           style={styles.scrollView}
           contentContainerStyle={styles.scrollContent}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor="white"
+            />
+          }
         >
           {activeTab === "journal" && (
             <>
@@ -199,27 +221,50 @@ export default function HistoryScreen() {
                     style={styles.entryCard}
                     onPress={() => {
                       console.log("[History] User tapped journal entry:", entry.id);
-                      router.push(`/entry/${entry.id}`);
+                      router.push(`/entry/${entry.id}` as any);
                     }}
                   >
                     <View style={styles.entryHeader}>
-                      <Text style={styles.entryDate}>{formatDate(entry.createdAt)}</Text>
-                      <Text style={styles.entryTime}>{formatTime(entry.createdAt)}</Text>
+                      <View>
+                        <Text style={styles.entryDate}>{formatDate(entry.createdAt)}</Text>
+                        <Text style={styles.entryTime}>{formatTime(entry.createdAt)}</Text>
+                      </View>
+                      {entry.isFavorite === 1 && (
+                        <IconSymbol
+                          ios_icon_name="star.fill"
+                          android_material_icon_name="star"
+                          size={20}
+                          color="#FFD700"
+                        />
+                      )}
                     </View>
                     <Text style={styles.entryContent} numberOfLines={3}>
                       {entry.content}
                     </Text>
-                    {entry.photoUri && (
-                      <View style={styles.photoIndicator}>
-                        <IconSymbol
-                          ios_icon_name="photo"
-                          android_material_icon_name="image"
-                          size={16}
-                          color="#999"
-                        />
-                        <Text style={styles.photoText}>Has photo</Text>
-                      </View>
-                    )}
+                    <View style={styles.entryFooter}>
+                      {entry.photoUri && (
+                        <View style={styles.indicator}>
+                          <IconSymbol
+                            ios_icon_name="photo"
+                            android_material_icon_name="image"
+                            size={16}
+                            color="#6B7280"
+                          />
+                          <Text style={styles.indicatorText}>Photo</Text>
+                        </View>
+                      )}
+                      {entry.audioUri && (
+                        <View style={styles.indicator}>
+                          <IconSymbol
+                            ios_icon_name="waveform"
+                            android_material_icon_name="graphic-eq"
+                            size={16}
+                            color="#6B7280"
+                          />
+                          <Text style={styles.indicatorText}>Audio</Text>
+                        </View>
+                      )}
+                    </View>
                   </TouchableOpacity>
                 ))
               )}
@@ -249,7 +294,7 @@ export default function HistoryScreen() {
                           ios_icon_name={affirmation.isFavorite === 1 ? "star.fill" : "star"}
                           android_material_icon_name={affirmation.isFavorite === 1 ? "star" : "star-border"}
                           size={24}
-                          color={affirmation.isFavorite === 1 ? "#FFD700" : "#999"}
+                          color={affirmation.isFavorite === 1 ? "#FFD700" : "#C0C0C0"}
                         />
                       </TouchableOpacity>
                     </View>
@@ -293,6 +338,11 @@ export default function HistoryScreen() {
                       </TouchableOpacity>
                     </View>
                     <Text style={styles.affirmationText}>{affirmation.text}</Text>
+                    {affirmation.isCustom === 1 && (
+                      <View style={styles.customBadge}>
+                        <Text style={styles.customBadgeText}>Custom</Text>
+                      </View>
+                    )}
                   </View>
                 ))
               )}
@@ -309,13 +359,13 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   header: {
-    paddingTop: 60,
+    paddingTop: Platform.OS === "android" ? 48 : 60,
     paddingHorizontal: 20,
     paddingBottom: 20,
   },
   headerTitle: {
     fontSize: 32,
-    fontWeight: "bold",
+    fontWeight: "800",
     color: "#FFF",
   },
   tabContainer: {
@@ -341,7 +391,7 @@ const styles = StyleSheet.create({
     color: "#FFF",
   },
   activeTabText: {
-    color: "#4B0082",
+    color: "#4F46E5",
   },
   loadingContainer: {
     flex: 1,
@@ -373,45 +423,60 @@ const styles = StyleSheet.create({
   },
   entryCard: {
     backgroundColor: "#FFF",
-    borderRadius: 12,
+    borderRadius: 16,
     padding: 16,
     marginBottom: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
   },
   entryHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 8,
+    alignItems: "flex-start",
+    marginBottom: 12,
   },
   entryDate: {
     fontSize: 14,
     fontWeight: "600",
-    color: "#4B0082",
+    color: "#4F46E5",
   },
   entryTime: {
     fontSize: 12,
-    color: "#999",
+    color: "#6B7280",
+    marginTop: 2,
   },
   entryContent: {
     fontSize: 16,
-    color: "#333",
+    color: "#1F2937",
     lineHeight: 24,
+    marginBottom: 12,
   },
-  photoIndicator: {
+  entryFooter: {
+    flexDirection: "row",
+    gap: 12,
+  },
+  indicator: {
     flexDirection: "row",
     alignItems: "center",
-    marginTop: 8,
     gap: 4,
   },
-  photoText: {
+  indicatorText: {
     fontSize: 12,
-    color: "#999",
+    color: "#6B7280",
   },
   affirmationCard: {
     backgroundColor: "#FFF",
-    borderRadius: 12,
+    borderRadius: 16,
     padding: 16,
     marginBottom: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
   },
   affirmationHeader: {
     flexDirection: "row",
@@ -421,19 +486,19 @@ const styles = StyleSheet.create({
   },
   affirmationDate: {
     fontSize: 12,
-    color: "#999",
+    color: "#6B7280",
   },
   affirmationText: {
     fontSize: 16,
-    color: "#333",
+    color: "#1F2937",
     lineHeight: 24,
   },
   customBadge: {
     alignSelf: "flex-start",
-    backgroundColor: "#4B0082",
+    backgroundColor: "#4F46E5",
     paddingHorizontal: 8,
     paddingVertical: 4,
-    borderRadius: 4,
+    borderRadius: 6,
     marginTop: 8,
   },
   customBadgeText: {

@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { LinearGradient } from "expo-linear-gradient";
 import { getRandomAffirmation } from "@/utils/affirmations";
 import {
@@ -12,13 +12,12 @@ import {
   Alert,
   ActivityIndicator,
   Platform,
-  Modal,
+  Image,
 } from "react-native";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
 import { Audio } from "expo-av";
 import { IconSymbol } from "@/components/IconSymbol";
-import { useRouter } from "expo-router";
 import {
   getAllAffirmations,
   getAllHabits,
@@ -34,6 +33,7 @@ import {
   getAllJournalEntries,
   updateJournalEntry,
 } from "@/utils/database";
+import { playChime } from "@/utils/sounds";
 
 interface Affirmation {
   id: string;
@@ -52,27 +52,36 @@ interface Habit {
   isRepeating?: number;
 }
 
+interface JournalEntry {
+  id: string;
+  content: string;
+  photoUri?: string;
+  audioUri?: string;
+  date: string;
+  isFavorite?: number;
+}
+
 const MAX_AFFIRMATIONS = 5;
 const MAX_HABITS = 5;
 
 export default function HomeScreen() {
-  const router = useRouter();
   const [affirmations, setAffirmations] = useState<Affirmation[]>([]);
   const [habits, setHabits] = useState<Habit[]>([]);
   const [loading, setLoading] = useState(true);
   const [isPremium, setIsPremium] = useState(false);
 
   // Journal state
-  const [journalModalVisible, setJournalModalVisible] = useState(false);
   const [journalContent, setJournalContent] = useState("");
   const [journalPhoto, setJournalPhoto] = useState<string | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   const [recording, setRecording] = useState<Audio.Recording | null>(null);
   const [audioUri, setAudioUri] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [currentJournalId, setCurrentJournalId] = useState<string | null>(null);
+  const [journalIsFavorite, setJournalIsFavorite] = useState(false);
 
   // Auto-save timer
-  const [autoSaveTimer, setAutoSaveTimer] = useState<NodeJS.Timeout | null>(null);
+  const autoSaveTimer = useRef<NodeJS.Timeout | null>(null);
 
   const loadPremiumStatus = useCallback(async () => {
     try {
@@ -88,7 +97,7 @@ export default function HomeScreen() {
       const dbAffirmations = (await getAllAffirmations()) as Affirmation[];
       
       // Filter for repeating affirmations
-      const repeatingAffirmations = dbAffirmations.filter(a => a.isRepeating === 1);
+      let repeatingAffirmations = dbAffirmations.filter(a => a.isRepeating === 1);
       
       // If we have less than 5 repeating affirmations, fill with random ones
       if (repeatingAffirmations.length < MAX_AFFIRMATIONS) {
@@ -102,10 +111,11 @@ export default function HomeScreen() {
             text: affirmation,
             isCustom: false,
             isRepeating: false,
+            isFavorite: false,
             orderIndex: repeatingAffirmations.length + i,
           };
           await createAffirmation(newAffirmation);
-          repeatingAffirmations.push({ ...newAffirmation, isCustom: 0, isRepeating: 0 });
+          repeatingAffirmations.push({ ...newAffirmation, isCustom: 0, isRepeating: 0, isFavorite: 0 });
         }
       }
       
@@ -121,7 +131,7 @@ export default function HomeScreen() {
       const today = new Date().toISOString().split("T")[0];
 
       // Filter for repeating habits
-      const repeatingHabits = dbHabits.filter(h => h.isRepeating === 1);
+      let repeatingHabits = dbHabits.filter(h => h.isRepeating === 1);
 
       // Load completion status for today
       const habitsWithCompletion = await Promise.all(
@@ -140,6 +150,30 @@ export default function HomeScreen() {
     }
   }, []);
 
+  const loadTodayJournal = useCallback(async () => {
+    try {
+      const today = new Date().toISOString().split("T")[0];
+      const allEntries = await getAllJournalEntries() as JournalEntry[];
+      const todayEntry = allEntries.find(e => e.date === today);
+      
+      if (todayEntry) {
+        setJournalContent(todayEntry.content || "");
+        setJournalPhoto(todayEntry.photoUri || null);
+        setAudioUri(todayEntry.audioUri || null);
+        setCurrentJournalId(todayEntry.id);
+        setJournalIsFavorite((todayEntry as any).isFavorite === 1);
+      } else {
+        setJournalContent("");
+        setJournalPhoto(null);
+        setAudioUri(null);
+        setCurrentJournalId(null);
+        setJournalIsFavorite(false);
+      }
+    } catch (error) {
+      console.error("Error loading today's journal:", error);
+    }
+  }, []);
+
   const loadData = useCallback(async () => {
     try {
       console.log("Loading home screen data from SQLite...");
@@ -149,6 +183,7 @@ export default function HomeScreen() {
         loadPremiumStatus(),
         loadAffirmations(),
         loadHabits(),
+        loadTodayJournal(),
       ]);
     } catch (error) {
       console.error("Error loading home screen data:", error);
@@ -156,11 +191,20 @@ export default function HomeScreen() {
     } finally {
       setLoading(false);
     }
-  }, [loadPremiumStatus, loadAffirmations, loadHabits]);
+  }, [loadPremiumStatus, loadAffirmations, loadHabits, loadTodayJournal]);
 
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  // Auto-save journal every 30 seconds
+  useEffect(() => {
+    return () => {
+      if (autoSaveTimer.current) {
+        clearTimeout(autoSaveTimer.current);
+      }
+    };
+  }, []);
 
   const toggleHabit = async (habitId: string) => {
     try {
@@ -183,6 +227,11 @@ export default function HomeScreen() {
 
       // Save to database
       await setHabitCompletion(habitId, today, newCompleted);
+
+      // Play chime sound
+      if (newCompleted) {
+        playChime();
+      }
 
       console.log(`Habit ${habitId} marked as ${newCompleted ? "completed" : "incomplete"}`);
     } catch (error) {
@@ -210,6 +259,9 @@ export default function HomeScreen() {
 
       // Save to database
       await updateHabit(habitId, { isFavorite: newFavorite === 1 });
+
+      // Play chime sound
+      playChime();
 
       console.log(`Habit ${habitId} favorite status: ${newFavorite === 1}`);
     } catch (error) {
@@ -239,6 +291,9 @@ export default function HomeScreen() {
         isFavorite: newFavorite === 1,
       });
 
+      // Play chime sound
+      playChime();
+
       console.log(`Affirmation ${affirmationId} favorite status: ${newFavorite === 1}`);
     } catch (error) {
       console.error("Error toggling favorite affirmation:", error);
@@ -260,6 +315,9 @@ export default function HomeScreen() {
       // Save to database
       await updateAffirmation(affirmationId, { text: newText });
 
+      // Play chime sound
+      playChime();
+
       console.log("New affirmation generated");
     } catch (error) {
       console.error("Error generating new affirmation:", error);
@@ -267,108 +325,60 @@ export default function HomeScreen() {
     }
   };
 
-  const removeAffirmation = async (affirmationId: string) => {
-    try {
-      console.log(`User removed affirmation: ${affirmationId}`);
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-
-      // Update local state
-      setAffirmations((prev) => prev.filter((a) => a.id !== affirmationId));
-
-      // Delete from database
-      await deleteAffirmation(affirmationId);
-
-      console.log("Affirmation removed");
-    } catch (error) {
-      console.error("Error removing affirmation:", error);
-      Alert.alert("Error", "Failed to remove affirmation. Please try again.");
-    }
-  };
-
-  const removeHabit = async (habitId: string) => {
-    try {
-      console.log(`User removed habit: ${habitId}`);
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-
-      // Update local state
-      setHabits((prev) => prev.filter((h) => h.id !== habitId));
-
-      // Delete from database (soft delete)
-      await deleteHabit(habitId);
-
-      console.log("Habit removed");
-    } catch (error) {
-      console.error("Error removing habit:", error);
-      Alert.alert("Error", "Failed to remove habit. Please try again.");
-    }
-  };
-
-  const openJournalModal = () => {
-    console.log("User tapped journal button");
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setJournalModalVisible(true);
-  };
-
-  const closeJournalModal = async () => {
-    console.log("User closed journal modal");
+  const handleJournalTextChange = (text: string) => {
+    setJournalContent(text);
     
-    // Save before closing if there's content
-    if (journalContent.trim()) {
-      await saveJournalEntry();
+    // Clear existing timer
+    if (autoSaveTimer.current) {
+      clearTimeout(autoSaveTimer.current);
     }
     
-    setJournalModalVisible(false);
-    setJournalContent("");
-    setJournalPhoto(null);
-    setAudioUri(null);
-    
-    if (autoSaveTimer) {
-      clearTimeout(autoSaveTimer);
-      setAutoSaveTimer(null);
-    }
+    // Set new auto-save timer for 30 seconds
+    autoSaveTimer.current = setTimeout(() => {
+      console.log("Auto-saving journal entry...");
+      saveJournalEntry();
+    }, 30000);
   };
 
   const saveJournalEntry = async () => {
-    if (!journalContent.trim()) return;
+    if (!journalContent.trim() && !journalPhoto && !audioUri) return;
     
     try {
       setIsSaving(true);
       console.log("Saving journal entry...");
       
       const today = new Date().toISOString().split("T")[0];
-      const entryId = `journal_${Date.now()}`;
       
-      await createJournalEntry({
-        id: entryId,
-        content: journalContent,
-        photoUri: journalPhoto || undefined,
-        date: today,
-      });
+      if (currentJournalId) {
+        // Update existing entry
+        await updateJournalEntry(currentJournalId, {
+          content: journalContent,
+          photoUri: journalPhoto || undefined,
+          audioUri: audioUri || undefined,
+        });
+      } else {
+        // Create new entry
+        const entryId = `journal_${Date.now()}`;
+        await createJournalEntry({
+          id: entryId,
+          content: journalContent,
+          photoUri: journalPhoto || undefined,
+          audioUri: audioUri || undefined,
+          date: today,
+        });
+        setCurrentJournalId(entryId);
+      }
       
       console.log("Journal entry saved");
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      
+      // Play chime sound
+      playChime();
     } catch (error) {
       console.error("Error saving journal entry:", error);
     } finally {
       setIsSaving(false);
     }
-  };
-
-  const handleJournalTextChange = (text: string) => {
-    setJournalContent(text);
-    
-    // Clear existing timer
-    if (autoSaveTimer) {
-      clearTimeout(autoSaveTimer);
-    }
-    
-    // Set new auto-save timer for 30 seconds
-    const timer = setTimeout(() => {
-      console.log("Auto-saving journal entry...");
-      saveJournalEntry();
-    }, 30000);
-    
-    setAutoSaveTimer(timer);
   };
 
   const pickImage = async () => {
@@ -391,6 +401,9 @@ export default function HomeScreen() {
       if (!result.canceled && result.assets[0]) {
         setJournalPhoto(result.assets[0].uri);
         console.log("Photo added to journal entry");
+        
+        // Auto-save after adding photo
+        setTimeout(() => saveJournalEntry(), 500);
       }
     } catch (error) {
       console.error("Error picking image:", error);
@@ -441,9 +454,34 @@ export default function HomeScreen() {
       
       console.log("Recording saved:", uri);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      
+      // Auto-save after recording
+      setTimeout(() => saveJournalEntry(), 500);
     } catch (error) {
       console.error("Error stopping recording:", error);
       Alert.alert("Error", "Failed to stop recording. Please try again.");
+    }
+  };
+
+  const toggleJournalFavorite = async () => {
+    if (!currentJournalId) return;
+    
+    try {
+      console.log("User toggled journal favorite");
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      
+      const newFavorite = !journalIsFavorite;
+      setJournalIsFavorite(newFavorite);
+      
+      // Save to database
+      await updateJournalEntry(currentJournalId, {
+        isFavorite: newFavorite,
+      } as any);
+      
+      // Play chime sound
+      playChime();
+    } catch (error) {
+      console.error("Error toggling journal favorite:", error);
     }
   };
 
@@ -483,65 +521,54 @@ export default function HomeScreen() {
         contentContainerStyle={styles.container}
         showsVerticalScrollIndicator={false}
       >
-        {/* Header with Date and Journal Button */}
+        {/* Header with Date */}
         <View style={styles.header}>
           <Text style={styles.dateText}>{today}</Text>
-          <TouchableOpacity onPress={openJournalModal} style={styles.journalButton}>
-            <IconSymbol
-              ios_icon_name="pencil"
-              android_material_icon_name="edit"
-              size={24}
-              color="white"
-            />
-          </TouchableOpacity>
         </View>
 
         {/* Affirmations Section */}
-        <View style={styles.affirmationsSection}>
-          <Text style={styles.sectionTitle}>Your Affirmations</Text>
-          {affirmations.map((affirmation) => (
-            <View key={affirmation.id} style={styles.affirmationCard}>
-              <View style={styles.affirmationHeader}>
-                <TouchableOpacity
-                  onPress={() => toggleFavoriteAffirmation(affirmation.id)}
-                  style={styles.iconButton}
-                >
-                  <IconSymbol
-                    ios_icon_name={affirmation.isFavorite === 1 ? "star.fill" : "star"}
-                    android_material_icon_name={affirmation.isFavorite === 1 ? "star" : "star-border"}
-                    size={24}
-                    color={affirmation.isFavorite === 1 ? "#FFD700" : "#9CA3AF"}
-                  />
-                </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={() => removeAffirmation(affirmation.id)}
-                  style={styles.iconButton}
-                >
-                  <IconSymbol
-                    ios_icon_name="xmark"
-                    android_material_icon_name="close"
-                    size={24}
-                    color="#EF4444"
-                  />
-                </TouchableOpacity>
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Your Affirmations Today</Text>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.affirmationsScroll}
+          >
+            {affirmations.map((affirmation) => (
+              <View key={affirmation.id} style={styles.affirmationCard}>
+                <View style={styles.affirmationHeader}>
+                  <TouchableOpacity
+                    onPress={() => toggleFavoriteAffirmation(affirmation.id)}
+                    style={styles.iconButton}
+                  >
+                    <IconSymbol
+                      ios_icon_name={affirmation.isFavorite === 1 ? "star.fill" : "star"}
+                      android_material_icon_name={affirmation.isFavorite === 1 ? "star" : "star-border"}
+                      size={24}
+                      color={affirmation.isFavorite === 1 ? "#FFD700" : "#C0C0C0"}
+                    />
+                  </TouchableOpacity>
+                </View>
+
+                <Text style={styles.affirmationText}>{affirmation.text}</Text>
+
+                <View style={styles.affirmationActions}>
+                  <TouchableOpacity
+                    style={styles.generateButton}
+                    onPress={() => generateNewAffirmation(affirmation.id)}
+                  >
+                    <Text style={styles.generateButtonText}>Generate</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
-
-              <Text style={styles.affirmationText}>{affirmation.text}</Text>
-
-              <TouchableOpacity
-                style={styles.generateButton}
-                onPress={() => generateNewAffirmation(affirmation.id)}
-              >
-                <Text style={styles.generateButtonText}>Generate</Text>
-              </TouchableOpacity>
-            </View>
-          ))}
+            ))}
+          </ScrollView>
         </View>
 
         {/* Daily Habits Section */}
-        <View style={styles.habitsCard}>
+        <View style={styles.section}>
           <View style={styles.habitsHeader}>
-            <Text style={styles.habitsTitle}>Daily Habits</Text>
+            <Text style={styles.sectionTitle}>Daily Habits</Text>
             <View style={styles.habitCounter}>
               <Text style={styles.habitCounterText}>
                 {completedHabits}/{totalHabits}
@@ -549,14 +576,14 @@ export default function HomeScreen() {
             </View>
           </View>
 
-          <View style={styles.habitsList}>
+          <View style={styles.habitsCard}>
             {habits.map((habit) => (
               <View key={habit.id} style={styles.habitItem}>
                 <TouchableOpacity
                   style={[
                     styles.habitCheckbox,
                     { borderColor: habit.color },
-                    habit.completed && { backgroundColor: habit.color },
+                    habit.completed && { backgroundColor: "#10B981" },
                   ]}
                   onPress={() => toggleHabit(habit.id)}
                 >
@@ -587,19 +614,7 @@ export default function HomeScreen() {
                     ios_icon_name={habit.isFavorite === 1 ? "star.fill" : "star"}
                     android_material_icon_name={habit.isFavorite === 1 ? "star" : "star-border"}
                     size={20}
-                    color={habit.isFavorite === 1 ? "#FFD700" : "#9CA3AF"}
-                  />
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  onPress={() => removeHabit(habit.id)}
-                  style={styles.iconButton}
-                >
-                  <IconSymbol
-                    ios_icon_name="xmark"
-                    android_material_icon_name="close"
-                    size={20}
-                    color="#EF4444"
+                    color={habit.isFavorite === 1 ? "#FFD700" : "#C0C0C0"}
                   />
                 </TouchableOpacity>
               </View>
@@ -608,119 +623,111 @@ export default function HomeScreen() {
         </View>
 
         {/* Journal Entry Section */}
-        <View style={styles.journalSection}>
-          <Text style={styles.sectionTitle}>Today's Journal</Text>
-          <TouchableOpacity
-            style={styles.journalPreview}
-            onPress={openJournalModal}
-          >
-            <IconSymbol
-              ios_icon_name="book.closed"
-              android_material_icon_name="menu-book"
-              size={32}
-              color="#4F46E5"
-            />
-            <Text style={styles.journalPreviewText}>
-              Tap to write in your journal
-            </Text>
-          </TouchableOpacity>
-        </View>
-      </ScrollView>
-
-      {/* Journal Modal */}
-      <Modal
-        visible={journalModalVisible}
-        animationType="slide"
-        presentationStyle="fullScreen"
-        onRequestClose={closeJournalModal}
-      >
-        <LinearGradient
-          colors={["#4F46E5", "#87CEEB"]}
-          style={styles.modalGradient}
-        >
-          <View style={styles.modalHeader}>
-            <TouchableOpacity onPress={closeJournalModal}>
-              <IconSymbol
-                ios_icon_name="chevron.down"
-                android_material_icon_name="keyboard-arrow-down"
-                size={28}
-                color="white"
-              />
-            </TouchableOpacity>
-            <Text style={styles.modalTitle}>Journal Entry</Text>
-            <TouchableOpacity onPress={closeJournalModal}>
-              <Text style={styles.doneButton}>Done</Text>
-            </TouchableOpacity>
+        <View style={styles.section}>
+          <View style={styles.journalHeader}>
+            <Text style={styles.sectionTitle}>Today's Journal</Text>
+            <View style={styles.journalHeaderRight}>
+              <Text style={styles.journalDate}>{new Date().toLocaleDateString()}</Text>
+              <TouchableOpacity
+                onPress={toggleJournalFavorite}
+                style={styles.iconButton}
+              >
+                <IconSymbol
+                  ios_icon_name={journalIsFavorite ? "star.fill" : "star"}
+                  android_material_icon_name={journalIsFavorite ? "star" : "star-border"}
+                  size={24}
+                  color={journalIsFavorite ? "#FFD700" : "#C0C0C0"}
+                />
+              </TouchableOpacity>
+            </View>
           </View>
 
-          <View style={styles.modalContent}>
-            <View style={styles.journalCard}>
-              <Text style={styles.journalDate}>{today}</Text>
-              
-              <TextInput
-                style={styles.journalInput}
-                placeholder="Write your thoughts..."
-                placeholderTextColor="#9CA3AF"
-                multiline
-                value={journalContent}
-                onChangeText={handleJournalTextChange}
-                autoFocus
-              />
+          <View style={styles.journalCard}>
+            <TextInput
+              style={styles.journalInput}
+              placeholder="Write your thoughts..."
+              placeholderTextColor="#9CA3AF"
+              multiline
+              value={journalContent}
+              onChangeText={handleJournalTextChange}
+              onBlur={saveJournalEntry}
+            />
 
-              <View style={styles.journalActions}>
-                <TouchableOpacity onPress={pickImage} style={styles.actionButton}>
-                  <IconSymbol
-                    ios_icon_name="camera"
-                    android_material_icon_name="camera-alt"
-                    size={24}
-                    color="#4F46E5"
-                  />
-                </TouchableOpacity>
+            <View style={styles.journalActions}>
+              <TouchableOpacity onPress={pickImage} style={styles.actionButton}>
+                <IconSymbol
+                  ios_icon_name="camera"
+                  android_material_icon_name="camera-alt"
+                  size={24}
+                  color="#4F46E5"
+                />
+              </TouchableOpacity>
 
+              <TouchableOpacity
+                onPress={isRecording ? stopRecording : startRecording}
+                style={[
+                  styles.actionButton,
+                  isRecording && styles.recordingButton,
+                ]}
+              >
+                <IconSymbol
+                  ios_icon_name={isRecording ? "stop.circle" : "mic"}
+                  android_material_icon_name={isRecording ? "stop" : "mic"}
+                  size={24}
+                  color={isRecording ? "#EF4444" : "#4F46E5"}
+                />
+              </TouchableOpacity>
+            </View>
+
+            {journalPhoto && (
+              <View style={styles.attachmentPreview}>
+                <Image source={{ uri: journalPhoto }} style={styles.photoThumbnail} />
                 <TouchableOpacity
-                  onPress={isRecording ? stopRecording : startRecording}
-                  style={[
-                    styles.actionButton,
-                    isRecording && styles.recordingButton,
-                  ]}
+                  onPress={() => setJournalPhoto(null)}
+                  style={styles.removeButton}
                 >
                   <IconSymbol
-                    ios_icon_name={isRecording ? "stop.circle" : "mic"}
-                    android_material_icon_name={isRecording ? "stop" : "mic"}
-                    size={24}
-                    color={isRecording ? "#EF4444" : "#4F46E5"}
+                    ios_icon_name="xmark.circle.fill"
+                    android_material_icon_name="cancel"
+                    size={20}
+                    color="#EF4444"
                   />
                 </TouchableOpacity>
               </View>
+            )}
 
-              {journalPhoto && (
-                <View style={styles.photoPreview}>
-                  <Text style={styles.photoPreviewText}>Photo attached</Text>
-                </View>
-              )}
-
-              {audioUri && (
-                <View style={styles.audioPreview}>
+            {audioUri && (
+              <View style={styles.audioPreview}>
+                <IconSymbol
+                  ios_icon_name="waveform"
+                  android_material_icon_name="graphic-eq"
+                  size={20}
+                  color="#4F46E5"
+                />
+                <Text style={styles.audioPreviewText}>Audio memo attached</Text>
+                <TouchableOpacity
+                  onPress={() => setAudioUri(null)}
+                  style={styles.removeButton}
+                >
                   <IconSymbol
-                    ios_icon_name="waveform"
-                    android_material_icon_name="graphic-eq"
+                    ios_icon_name="xmark.circle.fill"
+                    android_material_icon_name="cancel"
                     size={20}
-                    color="#4F46E5"
+                    color="#EF4444"
                   />
-                  <Text style={styles.audioPreviewText}>Audio memo attached</Text>
-                </View>
-              )}
+                </TouchableOpacity>
+              </View>
+            )}
 
-              {isSaving && (
-                <View style={styles.savingIndicator}>
-                  <ActivityIndicator size="small" color="#4F46E5" />
-                  <Text style={styles.savingText}>Saving...</Text>
-                </View>
-              )}
-            </View>
+            {isSaving && (
+              <View style={styles.savingIndicator}>
+                <ActivityIndicator size="small" color="#4F46E5" />
+                <Text style={styles.savingText}>Saving...</Text>
+              </View>
+            )}
           </View>
-        </LinearGradient>
-      </Modal>
+        </View>
+      </ScrollView>
     </LinearGradient>
   );
 }
@@ -748,9 +755,6 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
   header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
     marginBottom: 24,
   },
   dateText: {
@@ -758,13 +762,8 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "white",
   },
-  journalButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: "rgba(255, 255, 255, 0.2)",
-    justifyContent: "center",
-    alignItems: "center",
+  section: {
+    marginBottom: 32,
   },
   sectionTitle: {
     fontSize: 20,
@@ -772,14 +771,15 @@ const styles = StyleSheet.create({
     color: "white",
     marginBottom: 16,
   },
-  affirmationsSection: {
-    marginBottom: 24,
+  affirmationsScroll: {
+    paddingRight: 20,
   },
   affirmationCard: {
     backgroundColor: "white",
     borderRadius: 20,
     padding: 20,
-    marginBottom: 16,
+    marginRight: 16,
+    width: 300,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
@@ -788,7 +788,7 @@ const styles = StyleSheet.create({
   },
   affirmationHeader: {
     flexDirection: "row",
-    justifyContent: "space-between",
+    justifyContent: "flex-end",
     marginBottom: 16,
   },
   iconButton: {
@@ -801,43 +801,31 @@ const styles = StyleSheet.create({
     lineHeight: 28,
     marginBottom: 20,
     textAlign: "left",
+    minHeight: 84,
+  },
+  affirmationActions: {
+    flexDirection: "row",
+    justifyContent: "center",
   },
   generateButton: {
     backgroundColor: "#E0E7FF",
     borderRadius: 20,
     paddingVertical: 12,
     paddingHorizontal: 32,
-    alignSelf: "center",
   },
   generateButtonText: {
     fontSize: 16,
     fontWeight: "600",
     color: "#4F46E5",
   },
-  habitsCard: {
-    backgroundColor: "white",
-    borderRadius: 20,
-    padding: 20,
-    marginBottom: 24,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 5,
-  },
   habitsHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 20,
-  },
-  habitsTitle: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: "#1F2937",
+    marginBottom: 16,
   },
   habitCounter: {
-    backgroundColor: "#E0E7FF",
+    backgroundColor: "rgba(255, 255, 255, 0.3)",
     borderRadius: 16,
     paddingVertical: 6,
     paddingHorizontal: 16,
@@ -845,15 +833,22 @@ const styles = StyleSheet.create({
   habitCounterText: {
     fontSize: 16,
     fontWeight: "700",
-    color: "#4F46E5",
+    color: "white",
   },
-  habitsList: {
-    gap: 16,
+  habitsCard: {
+    backgroundColor: "white",
+    borderRadius: 20,
+    padding: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 5,
   },
   habitItem: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
+    marginBottom: 16,
   },
   habitCheckbox: {
     width: 40,
@@ -863,6 +858,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     backgroundColor: "white",
+    marginRight: 12,
   },
   habitTitle: {
     flex: 1,
@@ -873,74 +869,43 @@ const styles = StyleSheet.create({
   habitTitleCompleted: {
     color: "#6B7280",
   },
-  journalSection: {
-    marginBottom: 24,
+  journalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 16,
   },
-  journalPreview: {
+  journalHeaderRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  journalDate: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "white",
+  },
+  journalCard: {
     backgroundColor: "white",
     borderRadius: 20,
-    padding: 32,
-    alignItems: "center",
+    padding: 20,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
     shadowRadius: 12,
     elevation: 5,
   },
-  journalPreviewText: {
-    fontSize: 16,
-    fontWeight: "500",
-    color: "#6B7280",
-    marginTop: 12,
-  },
-  modalGradient: {
-    flex: 1,
-  },
-  modalHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingHorizontal: 20,
-    paddingTop: Platform.OS === "android" ? 48 : 60,
-    paddingBottom: 16,
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: "white",
-  },
-  doneButton: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "white",
-  },
-  modalContent: {
-    flex: 1,
-    padding: 20,
-  },
-  journalCard: {
-    flex: 1,
-    backgroundColor: "white",
-    borderRadius: 20,
-    padding: 20,
-  },
-  journalDate: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#4F46E5",
-    marginBottom: 16,
-  },
   journalInput: {
-    flex: 1,
     fontSize: 16,
     color: "#1F2937",
     lineHeight: 24,
+    minHeight: 120,
     textAlignVertical: "top",
+    marginBottom: 16,
   },
   journalActions: {
     flexDirection: "row",
     gap: 16,
-    marginTop: 16,
     paddingTop: 16,
     borderTopWidth: 1,
     borderTopColor: "#E5E7EB",
@@ -956,15 +921,21 @@ const styles = StyleSheet.create({
   recordingButton: {
     backgroundColor: "#FEE2E2",
   },
-  photoPreview: {
+  attachmentPreview: {
     marginTop: 12,
-    padding: 12,
-    backgroundColor: "#F3F4F6",
-    borderRadius: 8,
+    position: "relative",
   },
-  photoPreviewText: {
-    fontSize: 14,
-    color: "#6B7280",
+  photoThumbnail: {
+    width: "100%",
+    height: 200,
+    borderRadius: 12,
+  },
+  removeButton: {
+    position: "absolute",
+    top: 8,
+    right: 8,
+    backgroundColor: "white",
+    borderRadius: 12,
   },
   audioPreview: {
     flexDirection: "row",
@@ -976,6 +947,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   audioPreviewText: {
+    flex: 1,
     fontSize: 14,
     color: "#6B7280",
   },

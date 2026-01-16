@@ -89,6 +89,7 @@ export const initDatabase = async (): Promise<void> => {
         photoUri TEXT,
         audioUri TEXT,
         affirmationText TEXT,
+        isFavorite INTEGER DEFAULT 0,
         date TEXT NOT NULL,
         createdAt TEXT DEFAULT CURRENT_TIMESTAMP
       );
@@ -348,8 +349,8 @@ export const createJournalEntry = async (entry: {
 }) => {
   const database = getDb();
   await database.runAsync(
-    'INSERT INTO journal_entries (id, content, photoUri, audioUri, affirmationText, date) VALUES (?, ?, ?, ?, ?, ?)',
-    [entry.id, entry.content, entry.photoUri || null, entry.audioUri || null, entry.affirmationText || null, entry.date]
+    'INSERT INTO journal_entries (id, content, photoUri, audioUri, affirmationText, date, isFavorite) VALUES (?, ?, ?, ?, ?, ?, ?)',
+    [entry.id, entry.content, entry.photoUri || null, entry.audioUri || null, entry.affirmationText || null, entry.date, 0]
   );
   return entry;
 };
@@ -359,6 +360,7 @@ export const updateJournalEntry = async (id: string, updates: {
   photoUri?: string;
   audioUri?: string;
   affirmationText?: string;
+  isFavorite?: boolean;
 }) => {
   const database = getDb();
   const fields: string[] = [];
@@ -379,6 +381,10 @@ export const updateJournalEntry = async (id: string, updates: {
   if (updates.affirmationText !== undefined) {
     fields.push('affirmationText = ?');
     values.push(updates.affirmationText || null);
+  }
+  if (updates.isFavorite !== undefined) {
+    fields.push('isFavorite = ?');
+    values.push(updates.isFavorite ? 1 : 0);
   }
   
   if (fields.length === 0) return;
