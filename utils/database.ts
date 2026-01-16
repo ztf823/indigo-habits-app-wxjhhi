@@ -7,10 +7,21 @@
  */
 
 import * as SQLite from 'expo-sqlite';
+import { Platform } from 'react-native';
 
 const DB_NAME = 'indigo_habits.db';
 
 let db: SQLite.SQLiteDatabase | null = null;
+
+/**
+ * Get the database instance
+ */
+const getDb = (): SQLite.SQLiteDatabase => {
+  if (!db) {
+    throw new Error('Database not initialized. Call initDatabase() first.');
+  }
+  return db;
+};
 
 /**
  * Initialize the database and create tables
@@ -18,6 +29,19 @@ let db: SQLite.SQLiteDatabase | null = null;
 export const initDatabase = async (): Promise<void> => {
   try {
     console.log('[Database] Initializing SQLite database...');
+    
+    // For web, we'll use a mock implementation since SQLite doesn't work well on web
+    if (Platform.OS === 'web') {
+      console.log('[Database] Web platform detected - using mock database');
+      // Create a mock database object for web
+      db = {
+        execAsync: async () => {},
+        runAsync: async () => ({ changes: 0, lastInsertRowId: 0 }),
+        getFirstAsync: async () => null,
+        getAllAsync: async () => [],
+      } as any;
+      return;
+    }
     
     db = await SQLite.openDatabaseAsync(DB_NAME);
     
@@ -91,16 +115,6 @@ export const initDatabase = async (): Promise<void> => {
     console.error('[Database] Error initializing database:', error);
     throw error;
   }
-};
-
-/**
- * Get the database instance
- */
-const getDb = (): SQLite.SQLiteDatabase => {
-  if (!db) {
-    throw new Error('Database not initialized. Call initDatabase() first.');
-  }
-  return db;
 };
 
 // ============================================================================
