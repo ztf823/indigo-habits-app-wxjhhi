@@ -2,6 +2,7 @@
 import { LinearGradient } from "expo-linear-gradient";
 import React, { useState, useEffect, useCallback } from "react";
 import { IconSymbol } from "@/components/IconSymbol";
+import { BadgeIcon } from "@/components/BadgeIcon";
 import { getStreakData } from "@/utils/database";
 import {
   View,
@@ -158,14 +159,12 @@ export default function ProgressScreen() {
           <View style={styles.nextBadgeCard}>
             <Text style={styles.nextBadgeTitle}>Next Badge</Text>
             <View style={styles.nextBadgeContent}>
-              <View style={[styles.nextBadgeIcon, { backgroundColor: nextBadge.glowColor + "20" }]}>
-                <IconSymbol
-                  ios_icon_name="trophy"
-                  android_material_icon_name="emoji-events"
-                  size={40}
-                  color={nextBadge.glowColor}
-                />
-              </View>
+              <BadgeIcon
+                badgeName={nextBadge.name}
+                earned={false}
+                size={40}
+                glowColor={nextBadge.glowColor}
+              />
               <View style={styles.nextBadgeInfo}>
                 <Text style={styles.nextBadgeName}>{nextBadge.name}</Text>
                 <Text style={styles.nextBadgeDescription}>
@@ -200,26 +199,12 @@ export default function ProgressScreen() {
                   badge.earned && { borderColor: badge.glowColor, borderWidth: 2 },
                 ]}
               >
-                <View
-                  style={[
-                    styles.badgeIconContainer,
-                    badge.earned && {
-                      backgroundColor: badge.glowColor + "20",
-                      shadowColor: badge.glowColor,
-                      shadowOffset: { width: 0, height: 0 },
-                      shadowOpacity: 0.5,
-                      shadowRadius: 10,
-                      elevation: 8,
-                    },
-                  ]}
-                >
-                  <IconSymbol
-                    ios_icon_name={badge.earned ? "trophy.fill" : "trophy"}
-                    android_material_icon_name="emoji-events"
-                    size={40}
-                    color={badge.earned ? badge.glowColor : "#9CA3AF"}
-                  />
-                </View>
+                <BadgeIcon
+                  badgeName={badge.name}
+                  earned={badge.earned}
+                  size={40}
+                  glowColor={badge.glowColor}
+                />
                 <Text
                   style={[
                     styles.badgeName,
@@ -372,13 +357,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 16,
   },
-  nextBadgeIcon: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    justifyContent: "center",
-    alignItems: "center",
-  },
   nextBadgeInfo: {
     flex: 1,
   },
@@ -422,14 +400,6 @@ const styles = StyleSheet.create({
   },
   badgeCardLocked: {
     opacity: 0.6,
-  },
-  badgeIconContainer: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 8,
   },
   badgeName: {
     fontSize: 15,
