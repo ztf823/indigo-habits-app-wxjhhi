@@ -1,3 +1,4 @@
+
 {
   "expo": {
     "name": "Indigo Habits",
@@ -44,7 +45,6 @@
       "expo-font",
       "expo-router",
       "expo-web-browser",
-      "expo-sqlite",
       [
         "expo-image-picker",
         {
@@ -65,6 +65,5 @@
         "projectId": "indigo-habits-production"
       }
     }
-  },
-  "scheme": "Indigo Habits"
+  }
 }

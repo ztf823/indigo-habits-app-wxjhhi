@@ -6,17 +6,60 @@
  * No backend server required.
  */
 
-import * as SQLite from 'expo-sqlite';
 import { Platform } from 'react-native';
 
 const DB_NAME = 'indigo_habits.db';
 
-let db: SQLite.SQLiteDatabase | null = null;
+let db: any = null;
+
+// Mock database for web platform
+const createMockDb = () => {
+  const storage: any = {};
+  
+  return {
+    execAsync: async () => {
+      console.log('[Database] Mock execAsync called (web platform)');
+    },
+    runAsync: async (query: string, params?: any[]) => {
+      console.log('[Database] Mock runAsync called (web platform):', query);
+      return { changes: 0, lastInsertRowId: 0 };
+    },
+    getFirstAsync: async (query: string, params?: any[]) => {
+      console.log('[Database] Mock getFirstAsync called (web platform):', query);
+      
+      // Handle profile query
+      if (query.includes('profile')) {
+        return storage.profile || { id: 'default', name: 'User', email: '', isPremium: 0 };
+      }
+      
+      return null;
+    },
+    getAllAsync: async (query: string, params?: any[]) => {
+      console.log('[Database] Mock getAllAsync called (web platform):', query);
+      
+      // Handle different queries
+      if (query.includes('affirmations')) {
+        return storage.affirmations || [];
+      }
+      if (query.includes('habits')) {
+        return storage.habits || [];
+      }
+      if (query.includes('journal_entries')) {
+        return storage.journalEntries || [];
+      }
+      if (query.includes('habit_completions')) {
+        return storage.habitCompletions || [];
+      }
+      
+      return [];
+    },
+  };
+};
 
 /**
  * Get the database instance
  */
-const getDb = (): SQLite.SQLiteDatabase => {
+const getDb = (): any => {
   if (!db) {
     throw new Error('Database not initialized. Call initDatabase() first.');
   }
@@ -30,19 +73,15 @@ export const initDatabase = async (): Promise<void> => {
   try {
     console.log('[Database] Initializing SQLite database...');
     
-    // For web, we'll use a mock implementation since SQLite doesn't work well on web
+    // For web, use a mock implementation since SQLite doesn't work well on web
     if (Platform.OS === 'web') {
       console.log('[Database] Web platform detected - using mock database');
-      // Create a mock database object for web
-      db = {
-        execAsync: async () => {},
-        runAsync: async () => ({ changes: 0, lastInsertRowId: 0 }),
-        getFirstAsync: async () => null,
-        getAllAsync: async () => [],
-      } as any;
+      db = createMockDb();
       return;
     }
     
+    // Dynamically import expo-sqlite only on native platforms
+    const SQLite = await import('expo-sqlite');
     db = await SQLite.openDatabaseAsync(DB_NAME);
     
     // Create tables
