@@ -13,6 +13,8 @@ import {
   ActivityIndicator,
   Platform,
   Image,
+  Modal,
+  KeyboardAvoidingView,
 } from "react-native";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
@@ -83,6 +85,7 @@ export default function HomeScreen() {
   const [isPremium, setIsPremium] = useState(false);
 
   // Journal state
+  const [journalModalVisible, setJournalModalVisible] = useState(false);
   const [journalContent, setJournalContent] = useState("");
   const [journalPhoto, setJournalPhoto] = useState<string | null>(null);
   const [isRecording, setIsRecording] = useState(false);
@@ -156,7 +159,7 @@ export default function HomeScreen() {
       // Filter for repeating habits
       let repeatingHabits = dbHabits.filter(h => h.isRepeating === 1);
 
-      // If no habits exist, create default ones
+      // If no repeating habits exist, create default ones
       if (repeatingHabits.length === 0) {
         console.log(`Creating ${DEFAULT_HABITS.length} default habits...`);
         
@@ -376,6 +379,22 @@ export default function HomeScreen() {
       console.error("Error generating new affirmation:", error);
       Alert.alert("Error", "Failed to generate new affirmation. Please try again.");
     }
+  };
+
+  const openJournalModal = () => {
+    console.log("User tapped pencil icon to open journal");
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setJournalModalVisible(true);
+  };
+
+  const closeJournalModal = () => {
+    console.log("User closed journal modal");
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    
+    // Save before closing
+    saveJournalEntry();
+    
+    setJournalModalVisible(false);
   };
 
   const handleJournalTextChange = (text: string) => {
@@ -640,8 +659,7 @@ export default function HomeScreen() {
                 <TouchableOpacity
                   style={[
                     styles.habitCheckbox,
-                    { borderColor: habit.color },
-                    habit.completed && { backgroundColor: "#10B981" },
+                    { backgroundColor: habit.completed ? habit.color : "white", borderColor: habit.color },
                   ]}
                   onPress={() => toggleHabit(habit.id)}
                 >
@@ -687,6 +705,76 @@ export default function HomeScreen() {
             <View style={styles.journalHeaderRight}>
               <Text style={styles.journalDate}>{new Date().toLocaleDateString()}</Text>
               <TouchableOpacity
+                onPress={openJournalModal}
+                style={styles.iconButton}
+              >
+                <IconSymbol
+                  ios_icon_name="pencil"
+                  android_material_icon_name="edit"
+                  size={24}
+                  color="white"
+                />
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          <View style={styles.journalCard}>
+            <Text style={styles.journalPreview} numberOfLines={3}>
+              {journalContent || "Tap the pencil icon to start writing..."}
+            </Text>
+            
+            {journalPhoto && (
+              <View style={styles.journalPhotoPreview}>
+                <Image source={{ uri: journalPhoto }} style={styles.journalPhotoThumbnail} />
+              </View>
+            )}
+            
+            {audioUri && (
+              <View style={styles.journalAudioPreview}>
+                <IconSymbol
+                  ios_icon_name="waveform"
+                  android_material_icon_name="graphic-eq"
+                  size={16}
+                  color="#4F46E5"
+                />
+                <Text style={styles.journalAudioText}>Audio memo attached</Text>
+              </View>
+            )}
+          </View>
+        </View>
+      </ScrollView>
+
+      {/* Full-Screen Journal Modal */}
+      <Modal
+        visible={journalModalVisible}
+        animationType="slide"
+        presentationStyle="fullScreen"
+        onRequestClose={closeJournalModal}
+      >
+        <KeyboardAvoidingView
+          style={styles.journalModalContainer}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+        >
+          <LinearGradient
+            colors={["#4F46E5", "#87CEEB"]}
+            style={styles.journalModalGradient}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 0, y: 1 }}
+          >
+            {/* Journal Modal Header */}
+            <View style={styles.journalModalHeader}>
+              <TouchableOpacity onPress={closeJournalModal} style={styles.journalModalClose}>
+                <IconSymbol
+                  ios_icon_name="chevron.down"
+                  android_material_icon_name="keyboard-arrow-down"
+                  size={28}
+                  color="white"
+                />
+              </TouchableOpacity>
+              
+              <Text style={styles.journalModalTitle}>Today's Journal</Text>
+              
+              <TouchableOpacity
                 onPress={toggleJournalFavorite}
                 style={styles.iconButton}
               >
@@ -694,98 +782,107 @@ export default function HomeScreen() {
                   ios_icon_name={journalIsFavorite ? "star.fill" : "star"}
                   android_material_icon_name={journalIsFavorite ? "star" : "star-border"}
                   size={24}
-                  color={journalIsFavorite ? "#FFD700" : "#C0C0C0"}
+                  color={journalIsFavorite ? "#FFD700" : "white"}
                 />
               </TouchableOpacity>
             </View>
-          </View>
 
-          <View style={styles.journalCard}>
-            <TextInput
-              style={styles.journalInput}
-              placeholder="Write your thoughts..."
-              placeholderTextColor="#9CA3AF"
-              multiline
-              value={journalContent}
-              onChangeText={handleJournalTextChange}
-              onBlur={saveJournalEntry}
-            />
+            {/* Journal Text Area */}
+            <View style={styles.journalModalContent}>
+              <TextInput
+                style={styles.journalModalInput}
+                placeholder="Write your thoughts..."
+                placeholderTextColor="rgba(255, 255, 255, 0.6)"
+                multiline
+                value={journalContent}
+                onChangeText={handleJournalTextChange}
+                autoFocus
+              />
 
-            <View style={styles.journalActions}>
-              <TouchableOpacity onPress={pickImage} style={styles.actionButton}>
+              {journalPhoto && (
+                <View style={styles.journalModalPhotoPreview}>
+                  <Image source={{ uri: journalPhoto }} style={styles.journalModalPhoto} />
+                  <TouchableOpacity
+                    onPress={() => setJournalPhoto(null)}
+                    style={styles.journalModalRemoveButton}
+                  >
+                    <IconSymbol
+                      ios_icon_name="xmark.circle.fill"
+                      android_material_icon_name="cancel"
+                      size={24}
+                      color="#EF4444"
+                    />
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              {audioUri && (
+                <View style={styles.journalModalAudioPreview}>
+                  <IconSymbol
+                    ios_icon_name="waveform"
+                    android_material_icon_name="graphic-eq"
+                    size={20}
+                    color="white"
+                  />
+                  <Text style={styles.journalModalAudioText}>Audio memo attached</Text>
+                  <TouchableOpacity
+                    onPress={() => setAudioUri(null)}
+                    style={styles.journalModalRemoveButton}
+                  >
+                    <IconSymbol
+                      ios_icon_name="xmark.circle.fill"
+                      android_material_icon_name="cancel"
+                      size={20}
+                      color="#EF4444"
+                    />
+                  </TouchableOpacity>
+                </View>
+              )}
+            </View>
+
+            {/* Journal Modal Actions */}
+            <View style={styles.journalModalActions}>
+              <TouchableOpacity onPress={pickImage} style={styles.journalModalActionButton}>
                 <IconSymbol
                   ios_icon_name="camera"
                   android_material_icon_name="camera-alt"
                   size={24}
-                  color="#4F46E5"
+                  color="white"
                 />
               </TouchableOpacity>
 
               <TouchableOpacity
                 onPress={isRecording ? stopRecording : startRecording}
                 style={[
-                  styles.actionButton,
-                  isRecording && styles.recordingButton,
+                  styles.journalModalActionButton,
+                  isRecording && styles.journalModalRecordingButton,
                 ]}
               >
                 <IconSymbol
                   ios_icon_name={isRecording ? "stop.circle" : "mic"}
                   android_material_icon_name={isRecording ? "stop" : "mic"}
                   size={24}
-                  color={isRecording ? "#EF4444" : "#4F46E5"}
+                  color="white"
                 />
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={closeJournalModal}
+                style={styles.journalModalDoneButton}
+              >
+                <Text style={styles.journalModalDoneText}>Done</Text>
               </TouchableOpacity>
             </View>
 
-            {journalPhoto && (
-              <View style={styles.attachmentPreview}>
-                <Image source={{ uri: journalPhoto }} style={styles.photoThumbnail} />
-                <TouchableOpacity
-                  onPress={() => setJournalPhoto(null)}
-                  style={styles.removeButton}
-                >
-                  <IconSymbol
-                    ios_icon_name="xmark.circle.fill"
-                    android_material_icon_name="cancel"
-                    size={20}
-                    color="#EF4444"
-                  />
-                </TouchableOpacity>
-              </View>
-            )}
-
-            {audioUri && (
-              <View style={styles.audioPreview}>
-                <IconSymbol
-                  ios_icon_name="waveform"
-                  android_material_icon_name="graphic-eq"
-                  size={20}
-                  color="#4F46E5"
-                />
-                <Text style={styles.audioPreviewText}>Audio memo attached</Text>
-                <TouchableOpacity
-                  onPress={() => setAudioUri(null)}
-                  style={styles.removeButton}
-                >
-                  <IconSymbol
-                    ios_icon_name="xmark.circle.fill"
-                    android_material_icon_name="cancel"
-                    size={20}
-                    color="#EF4444"
-                  />
-                </TouchableOpacity>
-              </View>
-            )}
-
             {isSaving && (
-              <View style={styles.savingIndicator}>
-                <ActivityIndicator size="small" color="#4F46E5" />
-                <Text style={styles.savingText}>Saving...</Text>
+              <View style={styles.journalModalSaving}>
+                <ActivityIndicator size="small" color="white" />
+                <Text style={styles.journalModalSavingText}>Auto-saving...</Text>
               </View>
             )}
-          </View>
-        </View>
-      </ScrollView>
+          </LinearGradient>
+        </KeyboardAvoidingView>
+      </Modal>
     </LinearGradient>
   );
 }
@@ -928,7 +1025,6 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "white",
     marginRight: 12,
   },
   habitTitle: {
@@ -966,73 +1062,144 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     elevation: 5,
   },
-  journalInput: {
+  journalPreview: {
     fontSize: 16,
-    color: "#1F2937",
+    color: "#6B7280",
     lineHeight: 24,
-    minHeight: 120,
-    textAlignVertical: "top",
-    marginBottom: 16,
   },
-  journalActions: {
-    flexDirection: "row",
-    gap: 16,
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: "#E5E7EB",
-  },
-  actionButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: "#F3F4F6",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  recordingButton: {
-    backgroundColor: "#FEE2E2",
-  },
-  attachmentPreview: {
+  journalPhotoPreview: {
     marginTop: 12,
+  },
+  journalPhotoThumbnail: {
+    width: "100%",
+    height: 120,
+    borderRadius: 12,
+  },
+  journalAudioPreview: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginTop: 12,
+    padding: 12,
+    backgroundColor: "#F3F4F6",
+    borderRadius: 8,
+  },
+  journalAudioText: {
+    flex: 1,
+    fontSize: 14,
+    color: "#6B7280",
+  },
+  journalModalContainer: {
+    flex: 1,
+  },
+  journalModalGradient: {
+    flex: 1,
+  },
+  journalModalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingTop: Platform.OS === "android" ? 48 : 60,
+    paddingHorizontal: 20,
+    paddingBottom: 16,
+  },
+  journalModalClose: {
+    padding: 4,
+  },
+  journalModalTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "white",
+  },
+  journalModalContent: {
+    flex: 1,
+    paddingHorizontal: 20,
+  },
+  journalModalInput: {
+    flex: 1,
+    fontSize: 18,
+    color: "white",
+    lineHeight: 28,
+    textAlignVertical: "top",
+  },
+  journalModalPhotoPreview: {
+    marginTop: 16,
     position: "relative",
   },
-  photoThumbnail: {
+  journalModalPhoto: {
     width: "100%",
     height: 200,
     borderRadius: 12,
   },
-  removeButton: {
+  journalModalRemoveButton: {
     position: "absolute",
     top: 8,
     right: 8,
     backgroundColor: "white",
     borderRadius: 12,
   },
-  audioPreview: {
+  journalModalAudioPreview: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    marginTop: 12,
+    marginTop: 16,
     padding: 12,
-    backgroundColor: "#F3F4F6",
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
     borderRadius: 8,
   },
-  audioPreviewText: {
+  journalModalAudioText: {
     flex: 1,
     fontSize: 14,
-    color: "#6B7280",
+    color: "white",
   },
-  savingIndicator: {
+  journalModalActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+    paddingVertical: 20,
+    paddingBottom: Platform.OS === "android" ? 20 : 40,
+  },
+  journalModalActionButton: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  journalModalRecordingButton: {
+    backgroundColor: "rgba(239, 68, 68, 0.3)",
+  },
+  journalModalDoneButton: {
+    flex: 1,
+    marginLeft: 16,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: "white",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  journalModalDoneText: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#4F46E5",
+  },
+  journalModalSaving: {
+    position: "absolute",
+    top: Platform.OS === "android" ? 100 : 120,
+    right: 20,
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    marginTop: 12,
-    padding: 12,
-    backgroundColor: "#F3F4F6",
-    borderRadius: 8,
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
   },
-  savingText: {
+  journalModalSavingText: {
     fontSize: 14,
-    color: "#6B7280",
+    color: "white",
+    fontWeight: "600",
   },
 });

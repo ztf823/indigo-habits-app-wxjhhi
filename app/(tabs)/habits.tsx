@@ -49,19 +49,28 @@ interface Affirmation {
 }
 
 const COLORS = [
-  "#6366F1", // Indigo
   "#10B981", // Green
+  "#3B82F6", // Blue
   "#F59E0B", // Amber
-  "#EF4444", // Red
+  "#06B6D4", // Cyan
   "#8B5CF6", // Purple
   "#EC4899", // Pink
-  "#06B6D4", // Cyan
+  "#EF4444", // Red
 ];
 
 // Free users: 5 affirmations and 5 habits
 // Pro users: unlimited
 const FREE_MAX_AFFIRMATIONS = 5;
 const FREE_MAX_HABITS = 5;
+
+// Default habits matching home screen
+const DEFAULT_HABITS = [
+  { title: "Morning meditation", color: "#10B981" },
+  { title: "Exercise", color: "#3B82F6" },
+  { title: "Read 10 pages", color: "#F59E0B" },
+  { title: "Drink 8 glasses of water", color: "#06B6D4" },
+  { title: "Practice gratitude", color: "#8B5CF6" },
+];
 
 export default function HabitsScreen() {
   const [activeTab, setActiveTab] = useState<"habits" | "affirmations">("habits");
@@ -95,6 +104,26 @@ export default function HabitsScreen() {
   const loadHabits = useCallback(async () => {
     try {
       const dbHabits = await getAllHabits() as Habit[];
+      
+      // If no habits exist, create default ones
+      if (dbHabits.length === 0) {
+        console.log(`Creating ${DEFAULT_HABITS.length} default habits...`);
+        
+        for (let i = 0; i < DEFAULT_HABITS.length; i++) {
+          const defaultHabit = DEFAULT_HABITS[i];
+          const newHabit = {
+            id: `habit_${Date.now()}_${i}`,
+            title: defaultHabit.title,
+            color: defaultHabit.color,
+            isRepeating: true, // Default habits are repeating
+            isFavorite: false,
+            orderIndex: i,
+          };
+          await createHabit(newHabit);
+          dbHabits.push({ ...newHabit, isActive: 1, isRepeating: 1 } as any);
+        }
+      }
+      
       setHabits(dbHabits);
       console.log(`Loaded ${dbHabits.length} habits`);
     } catch (error) {
@@ -416,7 +445,7 @@ export default function HabitsScreen() {
       <View style={styles.container}>
         {/* Header */}
         <View style={styles.header}>
-          <Text style={styles.headerTitle}>My Habits</Text>
+          <Text style={styles.headerTitle}>Manage Habits</Text>
           {!isPremium && (
             <Text style={styles.headerSubtitle}>
               Free: {activeTab === "habits" ? `${habits.length}/${FREE_MAX_HABITS} habits` : `${affirmations.length}/${FREE_MAX_AFFIRMATIONS} affirmations`}
@@ -487,7 +516,7 @@ export default function HabitsScreen() {
                 </View>
               ) : (
                 <>
-                  {habits.map((habit, index) => (
+                  {habits.map((habit) => (
                     <View key={habit.id} style={styles.habitCard}>
                       <View style={styles.habitTop}>
                         <View style={styles.habitLeft}>
@@ -574,7 +603,7 @@ export default function HabitsScreen() {
                 </View>
               ) : (
                 <>
-                  {affirmations.map((affirmation, index) => (
+                  {affirmations.map((affirmation) => (
                     <View key={affirmation.id} style={styles.affirmationCard}>
                       <Text style={styles.affirmationText}>{affirmation.text}</Text>
                       
@@ -872,9 +901,9 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   habitDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
   },
   habitTitle: {
     fontSize: 16,
