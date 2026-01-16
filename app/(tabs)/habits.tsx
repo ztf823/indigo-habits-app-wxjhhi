@@ -49,8 +49,8 @@ interface Affirmation {
 }
 
 const COLORS = [
+  "#6366F1", // Indigo
   "#10B981", // Green
-  "#3B82F6", // Blue
   "#F59E0B", // Amber
   "#EF4444", // Red
   "#8B5CF6", // Purple
@@ -251,7 +251,7 @@ export default function HabitsScreen() {
 
   const toggleHabitRepeating = async (habitId: string) => {
     try {
-      console.log("User toggling habit repeating:", habitId);
+      console.log("User toggling habit daily repeat:", habitId);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
       const habit = habits.find((h) => h.id === habitId);
@@ -269,52 +269,6 @@ export default function HabitsScreen() {
       playChime();
     } catch (error) {
       console.error("Error toggling habit repeating:", error);
-    }
-  };
-
-  const moveHabitUp = async (index: number) => {
-    if (index === 0) return;
-
-    try {
-      console.log("User moving habit up:", index);
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-
-      const newHabits = [...habits];
-      [newHabits[index], newHabits[index - 1]] = [newHabits[index - 1], newHabits[index]];
-
-      setHabits(newHabits);
-
-      // Update order in database
-      await Promise.all(
-        newHabits.map((habit, idx) =>
-          updateHabit(habit.id, { orderIndex: idx })
-        )
-      );
-    } catch (error) {
-      console.error("Error moving habit:", error);
-    }
-  };
-
-  const moveHabitDown = async (index: number) => {
-    if (index === habits.length - 1) return;
-
-    try {
-      console.log("User moving habit down:", index);
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-
-      const newHabits = [...habits];
-      [newHabits[index], newHabits[index + 1]] = [newHabits[index + 1], newHabits[index]];
-
-      setHabits(newHabits);
-
-      // Update order in database
-      await Promise.all(
-        newHabits.map((habit, idx) =>
-          updateHabit(habit.id, { orderIndex: idx })
-        )
-      );
-    } catch (error) {
-      console.error("Error moving habit:", error);
     }
   };
 
@@ -368,7 +322,7 @@ export default function HabitsScreen() {
 
   const toggleAffirmationRepeating = async (affirmationId: string) => {
     try {
-      console.log("User toggling affirmation repeating:", affirmationId);
+      console.log("User toggling affirmation daily repeat:", affirmationId);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
       const affirmation = affirmations.find((a) => a.id === affirmationId);
@@ -389,55 +343,26 @@ export default function HabitsScreen() {
     }
   };
 
-  const moveAffirmationUp = async (index: number) => {
-    if (index === 0) return;
-
+  const toggleAffirmationFavorite = async (affirmationId: string) => {
     try {
-      console.log("User moving affirmation up:", index);
+      console.log("User toggling affirmation favorite:", affirmationId);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
-      const newAffirmations = [...affirmations];
-      [newAffirmations[index], newAffirmations[index - 1]] = [
-        newAffirmations[index - 1],
-        newAffirmations[index],
-      ];
+      const affirmation = affirmations.find((a) => a.id === affirmationId);
+      if (!affirmation) return;
 
-      setAffirmations(newAffirmations);
+      const newFavorite = affirmation.isFavorite === 1 ? 0 : 1;
 
-      // Update order in database
-      await Promise.all(
-        newAffirmations.map((affirmation, idx) =>
-          updateAffirmation(affirmation.id, { orderIndex: idx })
+      setAffirmations((prev) =>
+        prev.map((a) =>
+          a.id === affirmationId ? { ...a, isFavorite: newFavorite } : a
         )
       );
+
+      await updateAffirmation(affirmationId, { isFavorite: newFavorite === 1 });
+      playChime();
     } catch (error) {
-      console.error("Error moving affirmation:", error);
-    }
-  };
-
-  const moveAffirmationDown = async (index: number) => {
-    if (index === affirmations.length - 1) return;
-
-    try {
-      console.log("User moving affirmation down:", index);
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-
-      const newAffirmations = [...affirmations];
-      [newAffirmations[index], newAffirmations[index + 1]] = [
-        newAffirmations[index + 1],
-        newAffirmations[index],
-      ];
-
-      setAffirmations(newAffirmations);
-
-      // Update order in database
-      await Promise.all(
-        newAffirmations.map((affirmation, idx) =>
-          updateAffirmation(affirmation.id, { orderIndex: idx })
-        )
-      );
-    } catch (error) {
-      console.error("Error moving affirmation:", error);
+      console.error("Error toggling affirmation favorite:", error);
     }
   };
 
@@ -470,7 +395,7 @@ export default function HabitsScreen() {
   if (loading) {
     return (
       <LinearGradient
-        colors={["#4F46E5", "#87CEEB"]}
+        colors={["#6366F1", "#87CEEB"]}
         style={styles.gradient}
         start={{ x: 0, y: 0 }}
         end={{ x: 0, y: 1 }}
@@ -485,7 +410,7 @@ export default function HabitsScreen() {
 
   return (
     <LinearGradient
-      colors={["#4F46E5", "#87CEEB"]}
+      colors={["#6366F1", "#87CEEB"]}
       style={styles.gradient}
       start={{ x: 0, y: 0 }}
       end={{ x: 0, y: 1 }}
@@ -494,18 +419,17 @@ export default function HabitsScreen() {
         {/* Header */}
         <View style={styles.header}>
           <Text style={styles.headerTitle}>My Habits</Text>
-          {!isPremium && (
-            <Text style={styles.limitText}>
-              Free: {activeTab === "habits" ? `${habits.length}/${FREE_MAX_HABITS} habits` : `${affirmations.length}/${FREE_MAX_AFFIRMATIONS} affirmations`}
-            </Text>
-          )}
         </View>
 
         {/* Tabs */}
         <View style={styles.tabs}>
           <TouchableOpacity
             style={[styles.tab, activeTab === "habits" && styles.activeTab]}
-            onPress={() => setActiveTab("habits")}
+            onPress={() => {
+              console.log("User switched to Habits tab");
+              setActiveTab("habits");
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            }}
           >
             <Text
               style={[
@@ -518,7 +442,11 @@ export default function HabitsScreen() {
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.tab, activeTab === "affirmations" && styles.activeTab]}
-            onPress={() => setActiveTab("affirmations")}
+            onPress={() => {
+              console.log("User switched to Affirmations tab");
+              setActiveTab("affirmations");
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            }}
           >
             <Text
               style={[
@@ -541,67 +469,44 @@ export default function HabitsScreen() {
         >
           {activeTab === "habits" ? (
             <>
-              {habits.map((habit, index) => (
-                <View key={habit.id} style={styles.item}>
-                  <View
-                    style={[styles.colorIndicator, { backgroundColor: habit.color }]}
+              {/* Demo mode banner */}
+              {Platform.OS === 'web' && (
+                <View style={styles.demoBanner}>
+                  <IconSymbol
+                    ios_icon_name="info.circle.fill"
+                    android_material_icon_name="info"
+                    size={20}
+                    color="#92400E"
                   />
-                  <View style={styles.itemContent}>
-                    <Text style={styles.itemTitle}>{habit.title}</Text>
-                    {habit.isRepeating === 1 && (
-                      <Text style={styles.itemSubtitle}>Repeating daily</Text>
-                    )}
+                  <Text style={styles.demoText}>
+                    Demo Mode - Changes won&apos;t be saved until backend is ready
+                  </Text>
+                </View>
+              )}
+
+              {habits.map((habit, index) => (
+                <View key={habit.id} style={styles.habitCard}>
+                  <View style={styles.habitLeft}>
+                    <View
+                      style={[styles.habitDot, { backgroundColor: habit.color }]}
+                    />
+                    <Text style={styles.habitTitle}>{habit.title}</Text>
                   </View>
-                  <View style={styles.itemActions}>
-                    <TouchableOpacity
-                      onPress={() => moveHabitUp(index)}
-                      disabled={index === 0}
-                      style={styles.actionButton}
-                    >
-                      <IconSymbol
-                        ios_icon_name="chevron.up"
-                        android_material_icon_name="keyboard-arrow-up"
-                        size={20}
-                        color={index === 0 ? "#999" : "white"}
-                      />
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      onPress={() => moveHabitDown(index)}
-                      disabled={index === habits.length - 1}
-                      style={styles.actionButton}
-                    >
-                      <IconSymbol
-                        ios_icon_name="chevron.down"
-                        android_material_icon_name="keyboard-arrow-down"
-                        size={20}
-                        color={index === habits.length - 1 ? "#999" : "white"}
-                      />
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      onPress={() => toggleHabitRepeating(habit.id)}
-                      style={styles.actionButton}
-                    >
-                      <IconSymbol
-                        ios_icon_name="repeat"
-                        android_material_icon_name="repeat"
-                        size={20}
-                        color={habit.isRepeating === 1 ? "#10B981" : "white"}
-                      />
-                    </TouchableOpacity>
+                  <View style={styles.habitActions}>
                     <TouchableOpacity
                       onPress={() => openEditModal(habit)}
-                      style={styles.actionButton}
+                      style={styles.iconButton}
                     >
                       <IconSymbol
                         ios_icon_name="pencil"
                         android_material_icon_name="edit"
                         size={20}
-                        color="white"
+                        color="#6366F1"
                       />
                     </TouchableOpacity>
                     <TouchableOpacity
                       onPress={() => handleDeleteHabit(habit.id)}
-                      style={styles.actionButton}
+                      style={styles.iconButton}
                     >
                       <IconSymbol
                         ios_icon_name="trash"
@@ -613,109 +518,109 @@ export default function HabitsScreen() {
                   </View>
                 </View>
               ))}
-
-              <TouchableOpacity
-                style={styles.addButton}
-                onPress={() => {
-                  setEditingHabit(null);
-                  setHabitTitle("");
-                  setHabitColor(COLORS[0]);
-                  setHabitModalVisible(true);
-                }}
-              >
-                <IconSymbol
-                  ios_icon_name="plus"
-                  android_material_icon_name="add"
-                  size={24}
-                  color="white"
-                />
-                <Text style={styles.addButtonText}>Add Habit</Text>
-              </TouchableOpacity>
             </>
           ) : (
             <>
+              {/* Section header */}
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionTitle}>All Affirmations</Text>
+                <Text style={styles.sectionSubtitle}>
+                  Manage custom affirmations and set them to repeat daily
+                </Text>
+              </View>
+
               {affirmations.map((affirmation, index) => (
-                <View key={affirmation.id} style={styles.item}>
-                  <View style={styles.itemContent}>
-                    <Text style={styles.itemTitle}>{affirmation.text}</Text>
-                    <View style={styles.itemMeta}>
+                <View key={affirmation.id} style={styles.affirmationCard}>
+                  <Text style={styles.affirmationText}>{affirmation.text}</Text>
+                  <View style={styles.affirmationMeta}>
+                    <View style={styles.affirmationBadges}>
                       {affirmation.isCustom === 1 && (
-                        <Text style={styles.itemBadge}>Custom</Text>
+                        <View style={styles.badge}>
+                          <Text style={styles.badgeText}>Custom</Text>
+                        </View>
                       )}
-                      {affirmation.isRepeating === 1 && (
-                        <Text style={styles.itemBadge}>Repeating</Text>
+                      {affirmation.isFavorite === 1 && (
+                        <TouchableOpacity
+                          style={styles.badge}
+                          onPress={() => toggleAffirmationFavorite(affirmation.id)}
+                        >
+                          <IconSymbol
+                            ios_icon_name="star.fill"
+                            android_material_icon_name="star"
+                            size={14}
+                            color="#F59E0B"
+                          />
+                          <Text style={styles.badgeText}>Favorite</Text>
+                        </TouchableOpacity>
                       )}
                     </View>
-                  </View>
-                  <View style={styles.itemActions}>
-                    <TouchableOpacity
-                      onPress={() => moveAffirmationUp(index)}
-                      disabled={index === 0}
-                      style={styles.actionButton}
-                    >
-                      <IconSymbol
-                        ios_icon_name="chevron.up"
-                        android_material_icon_name="keyboard-arrow-up"
-                        size={20}
-                        color={index === 0 ? "#999" : "white"}
-                      />
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      onPress={() => moveAffirmationDown(index)}
-                      disabled={index === affirmations.length - 1}
-                      style={styles.actionButton}
-                    >
-                      <IconSymbol
-                        ios_icon_name="chevron.down"
-                        android_material_icon_name="keyboard-arrow-down"
-                        size={20}
-                        color={index === affirmations.length - 1 ? "#999" : "white"}
-                      />
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      onPress={() => toggleAffirmationRepeating(affirmation.id)}
-                      style={styles.actionButton}
-                    >
-                      <IconSymbol
-                        ios_icon_name="repeat"
-                        android_material_icon_name="repeat"
-                        size={20}
-                        color={affirmation.isRepeating === 1 ? "#10B981" : "white"}
-                      />
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      onPress={() => deleteAffirmationItem(affirmation.id)}
-                      style={styles.actionButton}
-                    >
-                      <IconSymbol
-                        ios_icon_name="trash"
-                        android_material_icon_name="delete"
-                        size={20}
-                        color="#EF4444"
-                      />
-                    </TouchableOpacity>
+                    <View style={styles.affirmationActions}>
+                      <TouchableOpacity
+                        style={[
+                          styles.dailyButton,
+                          affirmation.isRepeating === 1 && styles.dailyButtonActive,
+                        ]}
+                        onPress={() => toggleAffirmationRepeating(affirmation.id)}
+                      >
+                        <IconSymbol
+                          ios_icon_name="repeat"
+                          android_material_icon_name="repeat"
+                          size={16}
+                          color={affirmation.isRepeating === 1 ? "white" : "#6366F1"}
+                        />
+                        <Text
+                          style={[
+                            styles.dailyButtonText,
+                            affirmation.isRepeating === 1 && styles.dailyButtonTextActive,
+                          ]}
+                        >
+                          Daily
+                        </Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        onPress={() => deleteAffirmationItem(affirmation.id)}
+                        style={styles.iconButton}
+                      >
+                        <IconSymbol
+                          ios_icon_name="trash"
+                          android_material_icon_name="delete"
+                          size={20}
+                          color="#EF4444"
+                        />
+                      </TouchableOpacity>
+                    </View>
                   </View>
                 </View>
               ))}
-
-              <TouchableOpacity
-                style={styles.addButton}
-                onPress={() => {
-                  setAffirmationText("");
-                  setAffirmationModalVisible(true);
-                }}
-              >
-                <IconSymbol
-                  ios_icon_name="plus"
-                  android_material_icon_name="add"
-                  size={24}
-                  color="white"
-                />
-                <Text style={styles.addButtonText}>Add Custom Affirmation</Text>
-              </TouchableOpacity>
             </>
           )}
         </ScrollView>
+
+        {/* Floating Add Button */}
+        <TouchableOpacity
+          style={styles.fab}
+          onPress={() => {
+            if (activeTab === "habits") {
+              console.log("User tapped add habit button");
+              setEditingHabit(null);
+              setHabitTitle("");
+              setHabitColor(COLORS[0]);
+              setHabitModalVisible(true);
+            } else {
+              console.log("User tapped add affirmation button");
+              setAffirmationText("");
+              setAffirmationModalVisible(true);
+            }
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+          }}
+        >
+          <IconSymbol
+            ios_icon_name="plus"
+            android_material_icon_name="add"
+            size={28}
+            color="white"
+          />
+        </TouchableOpacity>
       </View>
 
       {/* Habit Modal */}
@@ -744,7 +649,7 @@ export default function HabitsScreen() {
             <Text style={styles.label}>Habit Name</Text>
             <TextInput
               style={styles.input}
-              placeholder="e.g., Meditate, Exercise, Read"
+              placeholder="e.g., Morning meditation"
               value={habitTitle}
               onChangeText={setHabitTitle}
               autoFocus
@@ -760,7 +665,10 @@ export default function HabitsScreen() {
                     { backgroundColor: color },
                     habitColor === color && styles.selectedColor,
                   ]}
-                  onPress={() => setHabitColor(color)}
+                  onPress={() => {
+                    setHabitColor(color);
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  }}
                 />
               ))}
             </View>
@@ -790,7 +698,7 @@ export default function HabitsScreen() {
             <Text style={styles.label}>Affirmation Text</Text>
             <TextInput
               style={[styles.input, styles.textArea]}
-              placeholder="e.g., I am capable of achieving my goals"
+              placeholder="e.g., I am worthy of love and respect."
               value={affirmationText}
               onChangeText={setAffirmationText}
               multiline
@@ -814,30 +722,24 @@ const styles = StyleSheet.create({
   header: {
     paddingTop: Platform.OS === "android" ? 48 : 60,
     paddingHorizontal: 20,
-    paddingBottom: 16,
+    paddingBottom: 20,
   },
   headerTitle: {
-    fontSize: 32,
+    fontSize: 34,
     fontWeight: "800",
     color: "white",
-  },
-  limitText: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "rgba(255, 255, 255, 0.9)",
-    marginTop: 4,
   },
   tabs: {
     flexDirection: "row",
     paddingHorizontal: 20,
-    marginBottom: 16,
+    marginBottom: 20,
     gap: 12,
   },
   tab: {
     flex: 1,
     paddingVertical: 12,
     borderRadius: 12,
-    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    backgroundColor: "rgba(255, 255, 255, 0.25)",
     alignItems: "center",
   },
   activeTab: {
@@ -845,18 +747,18 @@ const styles = StyleSheet.create({
   },
   tabText: {
     fontSize: 16,
-    fontWeight: "600",
-    color: "white",
+    fontWeight: "700",
+    color: "rgba(255, 255, 255, 0.9)",
   },
   activeTabText: {
-    color: "#4F46E5",
+    color: "#6366F1",
   },
   content: {
     flex: 1,
   },
   contentContainer: {
     paddingHorizontal: 20,
-    paddingBottom: 100,
+    paddingBottom: 120,
   },
   loadingContainer: {
     flex: 1,
@@ -868,68 +770,154 @@ const styles = StyleSheet.create({
     fontSize: 16,
     marginTop: 12,
   },
-  item: {
+  demoBanner: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    backgroundColor: "#FEF3C7",
     borderRadius: 12,
+    padding: 12,
+    marginBottom: 16,
+    gap: 8,
+  },
+  demoText: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#92400E",
+  },
+  habitCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "white",
+    borderRadius: 16,
     padding: 16,
     marginBottom: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
   },
-  colorIndicator: {
-    width: 4,
-    height: 40,
-    borderRadius: 2,
-    marginRight: 12,
-  },
-  itemContent: {
+  habitLeft: {
+    flexDirection: "row",
+    alignItems: "center",
     flex: 1,
+    gap: 12,
   },
-  itemTitle: {
+  habitDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+  },
+  habitTitle: {
     fontSize: 16,
     fontWeight: "600",
+    color: "#1F2937",
+    flex: 1,
+  },
+  habitActions: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  iconButton: {
+    padding: 8,
+  },
+  sectionHeader: {
+    marginBottom: 16,
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: "700",
     color: "white",
     marginBottom: 4,
   },
-  itemSubtitle: {
+  sectionSubtitle: {
     fontSize: 14,
-    color: "rgba(255, 255, 255, 0.7)",
+    color: "rgba(255, 255, 255, 0.8)",
   },
-  itemMeta: {
+  affirmationCard: {
+    backgroundColor: "white",
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  affirmationText: {
+    fontSize: 16,
+    fontWeight: "500",
+    color: "#1F2937",
+    marginBottom: 12,
+    lineHeight: 22,
+  },
+  affirmationMeta: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  affirmationBadges: {
     flexDirection: "row",
     gap: 8,
-    marginTop: 4,
+    flex: 1,
   },
-  itemBadge: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: "rgba(255, 255, 255, 0.9)",
-    backgroundColor: "rgba(255, 255, 255, 0.2)",
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  itemActions: {
-    flexDirection: "row",
-    gap: 8,
-  },
-  actionButton: {
-    padding: 4,
-  },
-  addButton: {
+  badge: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "rgba(255, 255, 255, 0.2)",
-    borderRadius: 12,
-    padding: 16,
-    marginTop: 8,
-    gap: 8,
+    backgroundColor: "#EEF2FF",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+    gap: 4,
   },
-  addButtonText: {
-    fontSize: 16,
+  badgeText: {
+    fontSize: 12,
     fontWeight: "600",
+    color: "#6366F1",
+  },
+  affirmationActions: {
+    flexDirection: "row",
+    gap: 8,
+    alignItems: "center",
+  },
+  dailyButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#EEF2FF",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    gap: 4,
+  },
+  dailyButtonActive: {
+    backgroundColor: "#6366F1",
+  },
+  dailyButtonText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#6366F1",
+  },
+  dailyButtonTextActive: {
     color: "white",
+  },
+  fab: {
+    position: "absolute",
+    bottom: 100,
+    right: 20,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: "#6366F1",
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
   },
   modalContainer: {
     flex: 1,
@@ -957,7 +945,7 @@ const styles = StyleSheet.create({
   modalSave: {
     fontSize: 16,
     fontWeight: "600",
-    color: "#4F46E5",
+    color: "#6366F1",
   },
   modalContent: {
     padding: 20,

@@ -21,7 +21,7 @@ import React, { useEffect } from 'react';
 import { colors } from '@/styles/commonStyles';
 import { BlurView } from 'expo-blur';
 
-interface TabBarItem {
+export interface TabBarItem {
   route: Href;
   label: string;
   ios_icon_name: string;
@@ -111,13 +111,13 @@ export default function FloatingTabBar({
               ios_icon_name={tab.ios_icon_name}
               android_material_icon_name={tab.android_material_icon_name}
               size={24}
-              color={currentIndex === index ? colors.primary : colors.text}
+              color={currentIndex === index ? '#6366F1' : '#6B7280'}
             />
             <Text
               style={[
                 styles.label,
                 {
-                  color: currentIndex === index ? colors.primary : colors.text,
+                  color: currentIndex === index ? '#6366F1' : '#6B7280',
                 },
               ]}
             >
@@ -142,7 +142,7 @@ const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
     overflow: 'hidden',
     ...Platform.select({
       ios: {
@@ -162,7 +162,7 @@ const styles = StyleSheet.create({
   indicator: {
     position: 'absolute',
     height: '80%',
-    backgroundColor: colors.background,
+    backgroundColor: '#EEF2FF',
     top: '10%',
     left: 0,
   },
@@ -174,7 +174,7 @@ const styles = StyleSheet.create({
     zIndex: 1,
   },
   label: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '600',
     marginTop: 4,
   },

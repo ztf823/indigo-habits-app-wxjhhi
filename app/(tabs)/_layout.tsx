@@ -2,7 +2,7 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { Stack } from 'expo-router';
 import { View, Platform } from 'react-native';
-import FloatingTabBar, { TabBarItem } from '@/components/FloatingTabBar';
+import FloatingTabBar from '@/components/FloatingTabBar';
 import { useRouter, usePathname } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 
@@ -12,36 +12,41 @@ export default function TabLayout() {
   const pathname = usePathname();
   const [currentPage, setCurrentPage] = useState(0);
 
-  const tabs: TabBarItem[] = [
+  const tabs = [
     {
       name: '(home)',
-      route: '/(tabs)/(home)/',
-      icon: 'home',
+      route: '/(tabs)/(home)/' as any,
       label: 'Home',
+      ios_icon_name: 'house.fill',
+      android_material_icon_name: 'home',
     },
     {
       name: 'habits',
-      route: '/(tabs)/habits',
-      icon: 'check-circle',
+      route: '/(tabs)/habits' as any,
       label: 'Habits',
+      ios_icon_name: 'checkmark.circle.fill',
+      android_material_icon_name: 'check-circle',
     },
     {
       name: 'history',
-      route: '/(tabs)/history',
-      icon: 'history',
+      route: '/(tabs)/history' as any,
       label: 'History',
+      ios_icon_name: 'clock.fill',
+      android_material_icon_name: 'history',
     },
     {
       name: 'progress',
-      route: '/(tabs)/progress',
-      icon: 'trending-up',
+      route: '/(tabs)/progress' as any,
       label: 'Progress',
+      ios_icon_name: 'chart.line.uptrend.xyaxis',
+      android_material_icon_name: 'trending-up',
     },
     {
       name: 'profile',
-      route: '/(tabs)/profile',
-      icon: 'person',
+      route: '/(tabs)/profile' as any,
       label: 'Profile',
+      ios_icon_name: 'person.fill',
+      android_material_icon_name: 'person',
     },
   ];
 
