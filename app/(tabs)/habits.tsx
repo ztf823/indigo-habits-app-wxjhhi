@@ -75,6 +75,33 @@ export default function HabitsScreen() {
   const [affirmationModalVisible, setAffirmationModalVisible] = useState(false);
   const [affirmationText, setAffirmationText] = useState("");
 
+  const loadPremiumStatus = useCallback(async () => {
+    try {
+      const profile = await getProfile();
+      setIsPremium(profile?.isPremium === 1);
+    } catch (error) {
+      console.error("Error loading premium status:", error);
+    }
+  }, []);
+
+  const loadHabits = useCallback(async () => {
+    try {
+      const dbHabits = await getAllHabits() as Habit[];
+      setHabits(dbHabits);
+    } catch (error) {
+      console.error("Error loading habits:", error);
+    }
+  }, []);
+
+  const loadAffirmations = useCallback(async () => {
+    try {
+      const dbAffirmations = await getAllAffirmations() as Affirmation[];
+      setAffirmations(dbAffirmations);
+    } catch (error) {
+      console.error("Error loading affirmations:", error);
+    }
+  }, []);
+
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
@@ -89,38 +116,11 @@ export default function HabitsScreen() {
     } finally {
       setLoading(false);
     }
-  }, [activeTab]);
+  }, [loadPremiumStatus, loadHabits, loadAffirmations]);
 
   useEffect(() => {
     loadData();
   }, [loadData]);
-
-  const loadPremiumStatus = async () => {
-    try {
-      const profile = await getProfile();
-      setIsPremium(profile?.isPremium === 1);
-    } catch (error) {
-      console.error("Error loading premium status:", error);
-    }
-  };
-
-  const loadHabits = async () => {
-    try {
-      const dbHabits = await getAllHabits() as Habit[];
-      setHabits(dbHabits);
-    } catch (error) {
-      console.error("Error loading habits:", error);
-    }
-  };
-
-  const loadAffirmations = async () => {
-    try {
-      const dbAffirmations = await getAllAffirmations() as Affirmation[];
-      setAffirmations(dbAffirmations);
-    } catch (error) {
-      console.error("Error loading affirmations:", error);
-    }
-  };
 
   const onRefresh = async () => {
     setRefreshing(true);

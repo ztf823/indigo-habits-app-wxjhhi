@@ -1,6 +1,6 @@
 
 import { LinearGradient } from "expo-linear-gradient";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { IconSymbol } from "@/components/IconSymbol";
 import { getStreakData } from "@/utils/database";
 import {
@@ -53,11 +53,7 @@ export default function ProgressScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  useEffect(() => {
-    loadProgress();
-  }, [loadProgress]);
-
-  const loadProgress = async () => {
+  const loadProgress = useCallback(async () => {
     setIsLoading(true);
     
     try {
@@ -81,7 +77,11 @@ export default function ProgressScreen() {
     }
     
     setIsLoading(false);
-  };
+  }, []);
+
+  useEffect(() => {
+    loadProgress();
+  }, [loadProgress]);
 
   const onRefresh = async () => {
     setIsRefreshing(true);

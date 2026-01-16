@@ -69,64 +69,16 @@ export default function HomeScreen() {
   
   const autoSaveTimer = useRef<NodeJS.Timeout | null>(null);
 
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
-
-  // Auto-save journal entry
-  useEffect(() => {
-    if (journalModalVisible && (journalContent || journalPhotoUri)) {
-      if (autoSaveTimer.current) {
-        clearTimeout(autoSaveTimer.current);
-      }
-      
-      autoSaveTimer.current = setTimeout(() => {
-        autoSaveJournalEntry();
-      }, AUTO_SAVE_DELAY);
-    }
-    
-    return () => {
-      if (autoSaveTimer.current) {
-        clearTimeout(autoSaveTimer.current);
-      }
-    };
-  }, [journalContent, journalPhotoUri, journalModalVisible]);
-
-  const autoSaveJournalEntry = async () => {
-    if (!journalContent && !journalPhotoUri) return;
-    
-    console.log("Auto-saving journal entry...");
-    // Auto-save happens in background, no need to show loading
-  };
-
-  const loadData = async () => {
-    try {
-      console.log("Loading home screen data from SQLite...");
-      setLoading(true);
-      
-      await Promise.all([
-        loadPremiumStatus(),
-        loadAffirmations(),
-        loadHabits(),
-      ]);
-    } catch (error) {
-      console.error("Error loading home screen data:", error);
-      Alert.alert("Error", "Failed to load data. Please try again.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const loadPremiumStatus = async () => {
+  const loadPremiumStatus = useCallback(async () => {
     try {
       const profile = await getProfile();
       setIsPremium(profile?.isPremium === 1);
     } catch (error) {
       console.error("Error loading premium status:", error);
     }
-  };
+  }, []);
 
-  const loadAffirmations = async () => {
+  const loadAffirmations = useCallback(async () => {
     try {
       const dbAffirmations = await getAllAffirmations() as Affirmation[];
       
@@ -152,9 +104,9 @@ export default function HomeScreen() {
     } catch (error) {
       console.error("Error loading affirmations:", error);
     }
-  };
+  }, []);
 
-  const loadHabits = async () => {
+  const loadHabits = useCallback(async () => {
     try {
       const dbHabits = await getAllHabits() as Habit[];
       const today = new Date().toISOString().split('T')[0];
@@ -174,7 +126,55 @@ export default function HomeScreen() {
     } catch (error) {
       console.error("Error loading habits:", error);
     }
-  };
+  }, []);
+
+  const loadData = useCallback(async () => {
+    try {
+      console.log("Loading home screen data from SQLite...");
+      setLoading(true);
+      
+      await Promise.all([
+        loadPremiumStatus(),
+        loadAffirmations(),
+        loadHabits(),
+      ]);
+    } catch (error) {
+      console.error("Error loading home screen data:", error);
+      Alert.alert("Error", "Failed to load data. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  }, [loadPremiumStatus, loadAffirmations, loadHabits]);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  const autoSaveJournalEntry = useCallback(async () => {
+    if (!journalContent && !journalPhotoUri) return;
+    
+    console.log("Auto-saving journal entry...");
+    // Auto-save happens in background, no need to show loading
+  }, [journalContent, journalPhotoUri]);
+
+  // Auto-save journal entry
+  useEffect(() => {
+    if (journalModalVisible && (journalContent || journalPhotoUri)) {
+      if (autoSaveTimer.current) {
+        clearTimeout(autoSaveTimer.current);
+      }
+      
+      autoSaveTimer.current = setTimeout(() => {
+        autoSaveJournalEntry();
+      }, AUTO_SAVE_DELAY);
+    }
+    
+    return () => {
+      if (autoSaveTimer.current) {
+        clearTimeout(autoSaveTimer.current);
+      }
+    };
+  }, [journalContent, journalPhotoUri, journalModalVisible, autoSaveJournalEntry]);
 
   const toggleHabit = async (habitId: string) => {
     try {
