@@ -24,6 +24,7 @@ import {
   createAffirmation,
   updateAffirmation,
   deleteAffirmation,
+  createHabit,
   updateHabit,
   deleteHabit,
   getHabitCompletion,
@@ -65,6 +66,15 @@ interface JournalEntry {
 // Pro users: unlimited
 const FREE_MAX_AFFIRMATIONS = 5;
 const FREE_MAX_HABITS = 5;
+
+// Default habits to create on first launch
+const DEFAULT_HABITS = [
+  { title: "Morning meditation", color: "#10B981" },
+  { title: "Exercise", color: "#3B82F6" },
+  { title: "Read 10 pages", color: "#F59E0B" },
+  { title: "Drink 8 glasses of water", color: "#06B6D4" },
+  { title: "Practice gratitude", color: "#8B5CF6" },
+];
 
 export default function HomeScreen() {
   const [affirmations, setAffirmations] = useState<Affirmation[]>([]);
@@ -117,12 +127,12 @@ export default function HomeScreen() {
             id: `affirmation_${Date.now()}_${i}`,
             text: affirmation,
             isCustom: false,
-            isRepeating: false,
+            isRepeating: true, // Make them repeating by default
             isFavorite: false,
             orderIndex: repeatingAffirmations.length + i,
           };
           await createAffirmation(newAffirmation);
-          repeatingAffirmations.push({ ...newAffirmation, isCustom: 0, isRepeating: 0, isFavorite: 0 });
+          repeatingAffirmations.push({ ...newAffirmation, isCustom: 0, isRepeating: 1, isFavorite: 0 });
         }
       }
       
@@ -145,6 +155,25 @@ export default function HomeScreen() {
 
       // Filter for repeating habits
       let repeatingHabits = dbHabits.filter(h => h.isRepeating === 1);
+
+      // If no habits exist, create default ones
+      if (repeatingHabits.length === 0) {
+        console.log(`Creating ${DEFAULT_HABITS.length} default habits...`);
+        
+        for (let i = 0; i < DEFAULT_HABITS.length; i++) {
+          const defaultHabit = DEFAULT_HABITS[i];
+          const newHabit = {
+            id: `habit_${Date.now()}_${i}`,
+            title: defaultHabit.title,
+            color: defaultHabit.color,
+            isRepeating: true,
+            isFavorite: false,
+            orderIndex: i,
+          };
+          await createHabit(newHabit);
+          repeatingHabits.push({ ...newHabit, isRepeating: 1, isFavorite: 0 } as any);
+        }
+      }
 
       // Load completion status for today
       const habitsWithCompletion = await Promise.all(

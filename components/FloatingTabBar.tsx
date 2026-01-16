@@ -5,11 +5,8 @@ import Animated, {
   useSharedValue,
   withSpring,
 } from 'react-native-reanimated';
-import React, { useEffect } from 'react';
-import { BlurView } from 'expo-blur';
-import { Href } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { useTheme } from '@react-navigation/native';
-import { colors } from '@/styles/commonStyles';
 import {
   View,
   Text,
@@ -18,14 +15,17 @@ import {
   Platform,
   Dimensions,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { Href } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import React, { useEffect } from 'react';
+import { colors } from '@/styles/commonStyles';
+import { BlurView } from 'expo-blur';
 
-export interface TabBarItem {
-  name: string;
+interface TabBarItem {
   route: Href;
-  icon: string;
   label: string;
+  ios_icon_name: string;
+  android_material_icon_name: string;
 }
 
 interface FloatingTabBarProps {
@@ -37,106 +37,95 @@ interface FloatingTabBarProps {
   currentIndex?: number;
 }
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
-
 export default function FloatingTabBar({
   tabs,
-  containerWidth = SCREEN_WIDTH - 40,
-  borderRadius = 24,
+  containerWidth = Dimensions.get('window').width - 40,
+  borderRadius = 30,
   bottomMargin = 20,
   onTabPress,
   currentIndex = 0,
 }: FloatingTabBarProps) {
-  const { colors: themeColors } = useTheme();
   const router = useRouter();
-
-  // Animated value for the indicator position
-  const indicatorPosition = useSharedValue(currentIndex);
+  const theme = useTheme();
+  const indicatorPosition = useSharedValue(0);
 
   useEffect(() => {
-    indicatorPosition.value = withSpring(currentIndex, {
+    const tabWidth = containerWidth / tabs.length;
+    indicatorPosition.value = withSpring(currentIndex * tabWidth, {
       damping: 20,
       stiffness: 90,
     });
-  }, [currentIndex, indicatorPosition]);
+  }, [currentIndex, containerWidth, tabs.length]);
+
+  const animatedIndicatorStyle = useAnimatedStyle(() => {
+    return {
+      transform: [{ translateX: indicatorPosition.value }],
+    };
+  });
 
   const handleTabPress = (route: Href, index: number) => {
+    console.log(`User tapped tab: ${tabs[index].label}`);
     if (onTabPress) {
       onTabPress(index);
-    } else {
-      router.push(route);
     }
+    router.push(route);
   };
 
   const tabWidth = containerWidth / tabs.length;
 
-  const indicatorStyle = useAnimatedStyle(() => {
-    return {
-      transform: [
-        {
-          translateX: withSpring(indicatorPosition.value * tabWidth, {
-            damping: 20,
-            stiffness: 90,
-          }),
-        },
-      ],
-    };
-  });
-
   return (
-    <SafeAreaView edges={['bottom']} style={[styles.safeArea, { marginBottom: bottomMargin }]}>
-      <View style={[styles.container, { width: containerWidth, borderRadius }]}>
-        <BlurView intensity={80} tint="light" style={[styles.blurContainer, { borderRadius }]}>
-          {/* Animated indicator */}
-          <Animated.View
-            style={[
-              styles.indicator,
-              {
-                width: tabWidth,
-                borderRadius: borderRadius / 2,
-              },
-              indicatorStyle,
-            ]}
-          />
+    <SafeAreaView
+      edges={['bottom']}
+      style={[styles.safeArea, { marginBottom: bottomMargin }]}
+    >
+      <BlurView
+        intensity={80}
+        tint="light"
+        style={[
+          styles.container,
+          {
+            width: containerWidth,
+            borderRadius,
+          },
+        ]}
+      >
+        <Animated.View
+          style={[
+            styles.indicator,
+            {
+              width: tabWidth,
+              borderRadius: borderRadius - 4,
+            },
+            animatedIndicatorStyle,
+          ]}
+        />
 
-          {/* Tab buttons */}
-          <View style={styles.tabsContainer}>
-            {tabs.map((tab, index) => {
-              const isActive = index === currentIndex;
-
-              return (
-                <TouchableOpacity
-                  key={`tab-${tab.name}`}
-                  style={[styles.tab, { width: tabWidth }]}
-                  onPress={() => handleTabPress(tab.route, index)}
-                  activeOpacity={0.7}
-                >
-                  <Animated.View style={styles.tabContent}>
-                    <IconSymbol
-                      ios_icon_name={tab.icon}
-                      android_material_icon_name={tab.icon}
-                      size={24}
-                      color={isActive ? '#4B0082' : colors.text}
-                      style={styles.icon}
-                    />
-                    <Text
-                      style={[
-                        styles.label,
-                        {
-                          color: isActive ? '#4B0082' : colors.text,
-                          fontWeight: isActive ? '600' : '400',
-                        },
-                      ]}
-                    >
-                      {tab.label}
-                    </Text>
-                  </Animated.View>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-        </BlurView>
-      </View>
+        {tabs.map((tab, index) => (
+          <TouchableOpacity
+            key={`tab-${index}-${tab.label}`}
+            style={[styles.tab, { width: tabWidth }]}
+            onPress={() => handleTabPress(tab.route, index)}
+            activeOpacity={0.7}
+          >
+            <IconSymbol
+              ios_icon_name={tab.ios_icon_name}
+              android_material_icon_name={tab.android_material_icon_name}
+              size={24}
+              color={currentIndex === index ? colors.primary : colors.text}
+            />
+            <Text
+              style={[
+                styles.label,
+                {
+                  color: currentIndex === index ? colors.primary : colors.text,
+                },
+              ]}
+            >
+              {tab.label}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </BlurView>
     </SafeAreaView>
   );
 }
@@ -148,15 +137,12 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     alignItems: 'center',
-    ...Platform.select({
-      web: {
-        pointerEvents: 'box-none',
-      },
-      default: {},
-    }),
+    zIndex: 1000,
   },
   container: {
-    height: 70,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
     overflow: 'hidden',
     ...Platform.select({
       ios: {
@@ -169,43 +155,27 @@ const styles = StyleSheet.create({
         elevation: 8,
       },
       web: {
-        boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
       },
     }),
   },
-  blurContainer: {
-    flex: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
-    overflow: 'hidden',
-  },
   indicator: {
     position: 'absolute',
-    top: 8,
+    height: '80%',
+    backgroundColor: colors.background,
+    top: '10%',
     left: 0,
-    height: 54,
-    backgroundColor: 'rgba(75, 0, 130, 0.1)',
-    borderWidth: 2,
-    borderColor: 'rgba(75, 0, 130, 0.2)',
-  },
-  tabsContainer: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
   },
   tab: {
-    height: '100%',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  tabContent: {
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  icon: {
-    marginBottom: 2,
+    paddingVertical: 12,
+    zIndex: 1,
   },
   label: {
-    fontSize: 11,
-    textAlign: 'center',
+    fontSize: 12,
+    fontWeight: '600',
+    marginTop: 4,
   },
 });
