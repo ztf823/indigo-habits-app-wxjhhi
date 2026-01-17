@@ -1,4 +1,3 @@
-
 const { getDefaultConfig } = require('expo/metro-config');
 const { FileStore } = require('metro-cache');
 const path = require('path');
@@ -7,23 +6,6 @@ const fs = require('fs');
 const config = getDefaultConfig(__dirname);
 
 config.resolver.unstable_enablePackageExports = true;
-
-// Prevent WASM imports on web platform to avoid expo-sqlite errors
-config.resolver.assetExts = config.resolver.assetExts.filter(ext => ext !== 'wasm');
-config.resolver.sourceExts = [...config.resolver.sourceExts, 'wasm'];
-
-// Add custom resolver to handle WASM imports
-config.resolver.resolveRequest = (context, moduleName, platform) => {
-  // Block WASM imports on web platform (expo-sqlite doesn't work on web)
-  if (platform === 'web' && moduleName.endsWith('.wasm')) {
-    return {
-      type: 'empty',
-    };
-  }
-  
-  // Use default resolver for everything else
-  return context.resolveRequest(context, moduleName, platform);
-};
 
 // Use turborepo to restore the cache when possible
 config.cacheStores = [

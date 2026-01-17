@@ -172,8 +172,7 @@ export default function ProfileScreen() {
             try {
               console.log("[Profile] Processing subscription...");
               
-              // TODO: Integrate with Superwall for actual subscription
-              // For now, simulate successful purchase
+              // Simulate successful purchase for now
               await updateProfile({ isPremium: true });
               setHasPremium(true);
               
@@ -199,8 +198,7 @@ export default function ProfileScreen() {
     console.log("[Profile] User tapped Restore Purchases");
     
     try {
-      // TODO: Integrate with Superwall to restore purchases
-      // For now, check database
+      // Check database for existing premium status
       const profile = await getProfile();
       
       if (profile && (profile as any).isPremium === 1) {
@@ -237,7 +235,7 @@ export default function ProfileScreen() {
         `Ready to export ${preview.totalEntries} journal ${preview.totalEntries === 1 ? 'entry' : 'entries'} to PDF.\n\n` +
         `📷 ${preview.totalPhotos} ${preview.totalPhotos === 1 ? 'photo' : 'photos'}\n` +
         `🎤 ${preview.totalAudioMemos} voice ${preview.totalAudioMemos === 1 ? 'memo' : 'memos'}\n\n` +
-        `Your journal will be bundled into one clean PDF file that you can save, email, or share via AirDrop.`,
+        `Your journal will be bundled into one clean PDF file that you can save, email, or share.`,
         [
           { text: "Cancel", style: "cancel" },
           {

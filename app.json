@@ -1,4 +1,3 @@
-
 {
   "expo": {
     "name": "Indigo Habits",
@@ -65,5 +64,6 @@
         "projectId": "indigo-habits-production"
       }
     }
-  }
+  },
+  "scheme": "Indigo Habits"
 }
