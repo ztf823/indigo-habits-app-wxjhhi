@@ -1,3 +1,4 @@
+
 const { getDefaultConfig } = require('expo/metro-config');
 const { FileStore } = require('metro-cache');
 const path = require('path');
@@ -11,6 +12,38 @@ config.resolver.unstable_enablePackageExports = true;
 config.cacheStores = [
     new FileStore({ root: path.join(__dirname, 'node_modules', '.cache', 'metro') }),
   ];
+
+// Fix expo-sqlite WASM error on web by intercepting module resolution
+const originalResolveRequest = config.resolver.resolveRequest;
+config.resolver.resolveRequest = (context, moduleName, platform) => {
+  console.log('[METRO] Resolving module:', moduleName, 'for platform:', platform);
+  
+  // On web platform, prevent WASM imports and redirect expo-sqlite to mock
+  if (platform === 'web') {
+    // Block WASM file imports
+    if (moduleName.endsWith('.wasm')) {
+      console.log('[METRO] Blocking WASM import on web:', moduleName);
+      return {
+        type: 'empty',
+      };
+    }
+    
+    // Redirect expo-sqlite web worker to empty module
+    if (moduleName.includes('expo-sqlite') && moduleName.includes('worker')) {
+      console.log('[METRO] Blocking expo-sqlite worker on web:', moduleName);
+      return {
+        type: 'empty',
+      };
+    }
+  }
+  
+  // Use default resolution for everything else
+  if (originalResolveRequest) {
+    return originalResolveRequest(context, moduleName, platform);
+  }
+  
+  return context.resolveRequest(context, moduleName, platform);
+};
 
 // Custom server middleware to receive console.log messages from the app
 const LOG_FILE_PATH = path.join(__dirname, '.natively', 'app_console.log');
