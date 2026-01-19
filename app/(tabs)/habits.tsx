@@ -16,6 +16,7 @@ import {
 } from "react-native";
 import * as Haptics from "expo-haptics";
 import { IconSymbol } from "@/components/IconSymbol";
+import DateTimePicker from '@react-native-community/datetimepicker';
 import {
   getAllHabits,
   getAllAffirmations,
@@ -29,6 +30,11 @@ import {
 } from "@/utils/database";
 import { getRandomAffirmation } from "@/utils/affirmations";
 import { playChime } from "@/utils/sounds";
+import {
+  saveHabitReminder,
+  removeHabitReminder,
+  getHabitReminderTime,
+} from "@/utils/notifications";
 
 interface Habit {
   id: string;
@@ -89,6 +95,13 @@ export default function HabitsScreen() {
   const [affirmationModalVisible, setAffirmationModalVisible] = useState(false);
   const [affirmationText, setAffirmationText] = useState("");
 
+  // Habit reminder state
+  const [reminderModalVisible, setReminderModalVisible] = useState(false);
+  const [selectedHabitForReminder, setSelectedHabitForReminder] = useState<Habit | null>(null);
+  const [reminderTime, setReminderTime] = useState(new Date());
+  const [showTimePicker, setShowTimePicker] = useState(false);
+  const [habitReminders, setHabitReminders] = useState<Record<string, string>>({});
+
   const loadPremiumStatus = useCallback(async () => {
     try {
       // 🚀 PREVIEW MODE: Always set premium to true
@@ -124,6 +137,17 @@ export default function HabitsScreen() {
       
       setHabits(dbHabits);
       console.log(`Loaded ${dbHabits.length} habits`);
+      
+      // Load habit reminders
+      const reminders: Record<string, string> = {};
+      for (const habit of dbHabits) {
+        const time = await getHabitReminderTime(habit.id);
+        if (time) {
+          reminders[habit.id] = time;
+        }
+      }
+      setHabitReminders(reminders);
+      console.log(`Loaded ${Object.keys(reminders).length} habit reminders`);
     } catch (error) {
       console.error("Error loading habits:", error);
     }
@@ -391,6 +415,117 @@ export default function HabitsScreen() {
     );
   };
 
+  const openReminderModal = async (habit: Habit) => {
+    try {
+      console.log("🚀 PREVIEW MODE: User tapped clock icon for habit:", habit.title);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      
+      setSelectedHabitForReminder(habit);
+      
+      // Load existing reminder time if any
+      const existingTime = habitReminders[habit.id];
+      if (existingTime) {
+        const [hours, minutes] = existingTime.split(':').map(Number);
+        const date = new Date();
+        date.setHours(hours, minutes, 0, 0);
+        setReminderTime(date);
+      } else {
+        // Default to 9:00 AM
+        const date = new Date();
+        date.setHours(9, 0, 0, 0);
+        setReminderTime(date);
+      }
+      
+      setReminderModalVisible(true);
+    } catch (error) {
+      console.error("Error opening reminder modal:", error);
+    }
+  };
+
+  const handleSaveReminder = async () => {
+    if (!selectedHabitForReminder) return;
+    
+    try {
+      console.log("🚀 PREVIEW MODE: Saving habit reminder for:", selectedHabitForReminder.title);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      
+      const timeString = formatTimeToString(reminderTime);
+      await saveHabitReminder(selectedHabitForReminder.id, timeString, selectedHabitForReminder.title);
+      
+      // Update local state
+      setHabitReminders(prev => ({
+        ...prev,
+        [selectedHabitForReminder.id]: timeString,
+      }));
+      
+      setReminderModalVisible(false);
+      playChime();
+      
+      Alert.alert(
+        'Reminder Set! ⏰',
+        `You'll receive a reminder at ${formatTimeDisplay(reminderTime)} for "${selectedHabitForReminder.title}"`,
+        [{ text: 'OK' }]
+      );
+    } catch (error) {
+      console.error("Error saving habit reminder:", error);
+      Alert.alert("Error", "Failed to save reminder. Please try again.");
+    }
+  };
+
+  const handleRemoveReminder = async () => {
+    if (!selectedHabitForReminder) return;
+    
+    try {
+      console.log("🚀 PREVIEW MODE: Removing habit reminder for:", selectedHabitForReminder.title);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      
+      await removeHabitReminder(selectedHabitForReminder.id);
+      
+      // Update local state
+      setHabitReminders(prev => {
+        const updated = { ...prev };
+        delete updated[selectedHabitForReminder.id];
+        return updated;
+      });
+      
+      setReminderModalVisible(false);
+      playChime();
+      
+      Alert.alert(
+        'Reminder Removed',
+        `Reminder for "${selectedHabitForReminder.title}" has been removed.`,
+        [{ text: 'OK' }]
+      );
+    } catch (error) {
+      console.error("Error removing habit reminder:", error);
+      Alert.alert("Error", "Failed to remove reminder. Please try again.");
+    }
+  };
+
+  const handleTimeChange = (event: any, selectedDate?: Date) => {
+    setShowTimePicker(Platform.OS === 'ios');
+    
+    if (selectedDate) {
+      console.log("User changed reminder time:", selectedDate);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      setReminderTime(selectedDate);
+    }
+  };
+
+  const formatTimeToString = (date: Date): string => {
+    const hours = date.getHours().toString().padStart(2, '0');
+    const minutes = date.getMinutes().toString().padStart(2, '0');
+    return `${hours}:${minutes}`;
+  };
+
+  const formatTimeDisplay = (date: Date): string => {
+    return date.toLocaleTimeString('en-US', { 
+      hour: 'numeric', 
+      minute: '2-digit',
+      hour12: true 
+    });
+  };
+
   if (loading) {
     return (
       <LinearGradient
@@ -505,6 +640,21 @@ export default function HabitsScreen() {
                           <Text style={styles.habitTitle}>{habit.title}</Text>
                         </View>
                         <View style={styles.habitActions}>
+                          {/* 🚀 PREVIEW MODE: Clock icon for individual habit reminders */}
+                          <TouchableOpacity
+                            onPress={() => openReminderModal(habit)}
+                            style={[
+                              styles.iconButton,
+                              habitReminders[habit.id] && styles.iconButtonActive,
+                            ]}
+                          >
+                            <IconSymbol
+                              ios_icon_name="alarm.fill"
+                              android_material_icon_name="alarm"
+                              size={20}
+                              color={habitReminders[habit.id] ? "#10B981" : "#6366F1"}
+                            />
+                          </TouchableOpacity>
                           <TouchableOpacity
                             onPress={() => openEditModal(habit)}
                             style={styles.iconButton}
@@ -771,6 +921,103 @@ export default function HabitsScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* Habit Reminder Modal - 🚀 PREVIEW MODE */}
+      <Modal
+        visible={reminderModalVisible}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setReminderModalVisible(false)}
+      >
+        <View style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <TouchableOpacity onPress={() => setReminderModalVisible(false)}>
+              <Text style={styles.modalCancel}>Cancel</Text>
+            </TouchableOpacity>
+            <Text style={styles.modalTitle}>Set Reminder</Text>
+            <TouchableOpacity onPress={handleSaveReminder}>
+              <Text style={styles.modalSave}>Save</Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.modalContent}>
+            {/* 🚀 PREVIEW MODE Badge */}
+            <View style={styles.previewBadge}>
+              <IconSymbol
+                ios_icon_name="crown.fill"
+                android_material_icon_name="workspace-premium"
+                size={16}
+                color="#FFD700"
+              />
+              <Text style={styles.previewBadgeText}>
+                🚀 PREVIEW MODE: Pro feature unlocked
+              </Text>
+            </View>
+
+            {selectedHabitForReminder && (
+              <React.Fragment>
+                <Text style={styles.label}>Habit</Text>
+                <View style={styles.habitPreview}>
+                  <View
+                    style={[
+                      styles.habitDot,
+                      { backgroundColor: selectedHabitForReminder.color },
+                    ]}
+                  />
+                  <Text style={styles.habitPreviewText}>
+                    {selectedHabitForReminder.title}
+                  </Text>
+                </View>
+
+                <Text style={styles.label}>Reminder Time</Text>
+                <TouchableOpacity
+                  style={styles.timePickerButton}
+                  onPress={() => setShowTimePicker(true)}
+                >
+                  <IconSymbol
+                    ios_icon_name="clock.fill"
+                    android_material_icon_name="access-time"
+                    size={24}
+                    color="#6366F1"
+                  />
+                  <Text style={styles.timePickerText}>
+                    {formatTimeDisplay(reminderTime)}
+                  </Text>
+                </TouchableOpacity>
+
+                {showTimePicker && (
+                  <DateTimePicker
+                    value={reminderTime}
+                    mode="time"
+                    is24Hour={false}
+                    display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                    onChange={handleTimeChange}
+                  />
+                )}
+
+                <Text style={styles.reminderNote}>
+                  🔔 You'll receive a soft Tibetan bowl chime at this time every day
+                </Text>
+
+                {habitReminders[selectedHabitForReminder.id] && (
+                  <TouchableOpacity
+                    style={styles.removeReminderButton}
+                    onPress={handleRemoveReminder}
+                  >
+                    <IconSymbol
+                      ios_icon_name="trash"
+                      android_material_icon_name="delete"
+                      size={20}
+                      color="#EF4444"
+                    />
+                    <Text style={styles.removeReminderText}>Remove Reminder</Text>
+                  </TouchableOpacity>
+                )}
+              </React.Fragment>
+            )}
+          </View>
+        </View>
+      </Modal>
     </LinearGradient>
   );
 }
@@ -899,6 +1146,10 @@ const styles = StyleSheet.create({
   },
   iconButton: {
     padding: 8,
+  },
+  iconButtonActive: {
+    backgroundColor: "#DCFCE7",
+    borderRadius: 8,
   },
   repeatToggle: {
     flexDirection: "row",
@@ -1051,5 +1302,71 @@ const styles = StyleSheet.create({
   },
   selectedColor: {
     borderColor: "#1F2937",
+  },
+  previewBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "#FEF3C7",
+    padding: 12,
+    borderRadius: 12,
+    marginBottom: 24,
+  },
+  previewBadgeText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#92400E",
+    flex: 1,
+  },
+  habitPreview: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    backgroundColor: "#F3F4F6",
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 24,
+  },
+  habitPreviewText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#1F2937",
+    flex: 1,
+  },
+  timePickerButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    backgroundColor: "#F3F4F6",
+    padding: 20,
+    borderRadius: 12,
+    marginBottom: 16,
+  },
+  timePickerText: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: "#1F2937",
+    flex: 1,
+  },
+  reminderNote: {
+    fontSize: 14,
+    color: "#6B7280",
+    lineHeight: 20,
+    marginBottom: 24,
+    textAlign: "center",
+  },
+  removeReminderButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: "#FEE2E2",
+    padding: 16,
+    borderRadius: 12,
+  },
+  removeReminderText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#EF4444",
   },
 });

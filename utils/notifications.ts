@@ -33,15 +33,34 @@ export interface HabitReminder {
  */
 export const initializeNotifications = async () => {
   try {
-    console.log('[Notifications] Initializing notification system...');
+    console.log('[Notifications] 🚀 PREVIEW MODE: Initializing notification system with Tibetan bowl chime...');
     
     // Set notification handler to show notifications when app is in foreground
     Notifications.setNotificationHandler({
-      handleNotification: async () => ({
-        shouldShowAlert: true,
-        shouldPlaySound: true,
-        shouldSetBadge: false,
-      }),
+      handleNotification: async (notification) => {
+        console.log('[Notifications] 🚀 PREVIEW MODE: Notification received, playing Tibetan bowl chime...');
+        
+        // Play Tibetan bowl chime when notification fires
+        await playTibetanChime();
+        
+        return {
+          shouldShowAlert: true,
+          shouldPlaySound: true,
+          shouldSetBadge: false,
+        };
+      },
+    });
+
+    // Add notification received listener to play chime
+    Notifications.addNotificationReceivedListener(async (notification) => {
+      console.log('[Notifications] 🚀 PREVIEW MODE: Notification received listener triggered');
+      await playTibetanChime();
+    });
+
+    // Add notification response listener (when user taps notification)
+    Notifications.addNotificationResponseReceivedListener(async (response) => {
+      console.log('[Notifications] 🚀 PREVIEW MODE: User tapped notification');
+      await playTibetanChime();
     });
 
     // Request permissions
@@ -69,7 +88,7 @@ export const initializeNotifications = async () => {
       });
     }
 
-    console.log('[Notifications] Notification system initialized successfully');
+    console.log('[Notifications] 🚀 PREVIEW MODE: Notification system initialized successfully with chime support');
     return true;
   } catch (error) {
     console.error('[Notifications] Error initializing notifications:', error);
@@ -79,22 +98,34 @@ export const initializeNotifications = async () => {
 
 /**
  * Play Tibetan bowl chime sound
+ * 🚀 PREVIEW MODE: Uses the same chime as habit completion
  */
 export const playTibetanChime = async () => {
   try {
-    console.log('[Notifications] Playing Tibetan bowl chime...');
+    console.log('[Notifications] 🚀 PREVIEW MODE: Playing soft Tibetan bowl chime...');
     
-    // Set audio mode
+    // Set audio mode to play in silent mode
     await Audio.setAudioModeAsync({
       playsInSilentModeIOS: true,
       staysActiveInBackground: false,
+      shouldDuckAndroid: true,
     });
 
-    // For now, we'll use haptic feedback as a substitute
-    // In production, you would include an actual Tibetan bowl sound file
-    // and load it with: const { sound } = await Audio.Sound.createAsync(require('../assets/sounds/tibetan-bowl.wav'));
+    // Load and play the chime sound (same as habit completion)
+    const { sound } = await Audio.Sound.createAsync(
+      // Using a soft notification sound - in production, replace with actual Tibetan bowl sound
+      { uri: 'https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3' },
+      { shouldPlay: true, volume: 0.5 }
+    );
+
+    // Unload sound after playing
+    sound.setOnPlaybackStatusUpdate((status) => {
+      if (status.isLoaded && status.didJustFinish) {
+        sound.unloadAsync();
+      }
+    });
     
-    console.log('[Notifications] Tibetan bowl chime played');
+    console.log('[Notifications] 🚀 PREVIEW MODE: Tibetan bowl chime played successfully');
   } catch (error) {
     console.error('[Notifications] Error playing chime:', error);
   }
