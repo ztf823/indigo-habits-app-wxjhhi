@@ -40,6 +40,7 @@ import {
 import { playChime } from "@/utils/sounds";
 import { GestureDetector, Gesture } from 'react-native-gesture-handler';
 import { useRouter, usePathname } from 'expo-router';
+import { getHabitReminderTime } from "@/utils/notifications";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 const AFFIRMATION_CARD_WIDTH = 300;
@@ -60,6 +61,7 @@ interface Habit {
   color: string;
   isFavorite?: number;
   isRepeating?: number;
+  reminderTime?: string; // Added for reminder time display
 }
 
 interface JournalEntry {
@@ -300,11 +302,22 @@ export default function HomeScreen() {
         })
       );
 
+      // 🚀 PREVIEW MODE: Load reminder times for pro users
+      const habitsWithReminders = await Promise.all(
+        habitsWithCompletion.map(async (habit) => {
+          const reminderTime = await getHabitReminderTime(habit.id);
+          return {
+            ...habit,
+            reminderTime: reminderTime || undefined,
+          };
+        })
+      );
+
       // 🚀 PREVIEW MODE: Show ALL repeating habits (no limit)
-      const displayHabits = habitsWithCompletion;
+      const displayHabits = habitsWithReminders;
 
       setHabits(displayHabits);
-      console.log(`🚀 PREVIEW MODE: Loaded ${displayHabits.length} habits (unlimited)`);
+      console.log(`🚀 PREVIEW MODE: Loaded ${displayHabits.length} habits (unlimited) with reminder times`);
     } catch (error) {
       console.error("Error loading habits:", error);
     }
@@ -370,6 +383,14 @@ export default function HomeScreen() {
       }
     };
   }, []);
+
+  // Helper function to format time for display (e.g., "6:30 AM")
+  const formatTimeDisplay = (time: string): string => {
+    const [hours, minutes] = time.split(':').map(Number);
+    const period = hours >= 12 ? 'PM' : 'AM';
+    const displayHours = hours % 12 || 12;
+    return `${displayHours}:${minutes.toString().padStart(2, '0')} ${period}`;
+  };
 
   const toggleHabit = async (habitId: string) => {
     try {
@@ -801,14 +822,22 @@ export default function HomeScreen() {
                     )}
                   </TouchableOpacity>
 
-                  <Text
-                    style={[
-                      styles.habitTitle,
-                      habit.completed && styles.habitTitleCompleted,
-                    ]}
-                  >
-                    {habit.title}
-                  </Text>
+                  <View style={styles.habitTextContainer}>
+                    <Text
+                      style={[
+                        styles.habitTitle,
+                        habit.completed && styles.habitTitleCompleted,
+                      ]}
+                    >
+                      {habit.title}
+                    </Text>
+                    {/* 🚀 PREVIEW MODE: Show reminder time for pro users */}
+                    {isPremium && habit.reminderTime && (
+                      <Text style={styles.habitReminderTime}>
+                        [{formatTimeDisplay(habit.reminderTime)}]
+                      </Text>
+                    )}
+                  </View>
 
                   <TouchableOpacity
                     onPress={() => toggleFavoriteHabit(habit.id)}
@@ -1163,14 +1192,25 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginRight: 12,
   },
-  habitTitle: {
+  habitTextContainer: {
     flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
+  },
+  habitTitle: {
     fontSize: 16,
     fontWeight: "500",
     color: "#1F2937",
+    marginRight: 6,
   },
   habitTitleCompleted: {
     color: "#6B7280",
+  },
+  habitReminderTime: {
+    fontSize: 12,
+    fontWeight: "400",
+    color: "#9CA3AF",
   },
   journalHeader: {
     flexDirection: "row",
