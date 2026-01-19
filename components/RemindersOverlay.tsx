@@ -252,55 +252,56 @@ export function RemindersOverlay({ visible, onClose, isPremium }: RemindersOverl
               </Text>
             </View>
 
-            {/* Daily Habits Reminder */}
-            <View style={[styles.reminderSection, { backgroundColor: isDark ? colors.border : '#F9FAFB' }]}>
-              <View style={styles.reminderHeader}>
-                <View style={styles.reminderTitleRow}>
-                  <IconSymbol
-                    ios_icon_name="checkmark.circle.fill"
-                    android_material_icon_name="check-circle"
-                    size={24}
-                    color={colors.primary}
-                  />
-                  <Text style={[styles.reminderTitle, { color: colors.text }]}>Daily habits reminder</Text>
-                </View>
-                <Switch
-                  value={dailyHabitsEnabled}
-                  onValueChange={handleDailyHabitsToggle}
-                  trackColor={{ false: '#D1D5DB', true: colors.primary }}
-                  thumbColor="#FFFFFF"
-                  ios_backgroundColor="#D1D5DB"
-                />
-              </View>
-              
-              {dailyHabitsEnabled && (
-                <React.Fragment>
-                  <TouchableOpacity
-                    style={[styles.timeButton, { backgroundColor: colors.card }]}
-                    onPress={() => setShowDailyHabitsTimePicker(true)}
-                  >
+            {/* 🚀 PREVIEW MODE: Hide Daily Habits Reminder for Pro users */}
+            {!effectiveIsPremium && (
+              <View style={[styles.reminderSection, { backgroundColor: isDark ? colors.border : '#F9FAFB' }]}>
+                <View style={styles.reminderHeader}>
+                  <View style={styles.reminderTitleRow}>
                     <IconSymbol
-                      ios_icon_name="clock.fill"
-                      android_material_icon_name="access-time"
-                      size={20}
+                      ios_icon_name="checkmark.circle.fill"
+                      android_material_icon_name="check-circle"
+                      size={24}
                       color={colors.primary}
                     />
-                    <Text style={[styles.timeButtonText, { color: colors.text }]}>
-                      {formatTimeDisplay(dailyHabitsTime)}
+                    <Text style={[styles.reminderTitle, { color: colors.text }]}>Daily habits reminder</Text>
+                  </View>
+                  <Switch
+                    value={dailyHabitsEnabled}
+                    onValueChange={handleDailyHabitsToggle}
+                    trackColor={{ false: '#D1D5DB', true: colors.primary }}
+                    thumbColor="#FFFFFF"
+                    ios_backgroundColor="#D1D5DB"
+                  />
+                </View>
+                
+                {dailyHabitsEnabled && (
+                  <React.Fragment>
+                    <TouchableOpacity
+                      style={[styles.timeButton, { backgroundColor: colors.card }]}
+                      onPress={() => setShowDailyHabitsTimePicker(true)}
+                    >
+                      <IconSymbol
+                        ios_icon_name="clock.fill"
+                        android_material_icon_name="access-time"
+                        size={20}
+                        color={colors.primary}
+                      />
+                      <Text style={[styles.timeButtonText, { color: colors.text }]}>
+                        {formatTimeDisplay(dailyHabitsTime)}
+                      </Text>
+                    </TouchableOpacity>
+                    
+                    <Text style={[styles.restrictionText, { color: colors.textSecondary }]}>
+                      ✓ Unlimited scheduling (Premium)
                     </Text>
-                  </TouchableOpacity>
-                  
-                  {/* 🚀 PREVIEW MODE: Show no restrictions */}
-                  <Text style={[styles.restrictionText, { color: colors.textSecondary }]}>
-                    ✓ Unlimited scheduling (Premium)
-                  </Text>
-                </React.Fragment>
-              )}
-              
-              <Text style={[styles.reminderDescription, { color: colors.textSecondary }]}>
-                One reminder covers all your habits. One chime only.
-              </Text>
-            </View>
+                  </React.Fragment>
+                )}
+                
+                <Text style={[styles.reminderDescription, { color: colors.textSecondary }]}>
+                  One reminder covers all your habits. One chime only.
+                </Text>
+              </View>
+            )}
 
             {/* Journal Reminder - 🚀 PREVIEW MODE: Always show as available */}
             <View style={[styles.reminderSection, { backgroundColor: isDark ? colors.border : '#F9FAFB' }]}>

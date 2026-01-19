@@ -85,6 +85,15 @@ const DEFAULT_HABITS = [
   { title: "Practice gratitude", color: "#8B5CF6" },
 ];
 
+// 🚀 PREVIEW MODE: Sample reminder times to display
+const SAMPLE_REMINDER_TIMES: { [key: string]: string } = {
+  "Morning meditation": "06:30",
+  "Exercise": "07:00",
+  "Read 10 pages": "20:00",
+  "Drink 8 glasses of water": "09:00",
+  "Practice gratitude": "21:00",
+};
+
 export default function HomeScreen() {
   const router = useRouter();
   const pathname = usePathname();
@@ -302,10 +311,17 @@ export default function HomeScreen() {
         })
       );
 
-      // 🚀 PREVIEW MODE: Load reminder times for pro users
+      // 🚀 PREVIEW MODE: Load reminder times OR use sample times
       const habitsWithReminders = await Promise.all(
         habitsWithCompletion.map(async (habit) => {
-          const reminderTime = await getHabitReminderTime(habit.id);
+          let reminderTime = await getHabitReminderTime(habit.id);
+          
+          // 🚀 PREVIEW MODE: If no reminder time set, use sample time based on habit title
+          if (!reminderTime && SAMPLE_REMINDER_TIMES[habit.title]) {
+            reminderTime = SAMPLE_REMINDER_TIMES[habit.title];
+            console.log(`🚀 PREVIEW MODE: Using sample time ${reminderTime} for habit "${habit.title}"`);
+          }
+          
           return {
             ...habit,
             reminderTime: reminderTime || undefined,
@@ -831,7 +847,7 @@ export default function HomeScreen() {
                     >
                       {habit.title}
                     </Text>
-                    {/* 🚀 PREVIEW MODE: Show reminder time for pro users */}
+                    {/* 🚀 PREVIEW MODE: Always show reminder time for pro users (forced sample times) */}
                     {isPremium && habit.reminderTime && (
                       <Text style={styles.habitReminderTime}>
                         [{formatTimeDisplay(habit.reminderTime)}]
