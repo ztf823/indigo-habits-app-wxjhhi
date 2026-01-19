@@ -3,6 +3,7 @@ import { Stack } from "expo-router";
 import { useFonts } from "expo-font";
 import { StatusBar } from "expo-status-bar";
 import { WidgetProvider } from "@/contexts/WidgetContext";
+import { ThemeProvider } from "@/contexts/ThemeContext";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect, useState } from "react";
 import { SystemBars } from "react-native-edge-to-edge";
@@ -12,7 +13,7 @@ import { useColorScheme } from "react-native";
 import {
   DarkTheme,
   DefaultTheme,
-  ThemeProvider,
+  ThemeProvider as NavigationThemeProvider,
 } from "@react-navigation/native";
 import { initDatabase } from "@/utils/database";
 
@@ -57,27 +58,29 @@ export default function RootLayout() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <WidgetProvider>
-        <ThemeProvider
-          value={colorScheme === "dark" ? DarkTheme : DefaultTheme}
-        >
-          <SystemBars style="light" />
-          <Stack
-            screenOptions={{
-              headerShown: false,
-              animation: "none",
-            }}
+      <ThemeProvider>
+        <WidgetProvider>
+          <NavigationThemeProvider
+            value={colorScheme === "dark" ? DarkTheme : DefaultTheme}
           >
-            <Stack.Screen name="welcome" />
-            <Stack.Screen name="(tabs)" />
-            <Stack.Screen name="modal" options={{ presentation: "modal" }} />
-            <Stack.Screen name="formsheet" options={{ presentation: "formSheet" }} />
-            <Stack.Screen name="transparent-modal" options={{ presentation: "transparentModal" }} />
-            <Stack.Screen name="entry/[id]" />
-          </Stack>
-          <StatusBar style="light" />
-        </ThemeProvider>
-      </WidgetProvider>
+            <SystemBars style="light" />
+            <Stack
+              screenOptions={{
+                headerShown: false,
+                animation: "none",
+              }}
+            >
+              <Stack.Screen name="welcome" />
+              <Stack.Screen name="(tabs)" />
+              <Stack.Screen name="modal" options={{ presentation: "modal" }} />
+              <Stack.Screen name="formsheet" options={{ presentation: "formSheet" }} />
+              <Stack.Screen name="transparent-modal" options={{ presentation: "transparentModal" }} />
+              <Stack.Screen name="entry/[id]" />
+            </Stack>
+            <StatusBar style="light" />
+          </NavigationThemeProvider>
+        </WidgetProvider>
+      </ThemeProvider>
     </GestureHandlerRootView>
   );
 }

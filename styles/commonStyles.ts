@@ -17,6 +17,27 @@ export const colors = {
   gradientEnd: '#7DD3FC',    // Sky blue gradient end
 };
 
+// Dark mode colors - indigo-dark base with silver icons and soft glows
+export const darkColors = {
+  primary: '#6366F1',        // Lighter indigo for dark mode
+  secondary: '#7DD3FC',      // Sky blue
+  accent: '#10B981',         // Green for completed habits
+  accentGlow: '#10B98160',   // Soft green glow (38% opacity for dark mode)
+  error: '#EF4444',          // Red for missed habits
+  background: '#1E1B4B',     // Indigo-dark base
+  card: '#2D2A5E',           // Slightly lighter indigo for cards
+  text: '#E5E7EB',           // Light gray text (readable on dark)
+  textSecondary: '#9CA3AF',  // Silver text
+  iconSilver: '#C0C0C0',     // Silver icons
+  border: '#3D3A6E',         // Darker border
+  gradientStart: '#1E1B4B',  // Dark indigo gradient start
+  gradientEnd: '#312E81',    // Slightly lighter indigo gradient end
+};
+
+export function getColors(isDark: boolean) {
+  return isDark ? darkColors : colors;
+}
+
 export const buttonStyles = StyleSheet.create({
   instructionsButton: {
     backgroundColor: colors.primary,

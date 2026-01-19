@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useCallback } from "react";
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Image, ActivityIndicator, Platform } from "react-native";
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Image, ActivityIndicator, Platform, Switch } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { IconSymbol } from "@/components/IconSymbol";
 import { useRouter } from "expo-router";
@@ -8,9 +8,14 @@ import * as ImagePicker from "expo-image-picker";
 import * as Haptics from "expo-haptics";
 import { getProfile, updateProfile, clearAllData } from "@/utils/database";
 import { exportJournalsToPdf, getExportPreview } from "@/utils/pdfExport";
+import { useTheme } from "@/contexts/ThemeContext";
+import { getColors } from "@/styles/commonStyles";
 
 export default function ProfileScreen() {
   const router = useRouter();
+  const { isDark, toggleTheme } = useTheme();
+  const colors = getColors(isDark);
+  
   const [profileImage, setProfileImage] = useState<string | null>(null);
   const [userName, setUserName] = useState<string>("Habit Builder");
   const [userEmail, setUserEmail] = useState<string>("Keep building your habits");
@@ -163,11 +168,11 @@ export default function ProfileScreen() {
     
     Alert.alert(
       "Unlock Premium",
-      "Get unlimited affirmations and habits for just $5.99/month!\n\n✓ Unlimited daily affirmations\n✓ Unlimited daily habits\n✓ All future features included",
+      "Get unlimited affirmations and habits for just $4.40/month!\n\n✓ Unlimited daily affirmations\n✓ Unlimited daily habits\n✓ All future features included",
       [
         { text: "Cancel", style: "cancel" },
         {
-          text: "Subscribe $5.99/month",
+          text: "Subscribe $4.40/month",
           onPress: async () => {
             try {
               console.log("[Profile] Processing subscription...");
@@ -274,6 +279,12 @@ export default function ProfileScreen() {
     }
   };
 
+  const handleToggleDarkMode = () => {
+    console.log("[Profile] User toggled dark mode");
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    toggleTheme();
+  };
+
   const handleClearData = () => {
     console.log("[Profile] User tapped clear data");
     Alert.alert(
@@ -346,7 +357,10 @@ export default function ProfileScreen() {
 
   if (isLoading) {
     return (
-      <LinearGradient colors={["#4F46E5", "#7C3AED", "#06B6D4"]} style={styles.container}>
+      <LinearGradient 
+        colors={isDark ? [colors.gradientStart, colors.gradientEnd] : ["#4F46E5", "#7C3AED", "#06B6D4"]} 
+        style={styles.container}
+      >
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#FFFFFF" />
           <Text style={styles.loadingText}>Loading profile...</Text>
@@ -355,12 +369,17 @@ export default function ProfileScreen() {
     );
   }
 
-  return (
-    <LinearGradient colors={["#4F46E5", "#7C3AED", "#06B6D4"]} style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        <Text style={styles.title}>Profile</Text>
+  const dynamicStyles = createDynamicStyles(colors, isDark);
 
-        <View style={styles.profileCard}>
+  return (
+    <LinearGradient 
+      colors={isDark ? [colors.gradientStart, colors.gradientEnd] : ["#4F46E5", "#7C3AED", "#06B6D4"]} 
+      style={styles.container}
+    >
+      <ScrollView contentContainerStyle={styles.scrollContent}>
+        <Text style={[styles.title, { color: colors.text }]}>Profile</Text>
+
+        <View style={[styles.profileCard, { backgroundColor: colors.card }]}>
           <TouchableOpacity 
             style={styles.avatarContainer}
             onPress={handlePickImage}
@@ -369,18 +388,18 @@ export default function ProfileScreen() {
             {profileImage ? (
               <Image source={{ uri: profileImage }} style={styles.avatarImage} />
             ) : (
-              <View style={styles.avatarPlaceholder}>
+              <View style={[styles.avatarPlaceholder, { backgroundColor: isDark ? colors.border : "#F3F4F6" }]}>
                 <IconSymbol 
                   ios_icon_name="person.circle.fill" 
                   android_material_icon_name="account-circle" 
                   size={80} 
-                  color="#4F46E5" 
+                  color={colors.primary} 
                 />
               </View>
             )}
             
             {/* Upload overlay */}
-            <View style={styles.avatarOverlay}>
+            <View style={[styles.avatarOverlay, { backgroundColor: colors.primary }]}>
               {isUploadingImage ? (
                 <ActivityIndicator color="#FFF" size="small" />
               ) : (
@@ -394,25 +413,25 @@ export default function ProfileScreen() {
             </View>
           </TouchableOpacity>
           
-          <Text style={styles.uploadHint}>Tap to change photo</Text>
+          <Text style={[styles.uploadHint, { color: colors.textSecondary }]}>Tap to change photo</Text>
           
           <TouchableOpacity onPress={handleEditName} style={styles.editableField}>
-            <Text style={styles.name}>{userName}</Text>
+            <Text style={[styles.name, { color: colors.text }]}>{userName}</Text>
             <IconSymbol 
               ios_icon_name="pencil" 
               android_material_icon_name="edit" 
               size={16} 
-              color="#6B7280" 
+              color={colors.textSecondary} 
             />
           </TouchableOpacity>
           
           <TouchableOpacity onPress={handleEditEmail} style={styles.editableField}>
-            <Text style={styles.email}>{userEmail}</Text>
+            <Text style={[styles.email, { color: colors.textSecondary }]}>{userEmail}</Text>
             <IconSymbol 
               ios_icon_name="pencil" 
               android_material_icon_name="edit" 
               size={16} 
-              color="#9CA3AF" 
+              color={colors.iconSilver} 
             />
           </TouchableOpacity>
 
@@ -432,7 +451,7 @@ export default function ProfileScreen() {
 
         {/* Premium Unlock Section */}
         {!hasPremium && (
-          <View style={styles.premiumCard}>
+          <View style={[styles.premiumCard, { backgroundColor: colors.card, borderColor: isDark ? colors.primary : "#FFD700" }]}>
             <View style={styles.premiumHeader}>
               <IconSymbol
                 ios_icon_name="crown.fill"
@@ -440,10 +459,10 @@ export default function ProfileScreen() {
                 size={32}
                 color="#FFD700"
               />
-              <Text style={styles.premiumTitle}>Unlock Premium</Text>
+              <Text style={[styles.premiumTitle, { color: colors.text }]}>Unlock Premium</Text>
             </View>
-            <Text style={styles.premiumDescription}>
-              Get unlimited affirmations and habits for just $5.99/month
+            <Text style={[styles.premiumDescription, { color: colors.textSecondary }]}>
+              Get unlimited affirmations and habits for just $4.40/month
             </Text>
             <View style={styles.premiumFeatures}>
               <View style={styles.premiumFeature}>
@@ -453,7 +472,7 @@ export default function ProfileScreen() {
                   size={20}
                   color="#10B981"
                 />
-                <Text style={styles.premiumFeatureText}>Unlimited daily affirmations</Text>
+                <Text style={[styles.premiumFeatureText, { color: colors.text }]}>Unlimited daily affirmations</Text>
               </View>
               <View style={styles.premiumFeature}>
                 <IconSymbol
@@ -462,7 +481,7 @@ export default function ProfileScreen() {
                   size={20}
                   color="#10B981"
                 />
-                <Text style={styles.premiumFeatureText}>Unlimited daily habits</Text>
+                <Text style={[styles.premiumFeatureText, { color: colors.text }]}>Unlimited daily habits</Text>
               </View>
               <View style={styles.premiumFeature}>
                 <IconSymbol
@@ -471,14 +490,14 @@ export default function ProfileScreen() {
                   size={20}
                   color="#10B981"
                 />
-                <Text style={styles.premiumFeatureText}>All future features included</Text>
+                <Text style={[styles.premiumFeatureText, { color: colors.text }]}>All future features included</Text>
               </View>
             </View>
-            <TouchableOpacity style={styles.premiumButton} onPress={handleUnlockPremium}>
-              <Text style={styles.premiumButtonText}>Subscribe for $5.99/month</Text>
+            <TouchableOpacity style={[styles.premiumButton, { backgroundColor: colors.primary }]} onPress={handleUnlockPremium}>
+              <Text style={styles.premiumButtonText}>Subscribe for $4.40/month</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.restoreButton} onPress={handleRestorePurchases}>
-              <Text style={styles.restoreButtonText}>Restore Purchases</Text>
+              <Text style={[styles.restoreButtonText, { color: colors.primary }]}>Restore Purchases</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -486,56 +505,56 @@ export default function ProfileScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Settings</Text>
           
-          <TouchableOpacity style={styles.settingItem} onPress={handleNotifications}>
+          <TouchableOpacity style={[styles.settingItem, { backgroundColor: colors.card }]} onPress={handleNotifications}>
             <IconSymbol 
               ios_icon_name="bell.fill" 
               android_material_icon_name="notifications" 
               size={24} 
-              color="#6B7280" 
+              color={colors.iconSilver} 
             />
-            <Text style={styles.settingText}>Notifications</Text>
+            <Text style={[styles.settingText, { color: colors.text }]}>Notifications</Text>
             <IconSymbol 
               ios_icon_name="chevron.right" 
               android_material_icon_name="chevron-right" 
               size={20} 
-              color="#9CA3AF" 
+              color={colors.iconSilver} 
             />
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.settingItem} onPress={handlePrivacy}>
+          <TouchableOpacity style={[styles.settingItem, { backgroundColor: colors.card }]} onPress={handlePrivacy}>
             <IconSymbol 
               ios_icon_name="lock.fill" 
               android_material_icon_name="lock" 
               size={24} 
-              color="#6B7280" 
+              color={colors.iconSilver} 
             />
-            <Text style={styles.settingText}>Privacy</Text>
+            <Text style={[styles.settingText, { color: colors.text }]}>Privacy</Text>
             <IconSymbol 
               ios_icon_name="chevron.right" 
               android_material_icon_name="chevron-right" 
               size={20} 
-              color="#9CA3AF" 
+              color={colors.iconSilver} 
             />
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.settingItem} onPress={handleHelp}>
+          <TouchableOpacity style={[styles.settingItem, { backgroundColor: colors.card }]} onPress={handleHelp}>
             <IconSymbol 
               ios_icon_name="questionmark.circle.fill" 
               android_material_icon_name="help" 
               size={24} 
-              color="#6B7280" 
+              color={colors.iconSilver} 
             />
-            <Text style={styles.settingText}>Help & Support</Text>
+            <Text style={[styles.settingText, { color: colors.text }]}>Help & Support</Text>
             <IconSymbol 
               ios_icon_name="chevron.right" 
               android_material_icon_name="chevron-right" 
               size={20} 
-              color="#9CA3AF" 
+              color={colors.iconSilver} 
             />
           </TouchableOpacity>
 
           <TouchableOpacity 
-            style={[styles.settingItem, styles.dangerItem]} 
+            style={[styles.settingItem, styles.dangerItem, { backgroundColor: colors.card, borderTopColor: colors.border }]} 
             onPress={handleClearData}
           >
             <IconSymbol 
@@ -549,36 +568,73 @@ export default function ProfileScreen() {
               ios_icon_name="chevron.right" 
               android_material_icon_name="chevron-right" 
               size={20} 
-              color="#9CA3AF" 
+              color={colors.iconSilver} 
             />
           </TouchableOpacity>
 
           {/* Export All Journals Button */}
           <TouchableOpacity 
-            style={[styles.settingItem, styles.exportItem]} 
+            style={[
+              styles.settingItem, 
+              styles.exportItem, 
+              { 
+                backgroundColor: isDark ? `${colors.primary}20` : "rgba(79, 70, 229, 0.05)",
+                borderColor: colors.primary,
+                boxShadow: isDark ? `0 0 20px ${colors.primary}40` : undefined,
+              }
+            ]} 
             onPress={handleExportJournals}
             disabled={isExporting}
           >
             {isExporting ? (
-              <ActivityIndicator size="small" color="#4F46E5" />
+              <ActivityIndicator size="small" color={colors.primary} />
             ) : (
               <IconSymbol 
                 ios_icon_name="doc.text.fill" 
                 android_material_icon_name="description" 
                 size={24} 
-                color="#4F46E5" 
+                color={colors.primary} 
               />
             )}
-            <Text style={[styles.settingText, styles.exportText]}>
+            <Text style={[styles.settingText, { color: colors.primary, fontWeight: "600" }]}>
               {isExporting ? "Exporting..." : "Export All Journals"}
             </Text>
             <IconSymbol 
               ios_icon_name="chevron.right" 
               android_material_icon_name="chevron-right" 
               size={20} 
-              color="#9CA3AF" 
+              color={colors.iconSilver} 
             />
           </TouchableOpacity>
+
+          {/* Dark Mode Toggle */}
+          <View 
+            style={[
+              styles.settingItem, 
+              styles.darkModeItem,
+              { 
+                backgroundColor: isDark ? `${colors.primary}20` : colors.card,
+                borderColor: isDark ? colors.primary : colors.border,
+                borderWidth: 2,
+                boxShadow: isDark ? `0 0 20px ${colors.primary}40` : undefined,
+              }
+            ]}
+          >
+            <IconSymbol 
+              ios_icon_name={isDark ? "moon.fill" : "moon"} 
+              android_material_icon_name={isDark ? "dark-mode" : "light-mode"} 
+              size={24} 
+              color={colors.iconSilver} 
+            />
+            <Text style={[styles.settingText, { color: colors.text, fontWeight: "600" }]}>Dark Mode</Text>
+            <Switch
+              value={isDark}
+              onValueChange={handleToggleDarkMode}
+              trackColor={{ false: "#D1D5DB", true: colors.primary }}
+              thumbColor="#FFFFFF"
+              ios_backgroundColor="#D1D5DB"
+            />
+          </View>
         </View>
 
         <View style={styles.footer}>
@@ -588,6 +644,12 @@ export default function ProfileScreen() {
       </ScrollView>
     </LinearGradient>
   );
+}
+
+function createDynamicStyles(colors: any, isDark: boolean) {
+  return StyleSheet.create({
+    // Dynamic styles based on theme
+  });
 }
 
 const styles = StyleSheet.create({
@@ -790,9 +852,8 @@ const styles = StyleSheet.create({
     borderColor: "#4F46E5",
     backgroundColor: "rgba(79, 70, 229, 0.05)",
   },
-  exportText: {
-    color: "#4F46E5",
-    fontWeight: "600",
+  darkModeItem: {
+    borderWidth: 2,
   },
   footer: {
     alignItems: "center",
