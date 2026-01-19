@@ -71,8 +71,8 @@ interface JournalEntry {
   isFavorite?: number;
 }
 
-// Home screen display limits
-const FREE_HOME_DISPLAY_LIMIT = 5;
+// 🚀 PREVIEW MODE: Removed display limits - show all affirmations and habits
+const FREE_HOME_DISPLAY_LIMIT = 999999; // Effectively unlimited for preview
 
 // Default habits to create on first launch
 const DEFAULT_HABITS = [
@@ -89,7 +89,8 @@ export default function HomeScreen() {
   const [affirmations, setAffirmations] = useState<Affirmation[]>([]);
   const [habits, setHabits] = useState<Habit[]>([]);
   const [loading, setLoading] = useState(true);
-  const [isPremium, setIsPremium] = useState(false);
+  // 🚀 PREVIEW MODE: Always set premium to true
+  const [isPremium, setIsPremium] = useState(true);
 
   // Journal state
   const [journalModalVisible, setJournalModalVisible] = useState(false);
@@ -216,10 +217,9 @@ export default function HomeScreen() {
 
   const loadPremiumStatus = useCallback(async () => {
     try {
-      const profile = await getProfile();
-      const premiumStatus = profile?.isPremium === 1;
-      setIsPremium(premiumStatus);
-      console.log(`User premium status: ${premiumStatus ? 'Premium' : 'Free'}`);
+      // 🚀 PREVIEW MODE: Always set premium to true, ignore database
+      setIsPremium(true);
+      console.log('🚀 PREVIEW MODE: Premium status forced to true for testing');
     } catch (error) {
       console.error("Error loading premium status:", error);
     }
@@ -234,7 +234,7 @@ export default function HomeScreen() {
       
       // If we have less than the limit, fill with random ones
       if (repeatingAffirmations.length < FREE_HOME_DISPLAY_LIMIT) {
-        const needed = FREE_HOME_DISPLAY_LIMIT - repeatingAffirmations.length;
+        const needed = Math.min(5, FREE_HOME_DISPLAY_LIMIT - repeatingAffirmations.length);
         console.log(`Creating ${needed} default affirmations...`);
         
         for (let i = 0; i < needed; i++) {
@@ -252,13 +252,11 @@ export default function HomeScreen() {
         }
       }
       
-      // Apply display limit: free users get 5, premium users get all
-      const displayAffirmations = isPremium 
-        ? repeatingAffirmations 
-        : repeatingAffirmations.slice(0, FREE_HOME_DISPLAY_LIMIT);
+      // 🚀 PREVIEW MODE: Show ALL repeating affirmations (no limit)
+      const displayAffirmations = repeatingAffirmations;
       
       setAffirmations(displayAffirmations);
-      console.log(`Loaded ${displayAffirmations.length} affirmations for home screen (${isPremium ? 'Premium: unlimited' : `Free: max ${FREE_HOME_DISPLAY_LIMIT}`})`);
+      console.log(`🚀 PREVIEW MODE: Loaded ${displayAffirmations.length} affirmations (unlimited)`);
     } catch (error) {
       console.error("Error loading affirmations:", error);
     }
@@ -302,13 +300,11 @@ export default function HomeScreen() {
         })
       );
 
-      // Apply display limit: free users get 5, premium users get all
-      const displayHabits = isPremium 
-        ? habitsWithCompletion 
-        : habitsWithCompletion.slice(0, FREE_HOME_DISPLAY_LIMIT);
+      // 🚀 PREVIEW MODE: Show ALL repeating habits (no limit)
+      const displayHabits = habitsWithCompletion;
 
       setHabits(displayHabits);
-      console.log(`Loaded ${displayHabits.length} habits for home screen (${isPremium ? 'Premium: unlimited' : `Free: max ${FREE_HOME_DISPLAY_LIMIT}`})`);
+      console.log(`🚀 PREVIEW MODE: Loaded ${displayHabits.length} habits (unlimited)`);
     } catch (error) {
       console.error("Error loading habits:", error);
     }
@@ -710,13 +706,12 @@ export default function HomeScreen() {
           {/* Header with Date */}
           <View style={styles.header}>
             <Text style={styles.dateText}>{today}</Text>
-            {!isPremium && (
-              <View style={styles.limitBadge}>
-                <Text style={styles.limitBadgeText}>
-                  Free: Showing {affirmations.length}/{FREE_HOME_DISPLAY_LIMIT} affirmations, {habits.length}/{FREE_HOME_DISPLAY_LIMIT} habits
-                </Text>
-              </View>
-            )}
+            {/* 🚀 PREVIEW MODE: Show preview badge instead of limit badge */}
+            <View style={styles.limitBadge}>
+              <Text style={styles.limitBadgeText}>
+                🚀 PREVIEW MODE: Pro features unlocked
+              </Text>
+            </View>
           </View>
 
           {/* Affirmations Section with Snap Scrolling */}
@@ -1057,7 +1052,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   limitBadge: {
-    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    backgroundColor: "rgba(255, 215, 0, 0.3)",
     borderRadius: 12,
     paddingVertical: 6,
     paddingHorizontal: 12,

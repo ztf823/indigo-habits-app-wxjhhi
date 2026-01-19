@@ -45,6 +45,9 @@ export function RemindersOverlay({ visible, onClose, isPremium }: RemindersOverl
   
   const [loading, setLoading] = useState(true);
 
+  // 🚀 PREVIEW MODE: Always treat as premium
+  const effectiveIsPremium = true;
+
   useEffect(() => {
     if (visible) {
       loadSettings();
@@ -54,7 +57,7 @@ export function RemindersOverlay({ visible, onClose, isPremium }: RemindersOverl
   const loadSettings = async () => {
     try {
       setLoading(true);
-      console.log('[RemindersOverlay] Loading reminder settings...');
+      console.log('[RemindersOverlay] 🚀 PREVIEW MODE: Loading reminder settings (all features unlocked)...');
       
       // Load daily habits reminder
       const dailyHabitsSettings = await getDailyHabitsReminderSettings();
@@ -64,15 +67,13 @@ export function RemindersOverlay({ visible, onClose, isPremium }: RemindersOverl
       dhDate.setHours(dhHours, dhMinutes, 0, 0);
       setDailyHabitsTime(dhDate);
       
-      // Load journal reminder (premium only)
-      if (isPremium) {
-        const journalSettings = await getJournalReminderSettings();
-        setJournalEnabled(journalSettings.enabled);
-        const [jHours, jMinutes] = journalSettings.time.split(':').map(Number);
-        const jDate = new Date();
-        jDate.setHours(jHours, jMinutes, 0, 0);
-        setJournalTime(jDate);
-      }
+      // 🚀 PREVIEW MODE: Always load journal reminder (premium feature)
+      const journalSettings = await getJournalReminderSettings();
+      setJournalEnabled(journalSettings.enabled);
+      const [jHours, jMinutes] = journalSettings.time.split(':').map(Number);
+      const jDate = new Date();
+      jDate.setHours(jHours, jMinutes, 0, 0);
+      setJournalTime(jDate);
       
       console.log('[RemindersOverlay] Settings loaded successfully');
     } catch (error) {
@@ -114,17 +115,7 @@ export function RemindersOverlay({ visible, onClose, isPremium }: RemindersOverl
       console.log('[RemindersOverlay] Daily habits time changed:', selectedDate);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       
-      // Validate time range (7 AM - 9 PM for free users)
-      const hours = selectedDate.getHours();
-      if (!isPremium && (hours < 7 || hours >= 21)) {
-        Alert.alert(
-          'Time Restriction',
-          'Free users can only set reminders between 7 AM and 9 PM. Upgrade to Premium for unlimited scheduling!',
-          [{ text: 'OK' }]
-        );
-        return;
-      }
-      
+      // 🚀 PREVIEW MODE: No time restrictions (premium feature)
       setDailyHabitsTime(selectedDate);
       
       if (dailyHabitsEnabled) {
@@ -141,7 +132,7 @@ export function RemindersOverlay({ visible, onClose, isPremium }: RemindersOverl
 
   const handleJournalToggle = async (value: boolean) => {
     try {
-      console.log('[RemindersOverlay] Toggling journal reminder:', value);
+      console.log('[RemindersOverlay] 🚀 PREVIEW MODE: Toggling journal reminder (premium feature):', value);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       
       setJournalEnabled(value);
@@ -235,6 +226,19 @@ export function RemindersOverlay({ visible, onClose, isPremium }: RemindersOverl
           </View>
 
           <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+            {/* 🚀 PREVIEW MODE Banner */}
+            <View style={[styles.infoBanner, { backgroundColor: 'rgba(255, 215, 0, 0.2)', borderColor: '#FFD700', borderWidth: 1 }]}>
+              <IconSymbol
+                ios_icon_name="crown.fill"
+                android_material_icon_name="workspace-premium"
+                size={20}
+                color="#FFD700"
+              />
+              <Text style={[styles.infoBannerText, { color: colors.text, fontWeight: '600' }]}>
+                🚀 PREVIEW MODE: All premium reminder features unlocked
+              </Text>
+            </View>
+
             {/* Info Banner */}
             <View style={[styles.infoBanner, { backgroundColor: isDark ? `${colors.primary}20` : '#EEF2FF' }]}>
               <IconSymbol
@@ -286,98 +290,81 @@ export function RemindersOverlay({ visible, onClose, isPremium }: RemindersOverl
                     </Text>
                   </TouchableOpacity>
                   
-                  {!isPremium && (
-                    <Text style={[styles.restrictionText, { color: colors.textSecondary }]}>
-                      Free users: 7 AM – 9 PM only
-                    </Text>
-                  )}
+                  {/* 🚀 PREVIEW MODE: Show no restrictions */}
+                  <Text style={[styles.restrictionText, { color: colors.textSecondary }]}>
+                    ✓ Unlimited scheduling (Premium)
+                  </Text>
                 </React.Fragment>
               )}
               
               <Text style={[styles.reminderDescription, { color: colors.textSecondary }]}>
-                One reminder covers all five habits. One chime only.
+                One reminder covers all your habits. One chime only.
               </Text>
             </View>
 
-            {/* Journal Reminder (Premium Only) */}
-            {isPremium ? (
-              <View style={[styles.reminderSection, { backgroundColor: isDark ? colors.border : '#F9FAFB' }]}>
-                <View style={styles.reminderHeader}>
-                  <View style={styles.reminderTitleRow}>
-                    <IconSymbol
-                      ios_icon_name="book.fill"
-                      android_material_icon_name="menu-book"
-                      size={24}
-                      color={colors.primary}
-                    />
-                    <Text style={[styles.reminderTitle, { color: colors.text }]}>Journal reminder</Text>
-                  </View>
-                  <Switch
-                    value={journalEnabled}
-                    onValueChange={handleJournalToggle}
-                    trackColor={{ false: '#D1D5DB', true: colors.primary }}
-                    thumbColor="#FFFFFF"
-                    ios_backgroundColor="#D1D5DB"
-                  />
-                </View>
-                
-                {journalEnabled && (
-                  <TouchableOpacity
-                    style={[styles.timeButton, { backgroundColor: colors.card }]}
-                    onPress={() => setShowJournalTimePicker(true)}
-                  >
-                    <IconSymbol
-                      ios_icon_name="clock.fill"
-                      android_material_icon_name="access-time"
-                      size={20}
-                      color={colors.primary}
-                    />
-                    <Text style={[styles.timeButtonText, { color: colors.text }]}>
-                      {formatTimeDisplay(journalTime)}
-                    </Text>
-                  </TouchableOpacity>
-                )}
-                
-                <Text style={[styles.reminderDescription, { color: colors.textSecondary }]}>
-                  Daily reminder to reflect and journal
-                </Text>
-              </View>
-            ) : (
-              <View style={[styles.premiumSection, { backgroundColor: '#FEF3C7', borderColor: '#FFD700' }]}>
-                <View style={styles.premiumHeader}>
+            {/* Journal Reminder - 🚀 PREVIEW MODE: Always show as available */}
+            <View style={[styles.reminderSection, { backgroundColor: isDark ? colors.border : '#F9FAFB' }]}>
+              <View style={styles.reminderHeader}>
+                <View style={styles.reminderTitleRow}>
                   <IconSymbol
-                    ios_icon_name="crown.fill"
-                    android_material_icon_name="workspace-premium"
+                    ios_icon_name="book.fill"
+                    android_material_icon_name="menu-book"
                     size={24}
-                    color="#FFD700"
+                    color={colors.primary}
                   />
-                  <Text style={styles.premiumTitle}>Premium Feature</Text>
+                  <Text style={[styles.reminderTitle, { color: colors.text }]}>Journal reminder</Text>
+                  <View style={styles.premiumBadge}>
+                    <IconSymbol
+                      ios_icon_name="crown.fill"
+                      android_material_icon_name="workspace-premium"
+                      size={14}
+                      color="#FFD700"
+                    />
+                  </View>
                 </View>
-                <Text style={styles.premiumDescription}>
-                  Upgrade to Premium ($4.40/mo) to unlock:
-                </Text>
-                <View style={styles.premiumFeatures}>
-                  <Text style={styles.premiumFeature}>• Journal reminders</Text>
-                  <Text style={styles.premiumFeature}>• Individual habit reminders</Text>
-                  <Text style={styles.premiumFeature}>• Unlimited scheduling times</Text>
-                </View>
-              </View>
-            )}
-
-            {/* Individual Habit Reminders Info (Premium Only) */}
-            {isPremium && (
-              <View style={[styles.infoSection, { backgroundColor: isDark ? `${colors.primary}20` : '#EEF2FF' }]}>
-                <IconSymbol
-                  ios_icon_name="lightbulb.fill"
-                  android_material_icon_name="lightbulb"
-                  size={20}
-                  color={colors.primary}
+                <Switch
+                  value={journalEnabled}
+                  onValueChange={handleJournalToggle}
+                  trackColor={{ false: '#D1D5DB', true: colors.primary }}
+                  thumbColor="#FFFFFF"
+                  ios_backgroundColor="#D1D5DB"
                 />
-                <Text style={[styles.infoText, { color: colors.text }]}>
-                  <Text style={{ fontWeight: '600' }}>Pro Tip:</Text> Set individual habit reminders by tapping the ⏰ icon next to each habit in the Habits tab.
-                </Text>
               </View>
-            )}
+              
+              {journalEnabled && (
+                <TouchableOpacity
+                  style={[styles.timeButton, { backgroundColor: colors.card }]}
+                  onPress={() => setShowJournalTimePicker(true)}
+                >
+                  <IconSymbol
+                    ios_icon_name="clock.fill"
+                    android_material_icon_name="access-time"
+                    size={20}
+                    color={colors.primary}
+                  />
+                  <Text style={[styles.timeButtonText, { color: colors.text }]}>
+                    {formatTimeDisplay(journalTime)}
+                  </Text>
+                </TouchableOpacity>
+              )}
+              
+              <Text style={[styles.reminderDescription, { color: colors.textSecondary }]}>
+                Daily reminder to reflect and journal
+              </Text>
+            </View>
+
+            {/* Individual Habit Reminders Info - 🚀 PREVIEW MODE: Always show */}
+            <View style={[styles.infoSection, { backgroundColor: isDark ? `${colors.primary}20` : '#EEF2FF' }]}>
+              <IconSymbol
+                ios_icon_name="lightbulb.fill"
+                android_material_icon_name="lightbulb"
+                size={20}
+                color={colors.primary}
+              />
+              <Text style={[styles.infoText, { color: colors.text }]}>
+                <Text style={{ fontWeight: '600' }}>Pro Tip:</Text> Set individual habit reminders by tapping the ⏰ icon next to each habit in the Habits tab.
+              </Text>
+            </View>
           </ScrollView>
 
           {/* Time Pickers */}
@@ -391,7 +378,7 @@ export function RemindersOverlay({ visible, onClose, isPremium }: RemindersOverl
             />
           )}
           
-          {showJournalTimePicker && isPremium && (
+          {showJournalTimePicker && (
             <DateTimePicker
               value={journalTime}
               mode="time"
@@ -484,6 +471,12 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#1F2937',
   },
+  premiumBadge: {
+    backgroundColor: '#FEF3C7',
+    borderRadius: 8,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
   timeButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -500,8 +493,8 @@ const styles = StyleSheet.create({
   },
   restrictionText: {
     fontSize: 12,
-    color: '#6B7280',
-    fontStyle: 'italic',
+    color: '#10B981',
+    fontWeight: '600',
     marginBottom: 8,
     marginLeft: 4,
   },
@@ -509,38 +502,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#6B7280',
     lineHeight: 20,
-  },
-  premiumSection: {
-    backgroundColor: '#FEF3C7',
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 16,
-    borderWidth: 2,
-    borderColor: '#FFD700',
-  },
-  premiumHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    marginBottom: 12,
-  },
-  premiumTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#92400E',
-  },
-  premiumDescription: {
-    fontSize: 14,
-    color: '#92400E',
-    marginBottom: 12,
-  },
-  premiumFeatures: {
-    gap: 6,
-  },
-  premiumFeature: {
-    fontSize: 14,
-    color: '#92400E',
-    fontWeight: '500',
   },
   infoSection: {
     flexDirection: 'row',

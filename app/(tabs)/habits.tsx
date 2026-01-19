@@ -58,8 +58,8 @@ const COLORS = [
   "#EF4444", // Red
 ];
 
-// Home screen display limits
-const FREE_HOME_DISPLAY_LIMIT = 5;
+// 🚀 PREVIEW MODE: Removed display limits
+const FREE_HOME_DISPLAY_LIMIT = 999999; // Effectively unlimited
 
 // Default habits matching home screen
 const DEFAULT_HABITS = [
@@ -76,7 +76,8 @@ export default function HabitsScreen() {
   const [affirmations, setAffirmations] = useState<Affirmation[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [isPremium, setIsPremium] = useState(false);
+  // 🚀 PREVIEW MODE: Always set premium to true
+  const [isPremium, setIsPremium] = useState(true);
 
   // Habit modal state
   const [habitModalVisible, setHabitModalVisible] = useState(false);
@@ -90,10 +91,9 @@ export default function HabitsScreen() {
 
   const loadPremiumStatus = useCallback(async () => {
     try {
-      const profile = await getProfile();
-      const premiumStatus = profile?.isPremium === 1;
-      setIsPremium(premiumStatus);
-      console.log(`User premium status: ${premiumStatus ? 'Premium' : 'Free'}`);
+      // 🚀 PREVIEW MODE: Always set premium to true
+      setIsPremium(true);
+      console.log('🚀 PREVIEW MODE: Premium status forced to true for testing');
     } catch (error) {
       console.error("Error loading premium status:", error);
     }
@@ -171,7 +171,7 @@ export default function HabitsScreen() {
       return;
     }
 
-    // NO LIMIT - Free users can create unlimited habits
+    // 🚀 PREVIEW MODE: No limits - create unlimited habits
     try {
       console.log("User adding new habit:", habitTitle);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -268,25 +268,8 @@ export default function HabitsScreen() {
 
       const newRepeating = habit.isRepeating === 1 ? 0 : 1;
       
-      // Check if free user is trying to enable more than 5 habits
-      if (!isPremium && newRepeating === 1) {
-        const currentRepeatingCount = habits.filter(h => h.isRepeating === 1).length;
-        if (currentRepeatingCount >= FREE_HOME_DISPLAY_LIMIT) {
-          Alert.alert(
-            "Display Limit Reached",
-            `Free users can display up to ${FREE_HOME_DISPLAY_LIMIT} habits on the home screen. Turn off Daily Repeat for another habit first, or upgrade to Premium for unlimited display.`,
-            [
-              { text: "OK", style: "cancel" },
-              { text: "Upgrade", onPress: () => {
-                console.log("User wants to upgrade to premium");
-              }},
-            ]
-          );
-          return;
-        }
-      }
-
-      console.log("User toggling habit daily repeat:", habitId);
+      // 🚀 PREVIEW MODE: No limits - allow unlimited repeating habits
+      console.log("🚀 PREVIEW MODE: Toggling habit daily repeat (no limits):", habitId);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
       setHabits((prev) =>
@@ -308,7 +291,7 @@ export default function HabitsScreen() {
       return;
     }
 
-    // NO LIMIT - Free users can create unlimited affirmations
+    // 🚀 PREVIEW MODE: No limits - create unlimited affirmations
     try {
       console.log("User adding custom affirmation");
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -342,25 +325,8 @@ export default function HabitsScreen() {
 
       const newRepeating = affirmation.isRepeating === 1 ? 0 : 1;
       
-      // Check if free user is trying to enable more than 5 affirmations
-      if (!isPremium && newRepeating === 1) {
-        const currentRepeatingCount = affirmations.filter(a => a.isRepeating === 1).length;
-        if (currentRepeatingCount >= FREE_HOME_DISPLAY_LIMIT) {
-          Alert.alert(
-            "Display Limit Reached",
-            `Free users can display up to ${FREE_HOME_DISPLAY_LIMIT} affirmations on the home screen. Turn off Daily Repeat for another affirmation first, or upgrade to Premium for unlimited display.`,
-            [
-              { text: "OK", style: "cancel" },
-              { text: "Upgrade", onPress: () => {
-                console.log("User wants to upgrade to premium");
-              }},
-            ]
-          );
-          return;
-        }
-      }
-
-      console.log("User toggling affirmation daily repeat:", affirmationId);
+      // 🚀 PREVIEW MODE: No limits - allow unlimited repeating affirmations
+      console.log("🚀 PREVIEW MODE: Toggling affirmation daily repeat (no limits):", affirmationId);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
       setAffirmations((prev) =>
@@ -457,10 +423,11 @@ export default function HabitsScreen() {
           <Text style={styles.headerTitle}>
             {activeTab === "habits" ? "Manage Habits" : "Manage Affirmations"}
           </Text>
+          {/* 🚀 PREVIEW MODE: Show unlimited status */}
           <Text style={styles.headerSubtitle}>
             {activeTab === "habits" 
-              ? `${habits.length} total • ${repeatingHabits} on home screen${!isPremium ? ` (max ${FREE_HOME_DISPLAY_LIMIT})` : ''}`
-              : `${affirmations.length} total • ${repeatingAffirmations} on home screen${!isPremium ? ` (max ${FREE_HOME_DISPLAY_LIMIT})` : ''}`
+              ? `${habits.length} total • ${repeatingHabits} on home screen (unlimited)`
+              : `${affirmations.length} total • ${repeatingAffirmations} on home screen (unlimited)`
             }
           </Text>
         </View>
