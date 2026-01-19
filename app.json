@@ -34,7 +34,9 @@
       "permissions": [
         "CAMERA",
         "READ_EXTERNAL_STORAGE",
-        "WRITE_EXTERNAL_STORAGE"
+        "WRITE_EXTERNAL_STORAGE",
+        "RECEIVE_BOOT_COMPLETED",
+        "SCHEDULE_EXACT_ALARM"
       ]
     },
     "web": {
@@ -51,6 +53,14 @@
           "photosPermission": "Indigo Habits needs access to your photos to add images to your journal entries.",
           "cameraPermission": "Indigo Habits needs access to your camera to take photos for your journal entries."
         }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/6d55fc54-d63d-4404-853f-c341ea5517d1.png",
+          "color": "#4F46E5",
+          "defaultChannel": "habits-reminders"
+        }
       ]
     ],
     "scheme": "indigohabits",
@@ -65,5 +75,6 @@
         "projectId": "indigo-habits-production"
       }
     }
-  }
+  },
+  "scheme": "Indigo Habits"
 }

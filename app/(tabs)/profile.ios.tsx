@@ -10,6 +10,8 @@ import { getProfile, updateProfile, clearAllData } from "@/utils/database";
 import { exportJournalsToPdf, getExportPreview } from "@/utils/pdfExport";
 import { useTheme } from "@/contexts/ThemeContext";
 import { getColors } from "@/styles/commonStyles";
+import { RemindersOverlay } from "@/components/RemindersOverlay";
+import { initializeNotifications } from "@/utils/notifications";
 
 export default function ProfileScreen() {
   const router = useRouter();
@@ -23,6 +25,7 @@ export default function ProfileScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [hasPremium, setHasPremium] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  const [showRemindersOverlay, setShowRemindersOverlay] = useState(false);
 
   const loadProfileData = useCallback(async () => {
     try {
@@ -60,6 +63,9 @@ export default function ProfileScreen() {
 
   useEffect(() => {
     loadProfileData();
+    
+    // Initialize notifications
+    initializeNotifications();
   }, [loadProfileData]);
 
   const handlePickImage = async () => {
@@ -168,7 +174,7 @@ export default function ProfileScreen() {
     
     Alert.alert(
       "Unlock Premium",
-      "Get unlimited affirmations and habits for just $4.40/month!\n\n✓ Unlimited daily affirmations\n✓ Unlimited daily habits\n✓ All future features included",
+      "Get unlimited affirmations and habits for just $4.40/month!\n\n✓ Unlimited daily affirmations\n✓ Unlimited daily habits\n✓ Journal reminders\n✓ Individual habit reminders\n✓ All future features included",
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -184,7 +190,7 @@ export default function ProfileScreen() {
               Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
               Alert.alert(
                 "Welcome to Premium!",
-                "You now have unlimited access to all affirmations and habits. Thank you for your support!",
+                "You now have unlimited access to all affirmations, habits, and premium reminders. Thank you for your support!",
                 [{ text: "Awesome!" }]
               );
               
@@ -327,12 +333,9 @@ export default function ProfileScreen() {
   };
 
   const handleNotifications = () => {
-    console.log("[Profile] User tapped notifications");
-    Alert.alert(
-      "Notifications",
-      "Notification settings will be available in a future update. Stay tuned!",
-      [{ text: "OK" }]
-    );
+    console.log("[Profile] User tapped notifications button");
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setShowRemindersOverlay(true);
   };
 
   const handlePrivacy = () => {
@@ -348,7 +351,7 @@ export default function ProfileScreen() {
     console.log("[Profile] User tapped help");
     Alert.alert(
       "Help & Support",
-      "Welcome to Indigo Habits!\n\n• Add daily affirmations to stay motivated\n• Track your habits and build streaks\n• Journal your thoughts and experiences\n• View your progress over time\n\nNeed more help? Contact us at support@indigohabits.com",
+      "Welcome to Indigo Habits!\n\n• Add daily affirmations to stay motivated\n• Track your habits and build streaks\n• Journal your thoughts and experiences\n• View your progress over time\n• Set reminders to stay on track\n\nNeed more help? Contact us at support@indigohabits.com",
       [{ text: "OK" }]
     );
   };
@@ -478,6 +481,15 @@ export default function ProfileScreen() {
                   color="#10B981"
                 />
                 <Text style={[styles.premiumFeatureText, { color: colors.text }]}>Unlimited daily habits</Text>
+              </View>
+              <View style={styles.premiumFeature}>
+                <IconSymbol
+                  ios_icon_name="checkmark.circle.fill"
+                  android_material_icon_name="check-circle"
+                  size={20}
+                  color="#10B981"
+                />
+                <Text style={[styles.premiumFeatureText, { color: colors.text }]}>Journal & habit reminders</Text>
               </View>
               <View style={styles.premiumFeature}>
                 <IconSymbol
@@ -638,6 +650,13 @@ export default function ProfileScreen() {
           <Text style={styles.footerSubtext}>All data stored locally on your device</Text>
         </View>
       </ScrollView>
+
+      {/* Reminders Overlay */}
+      <RemindersOverlay
+        visible={showRemindersOverlay}
+        onClose={() => setShowRemindersOverlay(false)}
+        isPremium={hasPremium}
+      />
     </LinearGradient>
   );
 }
