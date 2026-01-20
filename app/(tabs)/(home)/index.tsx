@@ -75,6 +75,7 @@ interface JournalEntry {
 
 // 🚀 PREVIEW MODE: Removed display limits - show all affirmations and habits
 const FREE_HOME_DISPLAY_LIMIT = 999999; // Effectively unlimited for preview
+const FREE_AFFIRMATION_LIMIT = 5; // Free users can select up to 5 affirmations
 
 // Default habits to create on first launch
 const DEFAULT_HABITS = [
@@ -727,6 +728,12 @@ export default function HomeScreen() {
     day: "numeric",
   });
 
+  // Calculate affirmation count for title
+  const selectedAffirmationsCount = affirmations.length;
+  const affirmationTitleText = isPremium 
+    ? `Your Affirmations Today (${selectedAffirmationsCount})`
+    : `Your Affirmations Today (${selectedAffirmationsCount}/${FREE_AFFIRMATION_LIMIT})`;
+
   return (
     <GestureDetector gesture={panGesture}>
       <LinearGradient
@@ -761,7 +768,7 @@ export default function HomeScreen() {
               console.log(`Affirmations section layout: y=${y}, height=${height}`);
             }}
           >
-            <Text style={styles.sectionTitle}>Your Affirmations Today</Text>
+            <Text style={styles.sectionTitle}>{affirmationTitleText}</Text>
             <ScrollView
               horizontal
               pagingEnabled
