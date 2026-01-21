@@ -16,6 +16,7 @@ import {
   ThemeProvider as NavigationThemeProvider,
 } from "@react-navigation/native";
 import { initDatabase } from "@/utils/database";
+import { initializeRevenueCat } from "@/utils/revenueCat";
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
@@ -34,9 +35,14 @@ export default function RootLayout() {
         console.log("[App] Initializing database...");
         await initDatabase();
         console.log("[App] Database initialized successfully");
+        
+        console.log("[App] Initializing RevenueCat...");
+        await initializeRevenueCat();
+        console.log("[App] RevenueCat initialized successfully");
+        
         setIsReady(true);
       } catch (error) {
-        console.error("[App] Error initializing database:", error);
+        console.error("[App] Error during initialization:", error);
         setIsReady(true); // Continue anyway
       }
     }

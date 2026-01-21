@@ -12,6 +12,7 @@ import { useTheme } from "@/contexts/ThemeContext";
 import { getColors } from "@/styles/commonStyles";
 import { RemindersOverlay } from "@/components/RemindersOverlay";
 import { initializeNotifications } from "@/utils/notifications";
+import { getOfferings, purchasePackage, restorePurchases, getCustomerInfo } from "@/utils/revenueCat";
 
 export default function ProfileScreen() {
   const router = useRouter();
@@ -26,6 +27,7 @@ export default function ProfileScreen() {
   const [hasPremium, setHasPremium] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [showRemindersOverlay, setShowRemindersOverlay] = useState(false);
+  const [isPurchasing, setIsPurchasing] = useState(false);
 
   const loadProfileData = useCallback(async () => {
     try {
@@ -52,7 +54,22 @@ export default function ProfileScreen() {
         }
 
         setHasPremium((profile as any).isPremium === 1);
-        console.log("[Profile] Premium status:", (profile as any).isPremium === 1);
+        console.log("[Profile] Premium status from database:", (profile as any).isPremium === 1);
+      }
+      
+      // Check RevenueCat status
+      try {
+        const { isPro } = await getCustomerInfo();
+        console.log("[Profile] RevenueCat premium status:", isPro);
+        
+        // Update database if RevenueCat status differs
+        if (isPro !== (hasPremium || (profile as any)?.isPremium === 1)) {
+          await updateProfile({ isPremium: isPro });
+          setHasPremium(isPro);
+          console.log("[Profile] Updated premium status from RevenueCat");
+        }
+      } catch (error) {
+        console.error("[Profile] Error checking RevenueCat status:", error);
       }
     } catch (error) {
       console.error("[Profile] Error loading profile data:", error);
@@ -172,51 +189,100 @@ export default function ProfileScreen() {
   const handleUnlockPremium = async () => {
     console.log("[Profile] User tapped Unlock Premium button");
     
-    Alert.alert(
-      "Unlock Premium",
-      "Get unlimited affirmations and habits for just $4.40/month!\n\n✓ Unlimited daily affirmations\n✓ Unlimited daily habits\n✓ Journal reminders\n✓ Individual habit reminders\n✓ All future features included",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Subscribe $4.40/month",
-          onPress: async () => {
-            try {
-              console.log("[Profile] Processing subscription...");
-              
-              // Simulate successful purchase for now
-              await updateProfile({ isPremium: true });
-              setHasPremium(true);
-              
-              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-              Alert.alert(
-                "Welcome to Premium!",
-                "You now have unlimited access to all affirmations, habits, and premium reminders. Thank you for your support!",
-                [{ text: "Awesome!" }]
-              );
-              
-              console.log("[Profile] Premium subscription activated");
-            } catch (error) {
-              console.error("[Profile] Error processing subscription:", error);
-              Alert.alert("Error", "Failed to process subscription. Please try again.");
-            }
+    try {
+      setIsPurchasing(true);
+      console.log("[Profile] Fetching RevenueCat offerings...");
+      
+      const offering = await getOfferings();
+      
+      if (!offering || !offering.availablePackages || offering.availablePackages.length === 0) {
+        Alert.alert(
+          "No Packages Available",
+          "Unable to load subscription packages. Please try again later.",
+          [{ text: "OK" }]
+        );
+        return;
+      }
+      
+      // Get the monthly package (or first available package)
+      const monthlyPackage = offering.availablePackages.find(
+        pkg => pkg.packageType === 'MONTHLY'
+      ) || offering.availablePackages[0];
+      
+      console.log("[Profile] Selected package:", monthlyPackage.identifier);
+      
+      // Show confirmation with actual price
+      const priceString = monthlyPackage.product.priceString;
+      
+      Alert.alert(
+        "Unlock Premium",
+        `Get unlimited affirmations and habits for ${priceString}/month!\n\n✓ Unlimited daily affirmations\n✓ Unlimited daily habits\n✓ Journal reminders\n✓ Individual habit reminders\n✓ All future features included`,
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: `Subscribe ${priceString}/month`,
+            onPress: async () => {
+              try {
+                console.log("[Profile] Processing subscription...");
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                
+                const result = await purchasePackage(monthlyPackage);
+                
+                if (result.success && result.isPro) {
+                  // Update local state and database
+                  await updateProfile({ isPremium: true });
+                  setHasPremium(true);
+                  
+                  Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                  Alert.alert(
+                    "Welcome to Premium!",
+                    "You now have unlimited access to all affirmations, habits, and premium reminders. Thank you for your support!",
+                    [{ text: "Awesome!" }]
+                  );
+                  
+                  console.log("[Profile] Premium subscription activated via RevenueCat");
+                } else if (result.cancelled) {
+                  console.log("[Profile] User cancelled purchase");
+                } else {
+                  Alert.alert("Purchase Failed", result.error || "Unable to complete purchase. Please try again.");
+                }
+              } catch (error) {
+                console.error("[Profile] Error processing subscription:", error);
+                Alert.alert("Error", "Failed to process subscription. Please try again.");
+              }
+            },
           },
-        },
-      ]
-    );
+        ]
+      );
+    } catch (error) {
+      console.error("[Profile] Error fetching offerings:", error);
+      Alert.alert("Error", "Failed to load subscription options. Please try again.");
+    } finally {
+      setIsPurchasing(false);
+    }
   };
 
   const handleRestorePurchases = async () => {
     console.log("[Profile] User tapped Restore Purchases");
     
     try {
-      // Check database for existing premium status
-      const profile = await getProfile();
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      console.log("[Profile] Restoring purchases via RevenueCat...");
       
-      if (profile && (profile as any).isPremium === 1) {
+      const result = await restorePurchases();
+      
+      if (result.success && result.isPro) {
+        // Update local state and database
+        await updateProfile({ isPremium: true });
         setHasPremium(true);
+        
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         Alert.alert("Success", "Premium subscription restored!");
+        console.log("[Profile] Premium subscription restored via RevenueCat");
+      } else if (result.success && !result.isPro) {
+        Alert.alert("No Purchases Found", "You don&apos;t have any active subscriptions to restore.");
       } else {
-        Alert.alert("No Purchases Found", "You don't have any active subscriptions to restore.");
+        Alert.alert("Error", result.error || "Failed to restore purchases. Please try again.");
       }
     } catch (error) {
       console.error("[Profile] Error restoring purchases:", error);
@@ -234,7 +300,7 @@ export default function ProfileScreen() {
       if (preview.totalEntries === 0) {
         Alert.alert(
           "No Journal Entries",
-          "You don't have any journal entries to export yet. Start journaling to build your collection!",
+          "You don&apos;t have any journal entries to export yet. Start journaling to build your collection!",
           [{ text: "OK" }]
         );
         return;
@@ -461,7 +527,7 @@ export default function ProfileScreen() {
               <Text style={[styles.premiumTitle, { color: colors.text }]}>Unlock Premium</Text>
             </View>
             <Text style={[styles.premiumDescription, { color: colors.textSecondary }]}>
-              Get unlimited affirmations and habits for just $4.40/month
+              Get unlimited affirmations and habits
             </Text>
             <View style={styles.premiumFeatures}>
               <View style={styles.premiumFeature}>
@@ -501,8 +567,16 @@ export default function ProfileScreen() {
                 <Text style={[styles.premiumFeatureText, { color: colors.text }]}>All future features included</Text>
               </View>
             </View>
-            <TouchableOpacity style={[styles.premiumButton, { backgroundColor: colors.primary }]} onPress={handleUnlockPremium}>
-              <Text style={styles.premiumButtonText}>Subscribe for $4.40/month</Text>
+            <TouchableOpacity 
+              style={[styles.premiumButton, { backgroundColor: colors.primary }]} 
+              onPress={handleUnlockPremium}
+              disabled={isPurchasing}
+            >
+              {isPurchasing ? (
+                <ActivityIndicator color="#FFFFFF" />
+              ) : (
+                <Text style={styles.premiumButtonText}>View Subscription Options</Text>
+              )}
             </TouchableOpacity>
             <TouchableOpacity style={styles.restoreButton} onPress={handleRestorePurchases}>
               <Text style={[styles.restoreButtonText, { color: colors.primary }]}>Restore Purchases</Text>
@@ -648,6 +722,7 @@ export default function ProfileScreen() {
         <View style={styles.footer}>
           <Text style={styles.footerText}>Indigo Habits v1.0.0</Text>
           <Text style={styles.footerSubtext}>All data stored locally on your device</Text>
+          <Text style={styles.footerSubtext}>Powered by RevenueCat</Text>
         </View>
       </ScrollView>
 
@@ -678,7 +753,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: 20,
-    paddingTop: Platform.OS === "android" ? 60 : 60,
+    paddingTop: 60,
     paddingBottom: 120,
   },
   title: {
