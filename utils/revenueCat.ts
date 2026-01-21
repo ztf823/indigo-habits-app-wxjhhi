@@ -3,8 +3,12 @@ import Purchases, { LOG_LEVEL, PurchasesOffering } from 'react-native-purchases'
 import { Platform } from 'react-native';
 
 // RevenueCat API Keys
+// IMPORTANT: Add your Apple API key from RevenueCat dashboard before building for iOS
 const REVENUECAT_GOOGLE_API_KEY = 'goog_eNogZNZZAtzunNmzzDNXxYafmpy';
-const REVENUECAT_APPLE_API_KEY = ''; // Add your Apple API key here when available
+const REVENUECAT_APPLE_API_KEY = 'appl_YOUR_APPLE_KEY_HERE'; // Replace with your Apple API key from RevenueCat
+
+// Product identifiers
+export const PREMIUM_MONTHLY_PRODUCT_ID = 'premium_monthly'; // $4.40/month
 
 /**
  * Initialize RevenueCat SDK
@@ -14,23 +18,27 @@ export async function initializeRevenueCat() {
   try {
     console.log('[RevenueCat] Initializing SDK...');
     
-    // Configure SDK
-    Purchases.setLogLevel(LOG_LEVEL.DEBUG);
+    // Skip initialization on web
+    if (Platform.OS === 'web') {
+      console.log('[RevenueCat] Web platform detected - RevenueCat not available');
+      return;
+    }
+    
+    // Configure SDK with debug logging for development
+    Purchases.setLogLevel(__DEV__ ? LOG_LEVEL.DEBUG : LOG_LEVEL.INFO);
     
     // Initialize with platform-specific API key
     if (Platform.OS === 'android') {
       await Purchases.configure({ apiKey: REVENUECAT_GOOGLE_API_KEY });
       console.log('[RevenueCat] Configured for Android with Google Play');
     } else if (Platform.OS === 'ios') {
-      if (REVENUECAT_APPLE_API_KEY) {
+      if (REVENUECAT_APPLE_API_KEY && REVENUECAT_APPLE_API_KEY !== 'appl_YOUR_APPLE_KEY_HERE') {
         await Purchases.configure({ apiKey: REVENUECAT_APPLE_API_KEY });
         console.log('[RevenueCat] Configured for iOS with App Store');
       } else {
-        console.warn('[RevenueCat] Apple API key not configured. Add it to utils/revenueCat.ts');
+        console.warn('[RevenueCat] ⚠️ Apple API key not configured! Add it to utils/revenueCat.ts before building for iOS');
+        console.warn('[RevenueCat] Get your Apple API key from: https://app.revenuecat.com/');
       }
-    } else {
-      console.log('[RevenueCat] Web platform detected - RevenueCat not available');
-      return;
     }
     
     console.log('[RevenueCat] SDK initialized successfully');
@@ -47,6 +55,7 @@ export async function getCustomerInfo() {
     console.log('[RevenueCat] Fetching customer info...');
     const customerInfo = await Purchases.getCustomerInfo();
     
+    // Check for 'pro' entitlement
     const isPro = typeof customerInfo.entitlements.active['pro'] !== 'undefined';
     console.log('[RevenueCat] Customer info retrieved. Pro status:', isPro);
     
@@ -74,9 +83,19 @@ export async function getOfferings(): Promise<PurchasesOffering | null> {
     if (offerings.current !== null) {
       console.log('[RevenueCat] Current offering:', offerings.current.identifier);
       console.log('[RevenueCat] Available packages:', offerings.current.availablePackages.length);
+      
+      // Log package details for debugging
+      offerings.current.availablePackages.forEach((pkg) => {
+        console.log(`[RevenueCat] Package: ${pkg.identifier}`);
+        console.log(`[RevenueCat] - Product: ${pkg.product.identifier}`);
+        console.log(`[RevenueCat] - Price: ${pkg.product.priceString}`);
+        console.log(`[RevenueCat] - Period: ${pkg.product.subscriptionPeriod}`);
+      });
+      
       return offerings.current;
     } else {
       console.warn('[RevenueCat] No current offering available');
+      console.warn('[RevenueCat] Make sure you have configured offerings in RevenueCat dashboard');
       return null;
     }
   } catch (error) {
@@ -91,11 +110,13 @@ export async function getOfferings(): Promise<PurchasesOffering | null> {
 export async function purchasePackage(packageToPurchase: any) {
   try {
     console.log('[RevenueCat] Initiating purchase for package:', packageToPurchase.identifier);
+    console.log('[RevenueCat] Product ID:', packageToPurchase.product.identifier);
+    console.log('[RevenueCat] Price:', packageToPurchase.product.priceString);
     
     const { customerInfo } = await Purchases.purchasePackage(packageToPurchase);
     
     const isPro = typeof customerInfo.entitlements.active['pro'] !== 'undefined';
-    console.log('[RevenueCat] Purchase completed. Pro status:', isPro);
+    console.log('[RevenueCat] Purchase completed successfully! Pro status:', isPro);
     
     return {
       success: true,
@@ -169,7 +190,6 @@ export async function checkProStatus(): Promise<boolean> {
 export async function getManagementURL(): Promise<string | null> {
   try {
     console.log('[RevenueCat] Getting management URL...');
-    const url = await Purchases.getCustomerInfo();
     
     if (Platform.OS === 'ios') {
       return 'https://apps.apple.com/account/subscriptions';

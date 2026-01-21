@@ -1,3 +1,4 @@
+
 {
   "cli": {
     "version": ">= 5.0.0"
@@ -7,27 +8,59 @@
       "developmentClient": true,
       "distribution": "internal",
       "ios": {
-        "simulator": true
+        "simulator": true,
+        "buildConfiguration": "Debug"
       },
       "android": {
-        "buildType": "apk"
+        "buildType": "apk",
+        "gradleCommand": ":app:assembleDebug"
+      },
+      "env": {
+        "EXPO_PUBLIC_ENV": "development"
       }
     },
     "preview": {
       "distribution": "internal",
       "ios": {
-        "simulator": false
+        "simulator": false,
+        "buildConfiguration": "Release"
       },
       "android": {
-        "buildType": "apk"
+        "buildType": "apk",
+        "gradleCommand": ":app:assembleRelease"
+      },
+      "env": {
+        "EXPO_PUBLIC_ENV": "preview"
       }
     },
     "production": {
+      "distribution": "store",
       "ios": {
-        "simulator": false
+        "simulator": false,
+        "buildConfiguration": "Release",
+        "autoIncrement": true
       },
       "android": {
-        "buildType": "aab"
+        "buildType": "aab",
+        "gradleCommand": ":app:bundleRelease"
+      },
+      "env": {
+        "EXPO_PUBLIC_ENV": "production"
+      }
+    },
+    "production-ios": {
+      "extends": "production",
+      "ios": {
+        "simulator": false,
+        "buildConfiguration": "Release",
+        "autoIncrement": true
+      }
+    },
+    "production-android": {
+      "extends": "production",
+      "android": {
+        "buildType": "aab",
+        "gradleCommand": ":app:bundleRelease"
       }
     }
   },
@@ -36,11 +69,13 @@
       "ios": {
         "appleId": "your-apple-id@example.com",
         "ascAppId": "your-asc-app-id",
-        "appleTeamId": "your-team-id"
+        "appleTeamId": "your-team-id",
+        "sku": "indigo-habits-001"
       },
       "android": {
-        "serviceAccountKeyPath": "./path/to/api-key.json",
-        "track": "internal"
+        "serviceAccountKeyPath": "./google-play-service-account.json",
+        "track": "internal",
+        "releaseStatus": "draft"
       }
     }
   }

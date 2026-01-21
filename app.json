@@ -1,7 +1,8 @@
+
 {
   "expo": {
     "name": "Indigo Habits",
-    "slug": "Indigo Habits",
+    "slug": "indigo-habits",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/6d55fc54-d63d-4404-853f-c341ea5517d1.png",
@@ -10,22 +11,27 @@
     "splash": {
       "image": "./assets/images/6d55fc54-d63d-4404-853f-c341ea5517d1.png",
       "resizeMode": "contain",
-      "backgroundColor": "#FFFFFF"
+      "backgroundColor": "#4F46E5"
     },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.indigohabits.app",
+      "buildNumber": "1",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NSPhotoLibraryUsageDescription": "Indigo Habits needs access to your photos to add images to your journal entries.",
-        "NSCameraUsageDescription": "Indigo Habits needs access to your camera to take photos for your journal entries."
+        "NSCameraUsageDescription": "Indigo Habits needs access to your camera to take photos for your journal entries.",
+        "NSMicrophoneUsageDescription": "Indigo Habits needs access to your microphone to record audio notes for your journal entries.",
+        "NSUserTrackingUsageDescription": "This identifier will be used to deliver personalized ads to you."
       },
-      "buildNumber": "1"
+      "config": {
+        "usesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/6d55fc54-d63d-4404-853f-c341ea5517d1.png",
-        "backgroundColor": "#FFFFFF"
+        "backgroundColor": "#4F46E5"
       },
       "edgeToEdgeEnabled": true,
       "package": "com.indigohabits.app",
@@ -35,7 +41,9 @@
         "READ_EXTERNAL_STORAGE",
         "WRITE_EXTERNAL_STORAGE",
         "RECEIVE_BOOT_COMPLETED",
-        "SCHEDULE_EXACT_ALARM"
+        "SCHEDULE_EXACT_ALARM",
+        "POST_NOTIFICATIONS",
+        "RECORD_AUDIO"
       ]
     },
     "web": {
@@ -58,7 +66,14 @@
         {
           "icon": "./assets/images/6d55fc54-d63d-4404-853f-c341ea5517d1.png",
           "color": "#4F46E5",
-          "defaultChannel": "habits-reminders"
+          "defaultChannel": "habits-reminders",
+          "sounds": []
+        }
+      ],
+      [
+        "expo-av",
+        {
+          "microphonePermission": "Indigo Habits needs access to your microphone to record audio notes for your journal entries."
         }
       ]
     ],
@@ -71,9 +86,12 @@
         "origin": false
       },
       "eas": {
-        "projectId": "indigo-habits-production"
+        "projectId": "your-eas-project-id"
       }
-    }
-  },
-  "scheme": "Indigo Habits"
+    },
+    "owner": "your-expo-username",
+    "privacy": "public",
+    "description": "Indigo Habits is a beautiful habit tracker and journal app that helps you build positive habits and reflect on your daily progress with affirmations, streaks, and mindful journaling.",
+    "primaryColor": "#4F46E5"
+  }
 }
