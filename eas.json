@@ -1,3 +1,4 @@
+
 {
   "cli": {
     "version": ">= 5.0.0"
@@ -45,21 +46,6 @@
       },
       "env": {
         "EXPO_PUBLIC_ENV": "production"
-      }
-    },
-    "production-ios": {
-      "extends": "production",
-      "ios": {
-        "simulator": false,
-        "buildConfiguration": "Release",
-        "autoIncrement": true
-      }
-    },
-    "production-android": {
-      "extends": "production",
-      "android": {
-        "buildType": "aab",
-        "gradleCommand": ":app:bundleRelease"
       }
     }
   },
