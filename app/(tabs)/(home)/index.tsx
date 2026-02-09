@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { LinearGradient } from "expo-linear-gradient";
 import { getRandomAffirmation } from "@/utils/affirmations";
 import {
@@ -126,7 +126,7 @@ export default function HomeScreen() {
     height: number;
   } | null>(null);
 
-  const tabs = [
+  const tabs = useMemo(() => [
     {
       name: '(home)',
       route: '/(tabs)/(home)/' as any,
@@ -152,7 +152,7 @@ export default function HomeScreen() {
       route: '/(tabs)/profile' as any,
       label: 'Profile',
     },
-  ];
+  ], []);
 
   const getCurrentIndex = useCallback(() => {
     const currentPath = pathname.split('/').filter(Boolean).pop() || '(home)';
@@ -161,7 +161,7 @@ export default function HomeScreen() {
       (tab.name === '(home)' && (currentPath === '' || currentPath === '(home)'))
     );
     return index >= 0 ? index : 0;
-  }, [pathname]);
+  }, [pathname, tabs]);
 
   const navigateToTab = useCallback((direction: 'left' | 'right') => {
     const currentIndex = getCurrentIndex();
@@ -272,7 +272,7 @@ export default function HomeScreen() {
     } catch (error) {
       console.error("Error loading affirmations:", error);
     }
-  }, [isPremium]);
+  }, []);
 
   const loadHabits = useCallback(async () => {
     try {
@@ -338,7 +338,7 @@ export default function HomeScreen() {
     } catch (error) {
       console.error("Error loading habits:", error);
     }
-  }, [isPremium]);
+  }, []);
 
   const loadTodayJournal = useCallback(async () => {
     try {
@@ -386,7 +386,7 @@ export default function HomeScreen() {
       loadHabits();
       loadTodayJournal();
     }
-  }, [isPremium, loading]);
+  }, [loading, loadAffirmations, loadHabits, loadTodayJournal]);
 
   useEffect(() => {
     loadData();

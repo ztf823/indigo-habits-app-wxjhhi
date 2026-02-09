@@ -3,9 +3,8 @@ import Purchases, { LOG_LEVEL, PurchasesOffering } from 'react-native-purchases'
 import { Platform } from 'react-native';
 
 // RevenueCat API Keys
-// IMPORTANT: Add your Apple API key from RevenueCat dashboard before building for iOS
 const REVENUECAT_GOOGLE_API_KEY = 'goog_eNogZNZZAtzunNmzzDNXxYafmpy';
-const REVENUECAT_APPLE_API_KEY = 'appl_YOUR_APPLE_KEY_HERE'; // Replace with your Apple API key from RevenueCat
+const REVENUECAT_APPLE_API_KEY = 'appl_KVaWqlpxQpKqoMgILPRLHowDNxe';
 
 // Product identifiers
 export const PREMIUM_MONTHLY_PRODUCT_ID = 'premium_monthly'; // $4.40/month
@@ -32,13 +31,8 @@ export async function initializeRevenueCat() {
       await Purchases.configure({ apiKey: REVENUECAT_GOOGLE_API_KEY });
       console.log('[RevenueCat] Configured for Android with Google Play');
     } else if (Platform.OS === 'ios') {
-      if (REVENUECAT_APPLE_API_KEY && REVENUECAT_APPLE_API_KEY !== 'appl_YOUR_APPLE_KEY_HERE') {
-        await Purchases.configure({ apiKey: REVENUECAT_APPLE_API_KEY });
-        console.log('[RevenueCat] Configured for iOS with App Store');
-      } else {
-        console.warn('[RevenueCat] ⚠️ Apple API key not configured! Add it to utils/revenueCat.ts before building for iOS');
-        console.warn('[RevenueCat] Get your Apple API key from: https://app.revenuecat.com/');
-      }
+      await Purchases.configure({ apiKey: REVENUECAT_APPLE_API_KEY });
+      console.log('[RevenueCat] Configured for iOS with App Store');
     }
     
     console.log('[RevenueCat] SDK initialized successfully');

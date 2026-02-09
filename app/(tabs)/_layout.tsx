@@ -1,5 +1,5 @@
 
-import React, { useRef, useEffect, useState, useCallback } from 'react';
+import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react';
 import { Stack } from 'expo-router';
 import { View, Platform } from 'react-native';
 import FloatingTabBar from '@/components/FloatingTabBar';
@@ -13,7 +13,7 @@ export default function TabLayout() {
   const pathname = usePathname();
   const [currentPage, setCurrentPage] = useState(0);
 
-  const tabs = [
+  const tabs = useMemo(() => [
     {
       name: '(home)',
       route: '/(tabs)/(home)/' as any,
@@ -49,7 +49,7 @@ export default function TabLayout() {
       ios_icon_name: 'person.fill',
       android_material_icon_name: 'person',
     },
-  ];
+  ], []);
 
   const getCurrentIndex = useCallback(() => {
     const currentPath = pathname.split('/').filter(Boolean).pop() || '(home)';
@@ -58,7 +58,7 @@ export default function TabLayout() {
       (tab.name === '(home)' && (currentPath === '' || currentPath === '(home)'))
     );
     return index >= 0 ? index : 0;
-  }, [pathname]);
+  }, [pathname, tabs]);
 
   useEffect(() => {
     const newIndex = getCurrentIndex();

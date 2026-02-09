@@ -55,7 +55,7 @@ export default function FloatingTabBar({
       damping: 20,
       stiffness: 90,
     });
-  }, [currentIndex, containerWidth, tabs.length]);
+  }, [currentIndex, containerWidth, tabs.length, indicatorPosition]);
 
   const animatedIndicatorStyle = useAnimatedStyle(() => {
     return {

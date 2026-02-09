@@ -53,8 +53,9 @@ export default function ProfileScreen() {
           console.log("[Profile] Loaded user email from database:", (profile as any).email);
         }
 
-        setHasPremium((profile as any).isPremium === 1);
-        console.log("[Profile] Premium status from database:", (profile as any).isPremium === 1);
+        const premiumStatus = (profile as any).isPremium === 1;
+        setHasPremium(premiumStatus);
+        console.log("[Profile] Premium status from database:", premiumStatus);
       }
       
       // Check RevenueCat status
@@ -63,7 +64,8 @@ export default function ProfileScreen() {
         console.log("[Profile] RevenueCat premium status:", isPro);
         
         // Update database if RevenueCat status differs
-        if (isPro !== (hasPremium || (profile as any)?.isPremium === 1)) {
+        const currentPremium = (profile as any)?.isPremium === 1;
+        if (isPro !== currentPremium) {
           await updateProfile({ isPremium: isPro });
           setHasPremium(isPro);
           console.log("[Profile] Updated premium status from RevenueCat");

@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 import { getCustomerInfo, checkProStatus } from '@/utils/revenueCat';
@@ -10,11 +10,7 @@ export function usePremium() {
   const [isPro, setIsPro] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    loadPremiumStatus();
-  }, []);
-
-  const loadPremiumStatus = async () => {
+  const loadPremiumStatus = useCallback(async () => {
     try {
       setLoading(true);
       console.log('[usePremium] Loading premium status...');
@@ -51,11 +47,15 @@ export function usePremium() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const checkProStatus = async () => {
+  useEffect(() => {
+    loadPremiumStatus();
+  }, [loadPremiumStatus]);
+
+  const checkProStatusCallback = useCallback(async () => {
     await loadPremiumStatus();
-  };
+  }, [loadPremiumStatus]);
 
   const upgradeToPro = async () => {
     try {
@@ -71,5 +71,5 @@ export function usePremium() {
     }
   };
 
-  return { isPro, loading, upgradeToPro, checkProStatus };
+  return { isPro, loading, upgradeToPro, checkProStatus: checkProStatusCallback };
 }

@@ -53,8 +53,9 @@ export default function ProfileScreen() {
           console.log("[Profile] Loaded user email from database:", (profile as any).email);
         }
 
-        setHasPremium((profile as any).isPremium === 1);
-        console.log("[Profile] Premium status from database:", (profile as any).isPremium === 1);
+        const premiumStatus = (profile as any).isPremium === 1;
+        setHasPremium(premiumStatus);
+        console.log("[Profile] Premium status from database:", premiumStatus);
       }
       
       // Check RevenueCat status on native platforms
@@ -64,7 +65,8 @@ export default function ProfileScreen() {
           console.log("[Profile] RevenueCat premium status:", isPro);
           
           // Update database if RevenueCat status differs
-          if (isPro !== (hasPremium || (profile as any)?.isPremium === 1)) {
+          const currentPremium = (profile as any)?.isPremium === 1;
+          if (isPro !== currentPremium) {
             await updateProfile({ isPremium: isPro });
             setHasPremium(isPro);
             console.log("[Profile] Updated premium status from RevenueCat");
@@ -458,8 +460,6 @@ export default function ProfileScreen() {
     );
   }
 
-  const dynamicStyles = createDynamicStyles(colors, isDark);
-
   return (
     <LinearGradient 
       colors={isDark ? [colors.gradientStart, colors.gradientEnd] : ["#4F46E5", "#7C3AED", "#06B6D4"]} 
@@ -758,12 +758,6 @@ export default function ProfileScreen() {
       />
     </LinearGradient>
   );
-}
-
-function createDynamicStyles(colors: any, isDark: boolean) {
-  return StyleSheet.create({
-    // Dynamic styles based on theme
-  });
 }
 
 const styles = StyleSheet.create({
