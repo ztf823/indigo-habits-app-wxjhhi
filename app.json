@@ -1,7 +1,9 @@
+
 {
   "expo": {
     "name": "Indigo Habits",
-    "slug": "Indigo Habits",
+    "slug": "indigo-habits",
+    "scheme": "indigohabits",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/6d55fc54-d63d-4404-853f-c341ea5517d1.png",
@@ -14,7 +16,7 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.indigohabits.app",
+      "bundleIdentifier": "com.indigohabits.journal2025",
       "buildNumber": "1",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
@@ -75,16 +77,16 @@
         }
       ]
     ],
-    "scheme": "Indigo Habits",
     "experiments": {
       "typedRoutes": true
     },
     "extra": {
       "router": {
         "origin": false
-      }
+      },
+      "revenueCatApple": "appl_KVaWqlpxQpKqoMgILPRLHowDNxe",
+      "revenueCatGoogle": "goog_KVaWqlpxQpKqoMgILPRLHowDNxe"
     },
-    "privacy": "public",
     "description": "Indigo Habits is a beautiful habit tracker and journal app that helps you build positive habits and reflect on your daily progress with affirmations, streaks, and mindful journaling.",
     "primaryColor": "#4F46E5"
   }
