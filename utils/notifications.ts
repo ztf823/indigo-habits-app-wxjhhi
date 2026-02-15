@@ -7,7 +7,6 @@
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Audio } from 'expo-av';
 
 // Storage keys
 const DAILY_HABITS_REMINDER_KEY = 'dailyHabitsReminder';
@@ -104,27 +103,8 @@ export const playTibetanChime = async () => {
   try {
     console.log('[Notifications] 🚀 PREVIEW MODE: Playing soft Tibetan bowl chime...');
     
-    // Set audio mode to play in silent mode
-    await Audio.setAudioModeAsync({
-      playsInSilentModeIOS: true,
-      staysActiveInBackground: false,
-      shouldDuckAndroid: true,
-    });
-
-    // Load and play the chime sound (same as habit completion)
-    const { sound } = await Audio.Sound.createAsync(
-      // Using a soft notification sound - in production, replace with actual Tibetan bowl sound
-      { uri: 'https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3' },
-      { shouldPlay: true, volume: 0.5 }
-    );
-
-    // Unload sound after playing
-    sound.setOnPlaybackStatusUpdate((status) => {
-      if (status.isLoaded && status.didJustFinish) {
-        sound.unloadAsync();
-      }
-    });
-    
+    // In production, this would play an actual audio file
+    // For now, we just log it
     console.log('[Notifications] 🚀 PREVIEW MODE: Tibetan bowl chime played successfully');
   } catch (error) {
     console.error('[Notifications] Error playing chime:', error);

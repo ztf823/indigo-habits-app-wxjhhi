@@ -19,7 +19,7 @@ import {
 } from "react-native";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
-import { Audio } from "expo-av";
+import { useAudioRecorder, AudioModule } from "expo-audio";
 import { IconSymbol } from "@/components/IconSymbol";
 import {
   getAllAffirmations,
@@ -109,9 +109,8 @@ export default function HomeScreen() {
   const [journalContent, setJournalContent] = useState("");
   const [journalTitle, setJournalTitle] = useState("");
   const [journalPhoto, setJournalPhoto] = useState<string | null>(null);
-  const [isRecording, setIsRecording] = useState(false);
-  const [recording, setRecording] = useState<Audio.Recording | null>(null);
   const [audioUri, setAudioUri] = useState<string | null>(null);
+  const audioRecorder = useAudioRecorder();
   const [isSaving, setIsSaving] = useState(false);
   const [currentJournalId, setCurrentJournalId] = useState<string | null>(null);
   const [journalIsFavorite, setJournalIsFavorite] = useState(false);
@@ -634,24 +633,14 @@ export default function HomeScreen() {
     try {
       console.log("User started recording audio");
       
-      const { status } = await Audio.requestPermissionsAsync();
+      const { granted } = await AudioModule.requestRecordingPermissionsAsync();
       
-      if (status !== "granted") {
+      if (!granted) {
         Alert.alert("Permission Required", "Please grant microphone access.");
         return;
       }
 
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: true,
-        playsInSilentModeIOS: true,
-      });
-
-      const { recording: newRecording } = await Audio.Recording.createAsync(
-        Audio.RecordingOptionsPresets.HIGH_QUALITY
-      );
-      
-      setRecording(newRecording);
-      setIsRecording(true);
+      await audioRecorder.record();
       console.log("Recording started");
     } catch (error) {
       console.error("Error starting recording:", error);
@@ -663,13 +652,10 @@ export default function HomeScreen() {
     try {
       console.log("User stopped recording audio");
       
-      if (!recording) return;
+      if (!audioRecorder.isRecording) return;
       
-      setIsRecording(false);
-      await recording.stopAndUnloadAsync();
-      const uri = recording.getURI();
+      const uri = await audioRecorder.stop();
       setAudioUri(uri);
-      setRecording(null);
       
       console.log("Recording saved:", uri);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -1036,17 +1022,17 @@ export default function HomeScreen() {
                 </TouchableOpacity>
 
                 <TouchableOpacity
-                  onPress={isRecording ? stopRecording : startRecording}
+                  onPress={audioRecorder.isRecording ? stopRecording : startRecording}
                   style={[
                     styles.journalModalActionButton,
-                    isRecording && styles.journalModalRecordingButton,
+                    audioRecorder.isRecording && styles.journalModalRecordingButton,
                   ]}
                 >
                   <IconSymbol
-                    ios_icon_name={isRecording ? "stop.circle" : "mic"}
-                    android_material_icon_name={isRecording ? "stop" : "mic"}
+                    ios_icon_name={audioRecorder.isRecording ? "stop.circle" : "mic"}
+                    android_material_icon_name={audioRecorder.isRecording ? "stop" : "mic"}
                     size={24}
-                    color={isRecording ? "#EF4444" : "#4F46E5"}
+                    color={audioRecorder.isRecording ? "#EF4444" : "#4F46E5"}
                   />
                 </TouchableOpacity>
 

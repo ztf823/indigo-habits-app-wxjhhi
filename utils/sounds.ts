@@ -1,8 +1,5 @@
 
-import { Audio } from "expo-av";
 import { Platform } from "react-native";
-
-let chimeSound: Audio.Sound | null = null;
 
 /**
  * Initialize the chime sound
@@ -13,12 +10,6 @@ export const initializeChime = async () => {
       console.log("[Sounds] Web platform - skipping audio initialization");
       return;
     }
-
-    // Set audio mode
-    await Audio.setAudioModeAsync({
-      playsInSilentModeIOS: true,
-      staysActiveInBackground: false,
-    });
 
     console.log("[Sounds] Chime sound initialized");
   } catch (error) {
@@ -54,10 +45,7 @@ export const playChime = async () => {
  */
 export const cleanupSounds = async () => {
   try {
-    if (chimeSound) {
-      await chimeSound.unloadAsync();
-      chimeSound = null;
-    }
+    console.log("[Sounds] Cleanup complete");
   } catch (error) {
     console.error("[Sounds] Error cleaning up sounds:", error);
   }

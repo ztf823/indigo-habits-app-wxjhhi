@@ -1,16 +1,15 @@
-
 {
   "expo": {
     "name": "Indigo Habits",
     "slug": "indigo-habits",
-    "scheme": "indigo-habits",
+    "scheme": "indigohabits",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/6d55fc54-d63d-4404-853f-c341ea5517d1.png",
+    "icon": "./assets/images/icon.png",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
-      "image": "./assets/images/6d55fc54-d63d-4404-853f-c341ea5517d1.png",
+      "image": "./assets/images/splash.png",
       "resizeMode": "contain",
       "backgroundColor": "#4F46E5"
     },
@@ -48,7 +47,7 @@
       ]
     },
     "web": {
-      "favicon": "./assets/images/6d55fc54-d63d-4404-853f-c341ea5517d1.png",
+      "favicon": "./assets/images/favicon.png",
       "bundler": "metro"
     },
     "plugins": [
@@ -64,16 +63,10 @@
       [
         "expo-notifications",
         {
-          "icon": "./assets/images/6d55fc54-d63d-4404-853f-c341ea5517d1.png",
+          "icon": "./assets/images/icon.png",
           "color": "#4F46E5",
           "defaultChannel": "habits-reminders",
           "sounds": []
-        }
-      ],
-      [
-        "expo-av",
-        {
-          "microphonePermission": "Indigo Habits needs access to your microphone to record audio notes for your journal entries."
         }
       ]
     ],
