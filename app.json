@@ -78,9 +78,6 @@
       "router": {
         "origin": false
       },
-      "eas": {
-        "projectId": "your-eas-project-id"
-      },
       "revenueCatApple": "appl_KVaWqlpxQpKqoMgILPRLHowDNxe",
       "revenueCatGoogle": "goog_KVaWqlpxQpKqoMgILPRLHowDNxe"
     },
