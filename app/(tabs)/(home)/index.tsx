@@ -19,7 +19,6 @@ import {
 } from "react-native";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
-import { useAudioRecorder, AudioModule } from "expo-audio";
 import { IconSymbol } from "@/components/IconSymbol";
 import {
   getAllAffirmations,
@@ -61,7 +60,7 @@ interface Habit {
   color: string;
   isFavorite?: number;
   isRepeating?: number;
-  reminderTime?: string; // Added for reminder time display
+  reminderTime?: string;
 }
 
 interface JournalEntry {
@@ -73,11 +72,9 @@ interface JournalEntry {
   isFavorite?: number;
 }
 
-// 🚀 PREVIEW MODE: Removed display limits - show all affirmations and habits
-const FREE_HOME_DISPLAY_LIMIT = 999999; // Effectively unlimited for preview
-const FREE_AFFIRMATION_LIMIT = 5; // Free users can select up to 5 affirmations
+const FREE_HOME_DISPLAY_LIMIT = 999999;
+const FREE_AFFIRMATION_LIMIT = 5;
 
-// Default habits to create on first launch
 const DEFAULT_HABITS = [
   { title: "Morning meditation", color: "#10B981" },
   { title: "Exercise", color: "#3B82F6" },
@@ -86,7 +83,6 @@ const DEFAULT_HABITS = [
   { title: "Practice gratitude", color: "#8B5CF6" },
 ];
 
-// 🚀 PREVIEW MODE: Sample reminder times to display
 const SAMPLE_REMINDER_TIMES: { [key: string]: string } = {
   "Morning meditation": "06:30",
   "Exercise": "07:00",
@@ -101,24 +97,19 @@ export default function HomeScreen() {
   const [affirmations, setAffirmations] = useState<Affirmation[]>([]);
   const [habits, setHabits] = useState<Habit[]>([]);
   const [loading, setLoading] = useState(true);
-  // 🚀 PREVIEW MODE: Always set premium to true
   const [isPremium, setIsPremium] = useState(true);
 
-  // Journal state
   const [journalModalVisible, setJournalModalVisible] = useState(false);
   const [journalContent, setJournalContent] = useState("");
   const [journalTitle, setJournalTitle] = useState("");
   const [journalPhoto, setJournalPhoto] = useState<string | null>(null);
   const [audioUri, setAudioUri] = useState<string | null>(null);
-  const audioRecorder = useAudioRecorder();
+  const [isRecording, setIsRecording] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [currentJournalId, setCurrentJournalId] = useState<string | null>(null);
   const [journalIsFavorite, setJournalIsFavorite] = useState(false);
 
-  // Auto-save timer
   const autoSaveTimer = useRef<NodeJS.Timeout | null>(null);
-
-  // Ref to track affirmations section layout
   const affirmationsSectionRef = useRef<View>(null);
   const [affirmationsLayout, setAffirmationsLayout] = useState<{
     y: number;
@@ -167,10 +158,8 @@ export default function HomeScreen() {
     let nextIndex: number;
 
     if (direction === 'right') {
-      // Swipe right = go to previous tab (or wrap to last)
       nextIndex = currentIndex === 0 ? tabs.length - 1 : currentIndex - 1;
     } else {
-      // Swipe left = go to next tab (or wrap to first)
       nextIndex = currentIndex === tabs.length - 1 ? 0 : currentIndex + 1;
     }
 
@@ -179,12 +168,10 @@ export default function HomeScreen() {
     router.push(tabs[nextIndex].route);
   }, [getCurrentIndex, router, tabs]);
 
-  // Create pan gesture that blocks tab switching inside affirmations card area
   const panGesture = Gesture.Pan()
-    .activeOffsetX([-20, 20]) // Require 20px horizontal movement to activate
-    .failOffsetY([-15, 15]) // Fail if vertical movement exceeds 15px (preserves vertical scroll)
+    .activeOffsetX([-20, 20])
+    .failOffsetY([-15, 15])
     .onStart((event) => {
-      // Check if gesture started inside affirmations section
       if (affirmationsLayout) {
         const gestureY = event.absoluteY;
         const affirmationsTop = affirmationsLayout.y;
@@ -192,20 +179,17 @@ export default function HomeScreen() {
         
         if (gestureY >= affirmationsTop && gestureY <= affirmationsBottom) {
           console.log('Gesture started inside affirmations card - allowing carousel only, blocking tab switch');
-          // We'll check this in onEnd to prevent tab switching
         } else {
           console.log('Gesture started outside affirmations card - tab switching enabled');
         }
       }
     })
     .onEnd((event) => {
-      // Check if gesture started inside affirmations section
       if (affirmationsLayout) {
         const gestureY = event.absoluteY;
         const affirmationsTop = affirmationsLayout.y;
         const affirmationsBottom = affirmationsLayout.y + affirmationsLayout.height;
         
-        // If gesture started inside affirmations area, block tab switching
         if (gestureY >= affirmationsTop && gestureY <= affirmationsBottom) {
           console.log('Gesture ended inside affirmations card - ignoring for tab switch');
           return;
@@ -214,13 +198,10 @@ export default function HomeScreen() {
       
       const { velocityX, translationX } = event;
       
-      // Determine swipe direction based on velocity and translation
       if (Math.abs(velocityX) > 300 || Math.abs(translationX) > 100) {
         if (velocityX > 0 || translationX > 0) {
-          // Swiped right
           navigateToTab('right');
         } else {
-          // Swiped left
           navigateToTab('left');
         }
       }
@@ -228,7 +209,6 @@ export default function HomeScreen() {
 
   const loadPremiumStatus = useCallback(async () => {
     try {
-      // 🚀 PREVIEW MODE: Always set premium to true, ignore database
       setIsPremium(true);
       console.log('🚀 PREVIEW MODE: Premium status forced to true for testing');
     } catch (error) {
@@ -240,10 +220,8 @@ export default function HomeScreen() {
     try {
       const dbAffirmations = (await getAllAffirmations()) as Affirmation[];
       
-      // Filter for repeating affirmations only
       let repeatingAffirmations = dbAffirmations.filter(a => a.isRepeating === 1);
       
-      // If we have less than the limit, fill with random ones
       if (repeatingAffirmations.length < FREE_HOME_DISPLAY_LIMIT) {
         const needed = Math.min(5, FREE_HOME_DISPLAY_LIMIT - repeatingAffirmations.length);
         console.log(`Creating ${needed} default affirmations...`);
@@ -254,7 +232,7 @@ export default function HomeScreen() {
             id: `affirmation_${Date.now()}_${i}`,
             text: affirmation,
             isCustom: false,
-            isRepeating: true, // Make them repeating by default
+            isRepeating: true,
             isFavorite: false,
             orderIndex: repeatingAffirmations.length + i,
           };
@@ -263,7 +241,6 @@ export default function HomeScreen() {
         }
       }
       
-      // 🚀 PREVIEW MODE: Show ALL repeating affirmations (no limit)
       const displayAffirmations = repeatingAffirmations;
       
       setAffirmations(displayAffirmations);
@@ -278,10 +255,8 @@ export default function HomeScreen() {
       const dbHabits = (await getAllHabits()) as Habit[];
       const today = new Date().toISOString().split("T")[0];
 
-      // Filter for repeating habits only
       let repeatingHabits = dbHabits.filter(h => h.isRepeating === 1);
 
-      // If no repeating habits exist, create default ones
       if (repeatingHabits.length === 0) {
         console.log(`Creating ${DEFAULT_HABITS.length} default habits...`);
         
@@ -300,7 +275,6 @@ export default function HomeScreen() {
         }
       }
 
-      // Load completion status for today
       const habitsWithCompletion = await Promise.all(
         repeatingHabits.map(async (habit) => {
           const completion = await getHabitCompletion(habit.id, today);
@@ -311,12 +285,10 @@ export default function HomeScreen() {
         })
       );
 
-      // 🚀 PREVIEW MODE: Load reminder times OR use sample times
       const habitsWithReminders = await Promise.all(
         habitsWithCompletion.map(async (habit) => {
           let reminderTime = await getHabitReminderTime(habit.id);
           
-          // 🚀 PREVIEW MODE: If no reminder time set, use sample time based on habit title
           if (!reminderTime && SAMPLE_REMINDER_TIMES[habit.title]) {
             reminderTime = SAMPLE_REMINDER_TIMES[habit.title];
             console.log(`🚀 PREVIEW MODE: Using sample time ${reminderTime} for habit "${habit.title}"`);
@@ -329,7 +301,6 @@ export default function HomeScreen() {
         })
       );
 
-      // 🚀 PREVIEW MODE: Show ALL repeating habits (no limit)
       const displayHabits = habitsWithReminders;
 
       setHabits(displayHabits);
@@ -368,7 +339,6 @@ export default function HomeScreen() {
       console.log("Loading home screen data from SQLite...");
       setLoading(true);
 
-      // Load premium status first, then load data based on that
       await loadPremiumStatus();
     } catch (error) {
       console.error("Error loading home screen data:", error);
@@ -378,7 +348,6 @@ export default function HomeScreen() {
     }
   }, [loadPremiumStatus]);
 
-  // Load affirmations and habits after premium status is loaded
   useEffect(() => {
     if (!loading) {
       loadAffirmations();
@@ -391,7 +360,6 @@ export default function HomeScreen() {
     loadData();
   }, [loadData]);
 
-  // Auto-save journal every 30 seconds
   useEffect(() => {
     return () => {
       if (autoSaveTimer.current) {
@@ -400,7 +368,6 @@ export default function HomeScreen() {
     };
   }, []);
 
-  // Helper function to format time for display (e.g., "6:30 AM")
   const formatTimeDisplay = (time: string): string => {
     const [hours, minutes] = time.split(':').map(Number);
     const period = hours >= 12 ? 'PM' : 'AM';
@@ -420,17 +387,14 @@ export default function HomeScreen() {
 
       const newCompleted = !habit.completed;
 
-      // Update local state immediately
       setHabits((prev) =>
         prev.map((h) =>
           h.id === habitId ? { ...h, completed: newCompleted } : h
         )
       );
 
-      // Save to database
       await setHabitCompletion(habitId, today, newCompleted);
 
-      // Play chime sound
       if (newCompleted) {
         playChime();
       }
@@ -452,17 +416,14 @@ export default function HomeScreen() {
 
       const newFavorite = habit.isFavorite === 1 ? 0 : 1;
 
-      // Update local state
       setHabits((prev) =>
         prev.map((h) =>
           h.id === habitId ? { ...h, isFavorite: newFavorite } : h
         )
       );
 
-      // Save to database
       await updateHabit(habitId, { isFavorite: newFavorite === 1 });
 
-      // Play chime sound
       playChime();
 
       console.log(`Habit ${habitId} favorite status: ${newFavorite === 1}`);
@@ -481,19 +442,16 @@ export default function HomeScreen() {
 
       const newFavorite = affirmation.isFavorite === 1 ? 0 : 1;
 
-      // Update local state
       setAffirmations((prev) =>
         prev.map((a) =>
           a.id === affirmationId ? { ...a, isFavorite: newFavorite } : a
         )
       );
 
-      // Save to database
       await updateAffirmation(affirmationId, {
         isFavorite: newFavorite === 1,
       });
 
-      // Play chime sound
       playChime();
 
       console.log(`Affirmation ${affirmationId} favorite status: ${newFavorite === 1}`);
@@ -509,15 +467,12 @@ export default function HomeScreen() {
 
       const newText = getRandomAffirmation();
 
-      // Update local state
       setAffirmations((prev) =>
         prev.map((a) => (a.id === affirmationId ? { ...a, text: newText } : a))
       );
 
-      // Save to database
       await updateAffirmation(affirmationId, { text: newText });
 
-      // Play chime sound
       playChime();
 
       console.log("New affirmation generated");
@@ -537,7 +492,6 @@ export default function HomeScreen() {
     console.log("User closed journal modal");
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     
-    // Save before closing
     saveJournalEntry();
     
     setJournalModalVisible(false);
@@ -546,12 +500,10 @@ export default function HomeScreen() {
   const handleJournalTextChange = (text: string) => {
     setJournalContent(text);
     
-    // Clear existing timer
     if (autoSaveTimer.current) {
       clearTimeout(autoSaveTimer.current);
     }
     
-    // Set new auto-save timer for 30 seconds
     autoSaveTimer.current = setTimeout(() => {
       console.log("Auto-saving journal entry...");
       saveJournalEntry();
@@ -568,14 +520,12 @@ export default function HomeScreen() {
       const today = new Date().toISOString().split("T")[0];
       
       if (currentJournalId) {
-        // Update existing entry
         await updateJournalEntry(currentJournalId, {
           content: journalContent,
           photoUri: journalPhoto || undefined,
           audioUri: audioUri || undefined,
         });
       } else {
-        // Create new entry
         const entryId = `journal_${Date.now()}`;
         await createJournalEntry({
           id: entryId,
@@ -590,7 +540,6 @@ export default function HomeScreen() {
       console.log("Journal entry saved");
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       
-      // Play chime sound
       playChime();
     } catch (error) {
       console.error("Error saving journal entry:", error);
@@ -620,7 +569,6 @@ export default function HomeScreen() {
         setJournalPhoto(result.assets[0].uri);
         console.log("Photo added to journal entry");
         
-        // Auto-save after adding photo
         setTimeout(() => saveJournalEntry(), 500);
       }
     } catch (error) {
@@ -631,40 +579,19 @@ export default function HomeScreen() {
 
   const startRecording = async () => {
     try {
-      console.log("User started recording audio");
-      
-      const { granted } = await AudioModule.requestRecordingPermissionsAsync();
-      
-      if (!granted) {
-        Alert.alert("Permission Required", "Please grant microphone access.");
-        return;
-      }
-
-      await audioRecorder.record();
-      console.log("Recording started");
+      console.log("User tapped record button - audio recording disabled in this build");
+      Alert.alert("Audio Recording", "Audio recording is temporarily disabled. This feature will be available in a future update.");
     } catch (error) {
-      console.error("Error starting recording:", error);
-      Alert.alert("Error", "Failed to start recording. Please try again.");
+      console.error("Error with audio recording:", error);
     }
   };
 
   const stopRecording = async () => {
     try {
-      console.log("User stopped recording audio");
-      
-      if (!audioRecorder.isRecording) return;
-      
-      const uri = await audioRecorder.stop();
-      setAudioUri(uri);
-      
-      console.log("Recording saved:", uri);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      
-      // Auto-save after recording
-      setTimeout(() => saveJournalEntry(), 500);
+      console.log("Stop recording called");
+      setIsRecording(false);
     } catch (error) {
       console.error("Error stopping recording:", error);
-      Alert.alert("Error", "Failed to stop recording. Please try again.");
     }
   };
 
@@ -678,12 +605,10 @@ export default function HomeScreen() {
       const newFavorite = !journalIsFavorite;
       setJournalIsFavorite(newFavorite);
       
-      // Save to database
       await updateJournalEntry(currentJournalId, {
         isFavorite: newFavorite,
       } as any);
       
-      // Play chime sound
       playChime();
     } catch (error) {
       console.error("Error toggling journal favorite:", error);
@@ -714,7 +639,6 @@ export default function HomeScreen() {
     day: "numeric",
   });
 
-  // Calculate affirmation count for title
   const selectedAffirmationsCount = affirmations.length;
   const affirmationTitleText = isPremium 
     ? `Your Affirmations Today (${selectedAffirmationsCount})`
@@ -733,10 +657,8 @@ export default function HomeScreen() {
           contentContainerStyle={styles.container}
           showsVerticalScrollIndicator={false}
         >
-          {/* Header with Date */}
           <View style={styles.header}>
             <Text style={styles.dateText}>{today}</Text>
-            {/* 🚀 PREVIEW MODE: Show preview badge instead of limit badge */}
             <View style={styles.limitBadge}>
               <Text style={styles.limitBadgeText}>
                 🚀 PREVIEW MODE: Pro features unlocked
@@ -744,7 +666,6 @@ export default function HomeScreen() {
             </View>
           </View>
 
-          {/* Affirmations Section with Snap Scrolling */}
           <View 
             style={styles.section}
             ref={affirmationsSectionRef}
@@ -800,7 +721,6 @@ export default function HomeScreen() {
             </ScrollView>
           </View>
 
-          {/* Daily Habits Section */}
           <View style={styles.section}>
             <View style={styles.habitsHeader}>
               <Text style={styles.sectionTitle}>Daily Habits</Text>
@@ -840,7 +760,6 @@ export default function HomeScreen() {
                     >
                       {habit.title}
                     </Text>
-                    {/* 🚀 PREVIEW MODE: Always show reminder time for pro users (forced sample times) */}
                     {isPremium && habit.reminderTime && (
                       <Text style={styles.habitReminderTime}>
                         [{formatTimeDisplay(habit.reminderTime)}]
@@ -864,7 +783,6 @@ export default function HomeScreen() {
             </View>
           </View>
 
-          {/* Journal Entry Section - Now Tappable */}
           <View style={styles.section}>
             <View style={styles.journalHeader}>
               <Text style={styles.sectionTitle}>Today&apos;s Journal</Text>
@@ -901,7 +819,6 @@ export default function HomeScreen() {
           </View>
         </ScrollView>
 
-        {/* Full-Screen Journal Modal */}
         <Modal
           visible={journalModalVisible}
           animationType="slide"
@@ -913,7 +830,6 @@ export default function HomeScreen() {
             behavior={Platform.OS === "ios" ? "padding" : "height"}
           >
             <View style={styles.journalModalWhiteBackground}>
-              {/* Journal Modal Header */}
               <View style={styles.journalModalHeader}>
                 <TouchableOpacity onPress={closeJournalModal} style={styles.journalModalClose}>
                   <IconSymbol
@@ -945,7 +861,6 @@ export default function HomeScreen() {
                 </TouchableOpacity>
               </View>
 
-              {/* Date Stamp */}
               <View style={styles.journalModalDateStamp}>
                 <Text style={styles.journalModalDateText}>
                   {new Date().toLocaleDateString("en-US", {
@@ -957,7 +872,6 @@ export default function HomeScreen() {
                 </Text>
               </View>
 
-              {/* Journal Text Area */}
               <View style={styles.journalModalContent}>
                 <TextInput
                   style={styles.journalModalInput}
@@ -1010,7 +924,6 @@ export default function HomeScreen() {
                 )}
               </View>
 
-              {/* Journal Modal Actions */}
               <View style={styles.journalModalActions}>
                 <TouchableOpacity onPress={pickImage} style={styles.journalModalActionButton}>
                   <IconSymbol
@@ -1022,17 +935,17 @@ export default function HomeScreen() {
                 </TouchableOpacity>
 
                 <TouchableOpacity
-                  onPress={audioRecorder.isRecording ? stopRecording : startRecording}
+                  onPress={isRecording ? stopRecording : startRecording}
                   style={[
                     styles.journalModalActionButton,
-                    audioRecorder.isRecording && styles.journalModalRecordingButton,
+                    isRecording && styles.journalModalRecordingButton,
                   ]}
                 >
                   <IconSymbol
-                    ios_icon_name={audioRecorder.isRecording ? "stop.circle" : "mic"}
-                    android_material_icon_name={audioRecorder.isRecording ? "stop" : "mic"}
+                    ios_icon_name={isRecording ? "stop.circle" : "mic"}
+                    android_material_icon_name={isRecording ? "stop" : "mic"}
                     size={24}
-                    color={audioRecorder.isRecording ? "#EF4444" : "#4F46E5"}
+                    color={isRecording ? "#EF4444" : "#4F46E5"}
                   />
                 </TouchableOpacity>
 

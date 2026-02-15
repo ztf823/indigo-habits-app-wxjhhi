@@ -1,3 +1,4 @@
+
 {
   "expo": {
     "name": "Indigo Habits",
@@ -34,7 +35,7 @@
         "backgroundColor": "#4F46E5"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.indigohabits.app",
+      "package": "com.indigohabits.journal2026",
       "versionCode": 1,
       "permissions": [
         "CAMERA",
