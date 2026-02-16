@@ -6,11 +6,11 @@
     "scheme": "indigohabits",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/images/6d55fc54-d63d-4404-853f-c341ea5517d1.png",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
-      "image": "./assets/images/splash.png",
+      "image": "./assets/images/6d55fc54-d63d-4404-853f-c341ea5517d1.png",
       "resizeMode": "contain",
       "backgroundColor": "#4F46E5"
     },
@@ -48,7 +48,7 @@
       ]
     },
     "web": {
-      "favicon": "./assets/images/favicon.png",
+      "favicon": "./assets/images/6d55fc54-d63d-4404-853f-c341ea5517d1.png",
       "bundler": "metro"
     },
     "plugins": [
@@ -64,7 +64,7 @@
       [
         "expo-notifications",
         {
-          "icon": "./assets/images/icon.png",
+          "icon": "./assets/images/6d55fc54-d63d-4404-853f-c341ea5517d1.png",
           "color": "#4F46E5",
           "defaultChannel": "habits-reminders",
           "sounds": []
