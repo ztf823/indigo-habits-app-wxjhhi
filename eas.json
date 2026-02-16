@@ -17,7 +17,9 @@
         "gradleCommand": ":app:assembleDebug"
       },
       "env": {
-        "EXPO_PUBLIC_ENV": "development"
+        "EXPO_PUBLIC_ENV": "development",
+        "npm_config_yes": "true",
+        "COREPACK_ENABLE_STRICT": "0"
       }
     },
     "preview": {
@@ -32,7 +34,9 @@
         "gradleCommand": ":app:assembleRelease"
       },
       "env": {
-        "EXPO_PUBLIC_ENV": "preview"
+        "EXPO_PUBLIC_ENV": "preview",
+        "npm_config_yes": "true",
+        "COREPACK_ENABLE_STRICT": "0"
       }
     },
     "production": {
@@ -49,7 +53,9 @@
         "gradleCommand": ":app:bundleRelease"
       },
       "env": {
-        "EXPO_PUBLIC_ENV": "production"
+        "EXPO_PUBLIC_ENV": "production",
+        "npm_config_yes": "true",
+        "COREPACK_ENABLE_STRICT": "0"
       }
     }
   },
