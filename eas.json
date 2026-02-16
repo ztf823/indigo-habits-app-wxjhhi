@@ -1,3 +1,4 @@
+
 {
   "cli": {
     "version": ">= 5.0.0"
@@ -6,6 +7,7 @@
     "development": {
       "developmentClient": true,
       "distribution": "internal",
+      "node": "22.11.0",
       "ios": {
         "simulator": true,
         "buildConfiguration": "Debug"
@@ -20,6 +22,7 @@
     },
     "preview": {
       "distribution": "internal",
+      "node": "22.11.0",
       "ios": {
         "simulator": false,
         "buildConfiguration": "Release"
@@ -34,6 +37,7 @@
     },
     "production": {
       "distribution": "store",
+      "node": "22.11.0",
       "ios": {
         "simulator": false,
         "buildConfiguration": "Release",
