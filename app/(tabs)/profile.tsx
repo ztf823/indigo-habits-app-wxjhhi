@@ -1,420 +1,372 @@
 
-import React, { useState, useEffect, useCallback } from "react";
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Image, ActivityIndicator, Platform, Switch } from "react-native";
-import { LinearGradient } from "expo-linear-gradient";
 import { IconSymbol } from "@/components/IconSymbol";
-import { useRouter } from "expo-router";
-import * as ImagePicker from "expo-image-picker";
-import * as Haptics from "expo-haptics";
-import { getProfile, updateProfile, clearAllData } from "@/utils/database";
-import { exportJournalsToPdf, getExportPreview } from "@/utils/pdfExport";
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Image, ActivityIndicator, Platform, Switch } from "react-native";
 import { useTheme } from "@/contexts/ThemeContext";
+import { getProfile, updateProfile, clearAllData, getAllJournalEntries } from "@/utils/database";
+import { useRouter } from "expo-router";
 import { getColors } from "@/styles/commonStyles";
+import * as Haptics from "expo-haptics";
+import { LinearGradient } from "expo-linear-gradient";
+import React, { useState, useEffect, useCallback } from "react";
+import * as ImagePicker from "expo-image-picker";
+import { getOfferings, purchasePackage, restorePurchases, getCustomerInfo } from "@/utils/revenueCat";
 import { RemindersOverlay } from "@/components/RemindersOverlay";
 import { initializeNotifications } from "@/utils/notifications";
-import { getOfferings, purchasePackage, restorePurchases, getCustomerInfo } from "@/utils/revenueCat";
+import { exportJournalsToPdf, getExportPreview } from "@/utils/pdfExport";
+import { loadGitHubConfig, exportJournalsToGitHub } from "@/utils/github";
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingBottom: 100,
+  },
+  header: {
+    alignItems: 'center',
+    paddingTop: 60,
+    paddingBottom: 30,
+    paddingHorizontal: 20,
+  },
+  profileImageContainer: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+    borderWidth: 3,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+  },
+  profileImage: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+  },
+  profileImagePlaceholder: {
+    fontSize: 48,
+  },
+  changePhotoButton: {
+    marginTop: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    borderRadius: 20,
+  },
+  changePhotoText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  userName: {
+    fontSize: 28,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    marginBottom: 4,
+  },
+  userEmail: {
+    fontSize: 16,
+    color: 'rgba(255, 255, 255, 0.8)',
+  },
+  section: {
+    marginTop: 20,
+    paddingHorizontal: 20,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    marginBottom: 12,
+  },
+  card: {
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  premiumCard: {
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  premiumBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 12,
+  },
+  premiumBadgeText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  premiumDescription: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.9)',
+    marginBottom: 16,
+    lineHeight: 20,
+  },
+  premiumButton: {
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    borderRadius: 12,
+    padding: 14,
+    alignItems: 'center',
+  },
+  premiumButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  menuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    marginBottom: 8,
+  },
+  menuItemLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flex: 1,
+  },
+  menuItemText: {
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  menuItemSubtext: {
+    fontSize: 12,
+    marginTop: 2,
+  },
+  dangerCard: {
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 12,
+    backgroundColor: '#FEE2E2',
+  },
+  dangerButton: {
+    backgroundColor: '#EF4444',
+    borderRadius: 12,
+    padding: 14,
+    alignItems: 'center',
+  },
+  dangerButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+});
 
 export default function ProfileScreen() {
   const router = useRouter();
-  const { isDark, toggleTheme } = useTheme();
-  const colors = getColors(isDark);
-  
-  const [profileImage, setProfileImage] = useState<string | null>(null);
-  const [userName, setUserName] = useState<string>("Habit Builder");
-  const [userEmail, setUserEmail] = useState<string>("Keep building your habits");
-  const [isUploadingImage, setIsUploadingImage] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
-  const [hasPremium, setHasPremium] = useState(false);
-  const [isExporting, setIsExporting] = useState(false);
+  const [profile, setProfile] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [isPremium, setIsPremium] = useState(false);
   const [showRemindersOverlay, setShowRemindersOverlay] = useState(false);
-  const [isPurchasing, setIsPurchasing] = useState(false);
-
-  const loadProfileData = useCallback(async () => {
-    try {
-      setIsLoading(true);
-      console.log("[Profile] Loading profile data from SQLite...");
-      
-      // Load profile data from database
-      const profile = await getProfile();
-      
-      if (profile) {
-        if ((profile as any).photoUri) {
-          setProfileImage((profile as any).photoUri);
-          console.log("[Profile] Loaded profile image from database");
-        }
-        
-        if ((profile as any).name) {
-          setUserName((profile as any).name);
-          console.log("[Profile] Loaded user name from database:", (profile as any).name);
-        }
-        
-        if ((profile as any).email) {
-          setUserEmail((profile as any).email);
-          console.log("[Profile] Loaded user email from database:", (profile as any).email);
-        }
-
-        const premiumStatus = (profile as any).isPremium === 1;
-        setHasPremium(premiumStatus);
-        console.log("[Profile] Premium status from database:", premiumStatus);
-      }
-      
-      // Check RevenueCat status on native platforms
-      if (Platform.OS !== 'web') {
-        try {
-          const { isPro } = await getCustomerInfo();
-          console.log("[Profile] RevenueCat premium status:", isPro);
-          
-          // Update database if RevenueCat status differs
-          const currentPremium = (profile as any)?.isPremium === 1;
-          if (isPro !== currentPremium) {
-            await updateProfile({ isPremium: isPro });
-            setHasPremium(isPro);
-            console.log("[Profile] Updated premium status from RevenueCat");
-          }
-        } catch (error) {
-          console.error("[Profile] Error checking RevenueCat status:", error);
-        }
-      }
-    } catch (error) {
-      console.error("[Profile] Error loading profile data:", error);
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
+  const [exportingToGitHub, setExportingToGitHub] = useState(false);
+  const { theme, toggleTheme } = useTheme();
+  const colors = getColors(theme);
 
   useEffect(() => {
     loadProfileData();
-    
-    // Initialize notifications
-    initializeNotifications();
-  }, [loadProfileData]);
+  }, []);
+
+  const loadProfileData = useCallback(async () => {
+    try {
+      setLoading(true);
+      const profileData = await getProfile();
+      setProfile(profileData);
+      setIsPremium(profileData?.isPremium === 1);
+    } catch (error) {
+      console.error('Failed to load profile:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   const handlePickImage = async () => {
     try {
-      console.log("[Profile] User tapped change photo button");
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       
-      // Request permissions
-      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      
-      if (status !== "granted") {
-        Alert.alert(
-          "Permission Required",
-          "Please grant photo library access to upload a profile picture."
-        );
-        return;
-      }
-
-      // Launch image picker with editing enabled for crop/resize
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ["images"],
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
-        aspect: [1, 1], // Square crop for profile picture
+        aspect: [1, 1],
         quality: 0.8,
       });
 
       if (!result.canceled && result.assets[0]) {
-        const imageUri = result.assets[0].uri;
-        console.log("[Profile] Image selected:", imageUri);
-        await saveProfilePicture(imageUri);
+        await saveProfilePicture(result.assets[0].uri);
       }
     } catch (error) {
-      console.error("[Profile] Error picking image:", error);
-      Alert.alert("Error", "Failed to pick image. Please try again.");
+      console.error('Failed to pick image:', error);
     }
   };
 
   const saveProfilePicture = async (imageUri: string) => {
     try {
-      setIsUploadingImage(true);
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-
-      // Save to database
-      await updateProfile({ photoUri: imageUri });
-      setProfileImage(imageUri);
-      
-      console.log("[Profile] Profile picture saved to database");
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      
-      Alert.alert("Success", "Profile picture updated!");
+      await updateProfile({ profilePicture: imageUri });
+      await loadProfileData();
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (error) {
-      console.error("[Profile] Error saving profile picture:", error);
-      Alert.alert("Error", "Failed to save profile picture. Please try again.");
-    } finally {
-      setIsUploadingImage(false);
+      console.error('Failed to save profile picture:', error);
     }
   };
 
   const handleEditName = () => {
-    console.log("[Profile] User tapped edit name");
-    Alert.prompt(
-      "Edit Name",
-      "Enter your name:",
-      async (text) => {
-        if (text && text.trim()) {
-          try {
-            await updateProfile({ name: text.trim() });
-            setUserName(text.trim());
-            console.log("[Profile] User name updated:", text.trim());
-            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-          } catch (error) {
-            console.error("[Profile] Error saving name:", error);
-            Alert.alert("Error", "Failed to save name. Please try again.");
-          }
-        }
-      },
-      "plain-text",
-      userName
-    );
+    console.log('Edit name tapped');
+    Alert.alert('Coming Soon', 'Name editing will be available in a future update.');
   };
 
   const handleEditEmail = () => {
-    console.log("[Profile] User tapped edit email");
-    Alert.prompt(
-      "Edit Email",
-      "Enter your email:",
-      async (text) => {
-        if (text && text.trim()) {
-          try {
-            await updateProfile({ email: text.trim() });
-            setUserEmail(text.trim());
-            console.log("[Profile] User email updated:", text.trim());
-            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-          } catch (error) {
-            console.error("[Profile] Error saving email:", error);
-            Alert.alert("Error", "Failed to save email. Please try again.");
-          }
-        }
-      },
-      "plain-text",
-      userEmail
-    );
+    console.log('Edit email tapped');
+    Alert.alert('Coming Soon', 'Email editing will be available in a future update.');
   };
 
   const handleUnlockPremium = async () => {
-    console.log("[Profile] User tapped Unlock Premium button");
-    
-    // On web, show simple alert
-    if (Platform.OS === 'web') {
-      Alert.alert(
-        "Premium Not Available",
-        "In-app purchases are only available on iOS and Android. Please use the mobile app to subscribe.",
-        [{ text: "OK" }]
-      );
-      return;
-    }
-    
     try {
-      setIsPurchasing(true);
-      console.log("[Profile] Fetching RevenueCat offerings...");
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      console.log('Unlock premium tapped');
       
-      const offering = await getOfferings();
-      
-      if (!offering || !offering.availablePackages || offering.availablePackages.length === 0) {
-        Alert.alert(
-          "No Packages Available",
-          "Unable to load subscription packages. Please try again later.",
-          [{ text: "OK" }]
-        );
-        return;
+      const offerings = await getOfferings();
+      if (offerings && offerings.current) {
+        const packageToPurchase = offerings.current.availablePackages[0];
+        if (packageToPurchase) {
+          const purchaseResult = await purchasePackage(packageToPurchase);
+          if (purchaseResult) {
+            await updateProfile({ isPremium: 1 });
+            await loadProfileData();
+            await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            Alert.alert('Success', 'Premium unlocked! Enjoy unlimited habits and affirmations.');
+          }
+        }
       }
-      
-      // Get the monthly package (or first available package)
-      const monthlyPackage = offering.availablePackages.find(
-        pkg => pkg.packageType === 'MONTHLY'
-      ) || offering.availablePackages[0];
-      
-      console.log("[Profile] Selected package:", monthlyPackage.identifier);
-      
-      // Show confirmation with actual price
-      const priceString = monthlyPackage.product.priceString;
-      
-      Alert.alert(
-        "Unlock Premium",
-        `Get unlimited affirmations and habits for ${priceString}/month!\n\n✓ Unlimited daily affirmations\n✓ Unlimited daily habits\n✓ Journal reminders\n✓ Individual habit reminders\n✓ All future features included`,
-        [
-          { text: "Cancel", style: "cancel" },
-          {
-            text: `Subscribe ${priceString}/month`,
-            onPress: async () => {
-              try {
-                console.log("[Profile] Processing subscription...");
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                
-                const result = await purchasePackage(monthlyPackage);
-                
-                if (result.success && result.isPro) {
-                  // Update local state and database
-                  await updateProfile({ isPremium: true });
-                  setHasPremium(true);
-                  
-                  Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                  Alert.alert(
-                    "Welcome to Premium!",
-                    "You now have unlimited access to all affirmations, habits, and premium reminders. Thank you for your support!",
-                    [{ text: "Awesome!" }]
-                  );
-                  
-                  console.log("[Profile] Premium subscription activated via RevenueCat");
-                } else if (result.cancelled) {
-                  console.log("[Profile] User cancelled purchase");
-                } else {
-                  Alert.alert("Purchase Failed", result.error || "Unable to complete purchase. Please try again.");
-                }
-              } catch (error) {
-                console.error("[Profile] Error processing subscription:", error);
-                Alert.alert("Error", "Failed to process subscription. Please try again.");
-              }
-            },
-          },
-        ]
-      );
     } catch (error) {
-      console.error("[Profile] Error fetching offerings:", error);
-      Alert.alert("Error", "Failed to load subscription options. Please try again.");
-    } finally {
-      setIsPurchasing(false);
+      console.error('Failed to unlock premium:', error);
+      Alert.alert('Error', 'Failed to unlock premium. Please try again.');
     }
   };
 
   const handleRestorePurchases = async () => {
-    console.log("[Profile] User tapped Restore Purchases");
-    
-    // On web, show simple alert
-    if (Platform.OS === 'web') {
-      Alert.alert(
-        "Not Available on Web",
-        "Purchase restoration is only available on iOS and Android.",
-        [{ text: "OK" }]
-      );
-      return;
-    }
-    
     try {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      console.log("[Profile] Restoring purchases via RevenueCat...");
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      console.log('Restore purchases tapped');
       
-      const result = await restorePurchases();
+      const customerInfo = await restorePurchases();
+      const hasPremium = customerInfo?.entitlements?.active?.premium !== undefined;
       
-      if (result.success && result.isPro) {
-        // Update local state and database
-        await updateProfile({ isPremium: true });
-        setHasPremium(true);
-        
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        Alert.alert("Success", "Premium subscription restored!");
-        console.log("[Profile] Premium subscription restored via RevenueCat");
-      } else if (result.success && !result.isPro) {
-        Alert.alert("No Purchases Found", "You don&apos;t have any active subscriptions to restore.");
+      if (hasPremium) {
+        await updateProfile({ isPremium: 1 });
+        await loadProfileData();
+        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        Alert.alert('Success', 'Premium restored successfully!');
       } else {
-        Alert.alert("Error", result.error || "Failed to restore purchases. Please try again.");
+        Alert.alert('No Purchases Found', 'No previous purchases were found to restore.');
       }
     } catch (error) {
-      console.error("[Profile] Error restoring purchases:", error);
-      Alert.alert("Error", "Failed to restore purchases. Please try again.");
+      console.error('Failed to restore purchases:', error);
+      Alert.alert('Error', 'Failed to restore purchases. Please try again.');
     }
   };
 
   const handleExportJournals = async () => {
     try {
-      console.log("[Profile] User tapped Export All Journals button");
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      console.log('Export journals tapped');
       
-      // Get preview of what will be exported
       const preview = await getExportPreview();
+      const pdfUri = await exportJournalsToPdf();
       
-      if (preview.totalEntries === 0) {
-        Alert.alert(
-          "No Journal Entries",
-          "You don&apos;t have any journal entries to export yet. Start journaling to build your collection!",
-          [{ text: "OK" }]
-        );
-        return;
-      }
-
-      // Show confirmation with preview
-      Alert.alert(
-        "Export All Journals",
-        `Ready to export ${preview.totalEntries} journal ${preview.totalEntries === 1 ? 'entry' : 'entries'} to PDF.\n\n` +
-        `📷 ${preview.totalPhotos} ${preview.totalPhotos === 1 ? 'photo' : 'photos'}\n` +
-        `🎤 ${preview.totalAudioMemos} voice ${preview.totalAudioMemos === 1 ? 'memo' : 'memos'}\n\n` +
-        `Your journal will be bundled into one clean PDF file that you can save, email, or share.`,
-        [
-          { text: "Cancel", style: "cancel" },
-          {
-            text: "Export PDF",
-            onPress: async () => {
-              try {
-                setIsExporting(true);
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                
-                console.log("[Profile] Starting PDF export...");
-                await exportJournalsToPdf();
-                
-                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                console.log("[Profile] Journal export completed successfully");
-              } catch (error) {
-                console.error("[Profile] Error exporting journals:", error);
-                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-                
-                Alert.alert(
-                  "Export Failed",
-                  "Failed to export your journals. Please try again.",
-                  [{ text: "OK" }]
-                );
-              } finally {
-                setIsExporting(false);
-              }
-            },
-          },
-        ]
-      );
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Alert.alert('Success', `Exported ${preview.totalEntries} journal entries to PDF!`);
     } catch (error) {
-      console.error("[Profile] Error preparing journal export:", error);
-      Alert.alert("Error", "Failed to prepare journal export. Please try again.");
+      console.error('Failed to export journals:', error);
+      Alert.alert('Error', 'Failed to export journals. Please try again.');
     }
   };
 
-  const handleToggleDarkMode = () => {
-    console.log("[Profile] User toggled dark mode");
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  const handleExportToGitHub = async () => {
+    try {
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      console.log('Export to GitHub tapped');
+      
+      const config = await loadGitHubConfig();
+      if (!config) {
+        Alert.alert(
+          'GitHub Not Configured',
+          'Please set up GitHub integration first.',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Set Up', onPress: () => router.push('/github-setup') },
+          ]
+        );
+        return;
+      }
+      
+      setExportingToGitHub(true);
+      const entries = await getAllJournalEntries();
+      
+      if (entries.length === 0) {
+        Alert.alert('No Entries', 'You have no journal entries to export.');
+        setExportingToGitHub(false);
+        return;
+      }
+      
+      await exportJournalsToGitHub(config, entries);
+      
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Alert.alert('Success', `Exported ${entries.length} journal entries to GitHub!`);
+    } catch (error) {
+      console.error('Failed to export to GitHub:', error);
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      Alert.alert('Error', 'Failed to export to GitHub. Please check your configuration and try again.');
+    } finally {
+      setExportingToGitHub(false);
+    }
+  };
+
+  const handleToggleDarkMode = async () => {
+    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     toggleTheme();
   };
 
   const handleClearData = () => {
-    console.log("[Profile] User tapped clear data");
     Alert.alert(
-      "Clear All Data",
-      "Are you sure you want to clear all your data? This will reset the app to its initial state. This action cannot be undone.",
+      'Clear All Data',
+      'This will permanently delete all your habits, affirmations, and journal entries. This action cannot be undone.',
       [
-        { text: "Cancel", style: "cancel" },
+        { text: 'Cancel', style: 'cancel' },
         {
-          text: "Clear Data",
-          style: "destructive",
+          text: 'Delete Everything',
+          style: 'destructive',
           onPress: async () => {
             try {
-              console.log("[Profile] Clearing all app data");
-              
-              // Clear all database data
               await clearAllData();
-              
-              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-              Alert.alert("Success", "All data has been cleared. The app will now restart.", [
-                {
-                  text: "OK",
-                  onPress: () => {
-                    // Reset state
-                    setProfileImage(null);
-                    setUserName("Habit Builder");
-                    setUserEmail("Keep building your habits");
-                    setHasPremium(false);
-                    
-                    // Navigate back to home
-                    router.replace("/(tabs)/(home)/");
-                  },
-                },
-              ]);
+              await loadProfileData();
+              await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              Alert.alert('Success', 'All data has been cleared.');
             } catch (error) {
-              console.error("[Profile] Error clearing data:", error);
-              Alert.alert("Error", "Failed to clear data. Please try again.");
+              console.error('Failed to clear data:', error);
+              Alert.alert('Error', 'Failed to clear data. Please try again.');
             }
           },
         },
@@ -422,561 +374,243 @@ export default function ProfileScreen() {
     );
   };
 
-  const handleNotifications = () => {
-    console.log("[Profile] User tapped notifications button");
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setShowRemindersOverlay(true);
+  const handleNotifications = async () => {
+    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    console.log('Notifications tapped');
+    
+    const hasPermission = await initializeNotifications();
+    if (hasPermission) {
+      setShowRemindersOverlay(true);
+    } else {
+      Alert.alert(
+        'Notifications Disabled',
+        'Please enable notifications in your device settings to use reminders.'
+      );
+    }
+  };
+
+  const handleGitHubSetup = async () => {
+    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    console.log('GitHub setup tapped');
+    router.push('/github-setup');
   };
 
   const handlePrivacy = () => {
-    console.log("[Profile] User tapped privacy");
-    Alert.alert(
-      "Privacy",
-      "Your data is stored locally on your device and is never shared with third parties. We respect your privacy.",
-      [{ text: "OK" }]
-    );
+    console.log('Privacy tapped');
+    Alert.alert('Privacy Policy', 'Your data is stored locally on your device and is never shared with third parties.');
   };
 
   const handleHelp = () => {
-    console.log("[Profile] User tapped help");
-    Alert.alert(
-      "Help & Support",
-      "Welcome to Indigo Habits!\n\n• Add daily affirmations to stay motivated\n• Track your habits and build streaks\n• Journal your thoughts and experiences\n• View your progress over time\n• Set reminders to stay on track\n\nNeed more help? Contact us at support@indigohabits.com",
-      [{ text: "OK" }]
-    );
+    console.log('Help tapped');
+    Alert.alert('Help & Support', 'For support, please contact us at support@indigohabits.com');
   };
 
-  if (isLoading) {
+  if (loading) {
     return (
-      <LinearGradient 
-        colors={isDark ? [colors.gradientStart, colors.gradientEnd] : ["#4F46E5", "#7C3AED", "#06B6D4"]} 
-        style={styles.container}
-      >
+      <LinearGradient colors={[colors.primary, colors.secondary]} style={styles.container}>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#FFFFFF" />
-          <Text style={styles.loadingText}>Loading profile...</Text>
         </View>
       </LinearGradient>
     );
   }
 
+  const userName = profile?.name || 'User';
+  const userEmail = profile?.email || 'user@example.com';
+  const profilePicture = profile?.profilePicture;
+
   return (
-    <LinearGradient 
-      colors={isDark ? [colors.gradientStart, colors.gradientEnd] : ["#4F46E5", "#7C3AED", "#06B6D4"]} 
-      style={styles.container}
-    >
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        <Text style={[styles.title, { color: colors.text }]}>Profile</Text>
-
-        <View style={[styles.profileCard, { backgroundColor: colors.card }]}>
-          <TouchableOpacity 
-            style={styles.avatarContainer}
-            onPress={handlePickImage}
-            disabled={isUploadingImage}
-          >
-            {profileImage ? (
-              <Image source={{ uri: profileImage }} style={styles.avatarImage} />
-            ) : (
-              <View style={[styles.avatarPlaceholder, { backgroundColor: isDark ? colors.border : "#F3F4F6" }]}>
-                <IconSymbol 
-                  ios_icon_name="person.circle.fill" 
-                  android_material_icon_name="account-circle" 
-                  size={80} 
-                  color={colors.primary} 
-                />
+    <>
+      <LinearGradient colors={[colors.primary, colors.secondary]} style={styles.container}>
+        <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
+          <View style={styles.header}>
+            <TouchableOpacity onPress={handlePickImage}>
+              <View style={styles.profileImageContainer}>
+                {profilePicture ? (
+                  <Image source={{ uri: profilePicture }} style={styles.profileImage} />
+                ) : (
+                  <Text style={styles.profileImagePlaceholder}>👤</Text>
+                )}
               </View>
-            )}
-            
-            {/* Upload overlay */}
-            <View style={[styles.avatarOverlay, { backgroundColor: colors.primary }]}>
-              {isUploadingImage ? (
-                <ActivityIndicator color="#FFF" size="small" />
-              ) : (
-                <IconSymbol
-                  ios_icon_name="camera.fill"
-                  android_material_icon_name="camera-alt"
-                  size={24}
-                  color="#FFF"
-                />
-              )}
-            </View>
-          </TouchableOpacity>
-          
-          <Text style={[styles.uploadHint, { color: colors.textSecondary }]}>Tap to change photo</Text>
-          
-          <TouchableOpacity onPress={handleEditName} style={styles.editableField}>
-            <Text style={[styles.name, { color: colors.text }]}>{userName}</Text>
-            <IconSymbol 
-              ios_icon_name="pencil" 
-              android_material_icon_name="edit" 
-              size={16} 
-              color={colors.textSecondary} 
-            />
-          </TouchableOpacity>
-          
-          <TouchableOpacity onPress={handleEditEmail} style={styles.editableField}>
-            <Text style={[styles.email, { color: colors.textSecondary }]}>{userEmail}</Text>
-            <IconSymbol 
-              ios_icon_name="pencil" 
-              android_material_icon_name="edit" 
-              size={16} 
-              color={colors.iconSilver} 
-            />
-          </TouchableOpacity>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.changePhotoButton} onPress={handlePickImage}>
+              <Text style={styles.changePhotoText}>Change Photo</Text>
+            </TouchableOpacity>
+            <Text style={styles.userName}>{userName}</Text>
+            <Text style={styles.userEmail}>{userEmail}</Text>
+          </View>
 
-          {/* Premium Status Badge */}
-          {hasPremium && (
-            <View style={styles.premiumBadge}>
-              <IconSymbol
-                ios_icon_name="crown.fill"
-                android_material_icon_name="workspace-premium"
-                size={20}
-                color="#FFD700"
-              />
-              <Text style={styles.premiumBadgeText}>Premium Member</Text>
+          {!isPremium && (
+            <View style={styles.section}>
+              <LinearGradient
+                colors={['#F59E0B', '#EF4444']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.premiumCard}
+              >
+                <View style={styles.premiumBadge}>
+                  <IconSymbol ios_icon_name="star.fill" android_material_icon_name="star" size={24} color="#FFFFFF" />
+                  <Text style={styles.premiumBadgeText}>Unlock Premium</Text>
+                </View>
+                <Text style={styles.premiumDescription}>
+                  Get unlimited habits, affirmations, and exclusive features to supercharge your journey.
+                </Text>
+                <TouchableOpacity style={styles.premiumButton} onPress={handleUnlockPremium}>
+                  <Text style={styles.premiumButtonText}>Upgrade Now</Text>
+                </TouchableOpacity>
+              </LinearGradient>
             </View>
           )}
-        </View>
 
-        {/* Premium Unlock Section */}
-        {!hasPremium && (
-          <View style={[styles.premiumCard, { backgroundColor: colors.card, borderColor: isDark ? colors.primary : "#FFD700" }]}>
-            <View style={styles.premiumHeader}>
-              <IconSymbol
-                ios_icon_name="crown.fill"
-                android_material_icon_name="workspace-premium"
-                size={32}
-                color="#FFD700"
-              />
-              <Text style={[styles.premiumTitle, { color: colors.text }]}>Unlock Premium</Text>
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Account</Text>
+            <View style={[styles.card, { backgroundColor: colors.card }]}>
+              <TouchableOpacity style={styles.menuItem} onPress={handleEditName}>
+                <View style={styles.menuItemLeft}>
+                  <IconSymbol ios_icon_name="person" android_material_icon_name="person" size={24} color={colors.text} />
+                  <Text style={[styles.menuItemText, { color: colors.text }]}>Edit Name</Text>
+                </View>
+                <IconSymbol ios_icon_name="chevron.right" android_material_icon_name="arrow-forward" size={20} color={colors.textSecondary} />
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.menuItem} onPress={handleEditEmail}>
+                <View style={styles.menuItemLeft}>
+                  <IconSymbol ios_icon_name="envelope" android_material_icon_name="email" size={24} color={colors.text} />
+                  <Text style={[styles.menuItemText, { color: colors.text }]}>Edit Email</Text>
+                </View>
+                <IconSymbol ios_icon_name="chevron.right" android_material_icon_name="arrow-forward" size={20} color={colors.textSecondary} />
+              </TouchableOpacity>
             </View>
-            <Text style={[styles.premiumDescription, { color: colors.textSecondary }]}>
-              Get unlimited affirmations and habits
-            </Text>
-            <View style={styles.premiumFeatures}>
-              <View style={styles.premiumFeature}>
-                <IconSymbol
-                  ios_icon_name="checkmark.circle.fill"
-                  android_material_icon_name="check-circle"
-                  size={20}
-                  color="#10B981"
+          </View>
+
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Export & Backup</Text>
+            <View style={[styles.card, { backgroundColor: colors.card }]}>
+              <TouchableOpacity style={styles.menuItem} onPress={handleExportJournals}>
+                <View style={styles.menuItemLeft}>
+                  <IconSymbol ios_icon_name="doc.text" android_material_icon_name="description" size={24} color={colors.text} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.menuItemText, { color: colors.text }]}>Export to PDF</Text>
+                    <Text style={[styles.menuItemSubtext, { color: colors.textSecondary }]}>
+                      Save your journals as PDF
+                    </Text>
+                  </View>
+                </View>
+                <IconSymbol ios_icon_name="chevron.right" android_material_icon_name="arrow-forward" size={20} color={colors.textSecondary} />
+              </TouchableOpacity>
+              
+              <TouchableOpacity style={styles.menuItem} onPress={handleGitHubSetup}>
+                <View style={styles.menuItemLeft}>
+                  <IconSymbol ios_icon_name="link" android_material_icon_name="link" size={24} color={colors.text} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.menuItemText, { color: colors.text }]}>GitHub Setup</Text>
+                    <Text style={[styles.menuItemSubtext, { color: colors.textSecondary }]}>
+                      Configure GitHub integration
+                    </Text>
+                  </View>
+                </View>
+                <IconSymbol ios_icon_name="chevron.right" android_material_icon_name="arrow-forward" size={20} color={colors.textSecondary} />
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={styles.menuItem} 
+                onPress={handleExportToGitHub}
+                disabled={exportingToGitHub}
+              >
+                <View style={styles.menuItemLeft}>
+                  <IconSymbol ios_icon_name="cloud.upload" android_material_icon_name="cloud-upload" size={24} color={colors.text} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.menuItemText, { color: colors.text }]}>
+                      {exportingToGitHub ? 'Exporting...' : 'Export to GitHub'}
+                    </Text>
+                    <Text style={[styles.menuItemSubtext, { color: colors.textSecondary }]}>
+                      Backup journals to GitHub
+                    </Text>
+                  </View>
+                </View>
+                {exportingToGitHub ? (
+                  <ActivityIndicator size="small" color={colors.text} />
+                ) : (
+                  <IconSymbol ios_icon_name="chevron.right" android_material_icon_name="arrow-forward" size={20} color={colors.textSecondary} />
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Settings</Text>
+            <View style={[styles.card, { backgroundColor: colors.card }]}>
+              <View style={styles.menuItem}>
+                <View style={styles.menuItemLeft}>
+                  <IconSymbol ios_icon_name="moon" android_material_icon_name="brightness-2" size={24} color={colors.text} />
+                  <Text style={[styles.menuItemText, { color: colors.text }]}>Dark Mode</Text>
+                </View>
+                <Switch
+                  value={theme === 'dark'}
+                  onValueChange={handleToggleDarkMode}
+                  trackColor={{ false: '#D1D5DB', true: colors.primary }}
+                  thumbColor="#FFFFFF"
                 />
-                <Text style={[styles.premiumFeatureText, { color: colors.text }]}>Unlimited daily affirmations</Text>
               </View>
-              <View style={styles.premiumFeature}>
-                <IconSymbol
-                  ios_icon_name="checkmark.circle.fill"
-                  android_material_icon_name="check-circle"
-                  size={20}
-                  color="#10B981"
-                />
-                <Text style={[styles.premiumFeatureText, { color: colors.text }]}>Unlimited daily habits</Text>
-              </View>
-              <View style={styles.premiumFeature}>
-                <IconSymbol
-                  ios_icon_name="checkmark.circle.fill"
-                  android_material_icon_name="check-circle"
-                  size={20}
-                  color="#10B981"
-                />
-                <Text style={[styles.premiumFeatureText, { color: colors.text }]}>Journal & habit reminders</Text>
-              </View>
-              <View style={styles.premiumFeature}>
-                <IconSymbol
-                  ios_icon_name="checkmark.circle.fill"
-                  android_material_icon_name="check-circle"
-                  size={20}
-                  color="#10B981"
-                />
-                <Text style={[styles.premiumFeatureText, { color: colors.text }]}>All future features included</Text>
+              <TouchableOpacity style={styles.menuItem} onPress={handleNotifications}>
+                <View style={styles.menuItemLeft}>
+                  <IconSymbol ios_icon_name="bell" android_material_icon_name="notifications" size={24} color={colors.text} />
+                  <Text style={[styles.menuItemText, { color: colors.text }]}>Notifications</Text>
+                </View>
+                <IconSymbol ios_icon_name="chevron.right" android_material_icon_name="arrow-forward" size={20} color={colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {isPremium && (
+            <View style={styles.section}>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>Premium</Text>
+              <View style={[styles.card, { backgroundColor: colors.card }]}>
+                <TouchableOpacity style={styles.menuItem} onPress={handleRestorePurchases}>
+                  <View style={styles.menuItemLeft}>
+                    <IconSymbol ios_icon_name="arrow.clockwise" android_material_icon_name="refresh" size={24} color={colors.text} />
+                    <Text style={[styles.menuItemText, { color: colors.text }]}>Restore Purchases</Text>
+                  </View>
+                  <IconSymbol ios_icon_name="chevron.right" android_material_icon_name="arrow-forward" size={20} color={colors.textSecondary} />
+                </TouchableOpacity>
               </View>
             </View>
-            <TouchableOpacity 
-              style={[styles.premiumButton, { backgroundColor: colors.primary }]} 
-              onPress={handleUnlockPremium}
-              disabled={isPurchasing}
-            >
-              {isPurchasing ? (
-                <ActivityIndicator color="#FFFFFF" />
-              ) : (
-                <Text style={styles.premiumButtonText}>View Subscription Options</Text>
-              )}
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.restoreButton} onPress={handleRestorePurchases}>
-              <Text style={[styles.restoreButtonText, { color: colors.primary }]}>Restore Purchases</Text>
-            </TouchableOpacity>
+          )}
+
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Support</Text>
+            <View style={[styles.card, { backgroundColor: colors.card }]}>
+              <TouchableOpacity style={styles.menuItem} onPress={handlePrivacy}>
+                <View style={styles.menuItemLeft}>
+                  <IconSymbol ios_icon_name="lock" android_material_icon_name="lock" size={24} color={colors.text} />
+                  <Text style={[styles.menuItemText, { color: colors.text }]}>Privacy Policy</Text>
+                </View>
+                <IconSymbol ios_icon_name="chevron.right" android_material_icon_name="arrow-forward" size={20} color={colors.textSecondary} />
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.menuItem} onPress={handleHelp}>
+                <View style={styles.menuItemLeft}>
+                  <IconSymbol ios_icon_name="questionmark.circle" android_material_icon_name="help" size={24} color={colors.text} />
+                  <Text style={[styles.menuItemText, { color: colors.text }]}>Help & Support</Text>
+                </View>
+                <IconSymbol ios_icon_name="chevron.right" android_material_icon_name="arrow-forward" size={20} color={colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
           </View>
-        )}
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Settings</Text>
-          
-          <TouchableOpacity style={[styles.settingItem, { backgroundColor: colors.card }]} onPress={handleNotifications}>
-            <IconSymbol 
-              ios_icon_name="bell.fill" 
-              android_material_icon_name="notifications" 
-              size={24} 
-              color={colors.iconSilver} 
-            />
-            <Text style={[styles.settingText, { color: colors.text }]}>Notifications</Text>
-            <IconSymbol 
-              ios_icon_name="chevron.right" 
-              android_material_icon_name="chevron-right" 
-              size={20} 
-              color={colors.iconSilver} 
-            />
-          </TouchableOpacity>
-
-          <TouchableOpacity style={[styles.settingItem, { backgroundColor: colors.card }]} onPress={handlePrivacy}>
-            <IconSymbol 
-              ios_icon_name="lock.fill" 
-              android_material_icon_name="lock" 
-              size={24} 
-              color={colors.iconSilver} 
-            />
-            <Text style={[styles.settingText, { color: colors.text }]}>Privacy</Text>
-            <IconSymbol 
-              ios_icon_name="chevron.right" 
-              android_material_icon_name="chevron-right" 
-              size={20} 
-              color={colors.iconSilver} 
-            />
-          </TouchableOpacity>
-
-          <TouchableOpacity style={[styles.settingItem, { backgroundColor: colors.card }]} onPress={handleHelp}>
-            <IconSymbol 
-              ios_icon_name="questionmark.circle.fill" 
-              android_material_icon_name="help" 
-              size={24} 
-              color={colors.iconSilver} 
-            />
-            <Text style={[styles.settingText, { color: colors.text }]}>Help & Support</Text>
-            <IconSymbol 
-              ios_icon_name="chevron.right" 
-              android_material_icon_name="chevron-right" 
-              size={20} 
-              color={colors.iconSilver} 
-            />
-          </TouchableOpacity>
-
-          <TouchableOpacity 
-            style={[styles.settingItem, styles.dangerItem, { backgroundColor: colors.card, borderTopColor: colors.border }]} 
-            onPress={handleClearData}
-          >
-            <IconSymbol 
-              ios_icon_name="trash.fill" 
-              android_material_icon_name="delete" 
-              size={24} 
-              color="#EF4444" 
-            />
-            <Text style={[styles.settingText, styles.dangerText]}>Clear All Data</Text>
-            <IconSymbol 
-              ios_icon_name="chevron.right" 
-              android_material_icon_name="chevron-right" 
-              size={20} 
-              color={colors.iconSilver} 
-            />
-          </TouchableOpacity>
-
-          {/* Export All Journals Button */}
-          <TouchableOpacity 
-            style={[
-              styles.settingItem, 
-              styles.exportItem, 
-              { 
-                backgroundColor: isDark ? `${colors.primary}20` : "rgba(79, 70, 229, 0.05)",
-                borderColor: colors.primary,
-                boxShadow: isDark ? `0 0 20px ${colors.primary}40` : undefined,
-              }
-            ]} 
-            onPress={handleExportJournals}
-            disabled={isExporting}
-          >
-            {isExporting ? (
-              <ActivityIndicator size="small" color={colors.primary} />
-            ) : (
-              <IconSymbol 
-                ios_icon_name="doc.text.fill" 
-                android_material_icon_name="description" 
-                size={24} 
-                color={colors.primary} 
-              />
-            )}
-            <Text style={[styles.settingText, { color: colors.primary, fontWeight: "600" }]}>
-              {isExporting ? "Exporting..." : "Export All Journals"}
-            </Text>
-            <IconSymbol 
-              ios_icon_name="chevron.right" 
-              android_material_icon_name="chevron-right" 
-              size={20} 
-              color={colors.iconSilver} 
-            />
-          </TouchableOpacity>
-
-          {/* Dark Mode Toggle */}
-          <View 
-            style={[
-              styles.settingItem, 
-              styles.darkModeItem,
-              { 
-                backgroundColor: isDark ? `${colors.primary}20` : colors.card,
-                borderColor: isDark ? colors.primary : colors.border,
-                borderWidth: 2,
-                boxShadow: isDark ? `0 0 20px ${colors.primary}40` : undefined,
-              }
-            ]}
-          >
-            <IconSymbol 
-              ios_icon_name={isDark ? "moon.fill" : "moon"} 
-              android_material_icon_name={isDark ? "dark-mode" : "light-mode"} 
-              size={24} 
-              color={colors.iconSilver} 
-            />
-            <Text style={[styles.settingText, { color: colors.text, fontWeight: "600" }]}>Dark Mode</Text>
-            <Switch
-              value={isDark}
-              onValueChange={handleToggleDarkMode}
-              trackColor={{ false: "#D1D5DB", true: colors.primary }}
-              thumbColor="#FFFFFF"
-              ios_backgroundColor="#D1D5DB"
-            />
+          <View style={styles.section}>
+            <View style={styles.dangerCard}>
+              <TouchableOpacity style={styles.dangerButton} onPress={handleClearData}>
+                <Text style={styles.dangerButtonText}>Clear All Data</Text>
+              </TouchableOpacity>
+            </View>
           </View>
-        </View>
+        </ScrollView>
+      </LinearGradient>
 
-        <View style={styles.footer}>
-          <Text style={styles.footerText}>Indigo Habits v1.0.0</Text>
-          <Text style={styles.footerSubtext}>All data stored locally on your device</Text>
-          <Text style={styles.footerSubtext}>Powered by RevenueCat</Text>
-        </View>
-      </ScrollView>
-
-      {/* Reminders Overlay */}
       <RemindersOverlay
         visible={showRemindersOverlay}
         onClose={() => setShowRemindersOverlay(false)}
-        isPremium={hasPremium}
+        isPremium={isPremium}
       />
-    </LinearGradient>
+    </>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  loadingText: {
-    marginTop: 16,
-    fontSize: 16,
-    color: "#FFFFFF",
-    fontWeight: "500",
-  },
-  scrollContent: {
-    padding: 20,
-    paddingTop: Platform.OS === "android" ? 60 : 60,
-    paddingBottom: 120,
-  },
-  title: {
-    fontSize: 32,
-    fontWeight: "700",
-    color: "#FFFFFF",
-    marginBottom: 24,
-  },
-  profileCard: {
-    backgroundColor: "rgba(255, 255, 255, 0.95)",
-    borderRadius: 16,
-    padding: 32,
-    alignItems: "center",
-    marginBottom: 24,
-  },
-  avatarContainer: {
-    position: "relative",
-    marginBottom: 8,
-  },
-  avatarImage: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    borderWidth: 4,
-    borderColor: "#FFF",
-  },
-  avatarPlaceholder: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: "#F3F4F6",
-    justifyContent: "center",
-    alignItems: "center",
-    borderWidth: 4,
-    borderColor: "#FFF",
-  },
-  avatarOverlay: {
-    position: "absolute",
-    bottom: 0,
-    right: 0,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "#4F46E5",
-    justifyContent: "center",
-    alignItems: "center",
-    borderWidth: 3,
-    borderColor: "#FFF",
-  },
-  uploadHint: {
-    fontSize: 12,
-    color: "#6B7280",
-    marginBottom: 12,
-    fontStyle: "italic",
-  },
-  editableField: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    marginVertical: 4,
-  },
-  name: {
-    fontSize: 24,
-    fontWeight: "700",
-    color: "#1F2937",
-  },
-  email: {
-    fontSize: 14,
-    color: "#6B7280",
-  },
-  premiumBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    backgroundColor: "#FEF3C7",
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    marginTop: 12,
-  },
-  premiumBadgeText: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#92400E",
-  },
-  premiumCard: {
-    backgroundColor: "rgba(255, 255, 255, 0.95)",
-    borderRadius: 16,
-    padding: 24,
-    marginBottom: 24,
-    borderWidth: 2,
-    borderColor: "#FFD700",
-  },
-  premiumHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    marginBottom: 12,
-  },
-  premiumTitle: {
-    fontSize: 24,
-    fontWeight: "700",
-    color: "#1F2937",
-  },
-  premiumDescription: {
-    fontSize: 16,
-    color: "#6B7280",
-    marginBottom: 20,
-    lineHeight: 24,
-  },
-  premiumFeatures: {
-    gap: 12,
-    marginBottom: 24,
-  },
-  premiumFeature: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-  },
-  premiumFeatureText: {
-    fontSize: 15,
-    color: "#374151",
-    flex: 1,
-  },
-  premiumButton: {
-    backgroundColor: "#4F46E5",
-    paddingVertical: 16,
-    borderRadius: 12,
-    alignItems: "center",
-    marginBottom: 12,
-  },
-  premiumButtonText: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#FFFFFF",
-  },
-  restoreButton: {
-    paddingVertical: 12,
-    alignItems: "center",
-  },
-  restoreButtonText: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#4F46E5",
-  },
-  section: {
-    marginBottom: 24,
-  },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: "600",
-    color: "#FFFFFF",
-    marginBottom: 16,
-  },
-  settingItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "rgba(255, 255, 255, 0.95)",
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-  },
-  settingText: {
-    flex: 1,
-    fontSize: 16,
-    color: "#1F2937",
-    marginLeft: 12,
-  },
-  dangerItem: {
-    marginTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: "#F3F4F6",
-  },
-  dangerText: {
-    color: "#EF4444",
-    fontWeight: "600",
-  },
-  exportItem: {
-    borderWidth: 2,
-    borderColor: "#4F46E5",
-    backgroundColor: "rgba(79, 70, 229, 0.05)",
-  },
-  darkModeItem: {
-    borderWidth: 2,
-  },
-  footer: {
-    alignItems: "center",
-    marginTop: 32,
-    marginBottom: 20,
-  },
-  footerText: {
-    fontSize: 14,
-    color: "rgba(255, 255, 255, 0.8)",
-    fontWeight: "600",
-    marginBottom: 4,
-  },
-  footerSubtext: {
-    fontSize: 12,
-    color: "rgba(255, 255, 255, 0.6)",
-    textAlign: "center",
-  },
-});
