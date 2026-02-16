@@ -1,7 +1,8 @@
+
 {
   "expo": {
     "name": "Indigo Habits",
-    "slug": "IndigoHabits",
+    "slug": "indigohabits",
     "scheme": "indigohabits",
     "version": "1.0.0",
     "orientation": "portrait",
