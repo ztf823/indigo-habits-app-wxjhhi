@@ -1,8 +1,8 @@
 {
   "expo": {
     "name": "Indigo Habits",
-    "slug": "Indigo Habits",
-    "scheme": "Indigo Habits",
+    "slug": "IndigoHabits",
+    "scheme": "indigohabits",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/6d55fc54-d63d-4404-853f-c341ea5517d1.png",
@@ -78,7 +78,7 @@
         "origin": false
       },
       "eas": {
-        "projectId": "YOUR_EAS_PROJECT_ID_HERE"
+        "projectId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
       },
       "revenueCatApple": "appl_KVaWqlpxQpKqoMgILPRLHowDNxe",
       "revenueCatGoogle": "goog_KVaWqlpxQpKqoMgILPRLHowDNxe"

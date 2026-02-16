@@ -2,7 +2,7 @@
 import { IconSymbol } from "@/components/IconSymbol";
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Image, ActivityIndicator, Platform, Switch } from "react-native";
 import { useTheme } from "@/contexts/ThemeContext";
-import { getProfile, updateProfile, clearAllData, getAllJournalEntries } from "@/utils/database";
+import { getProfile, updateProfile, clearAllData } from "@/utils/database";
 import { useRouter } from "expo-router";
 import { getColors } from "@/styles/commonStyles";
 import * as Haptics from "expo-haptics";
@@ -13,7 +13,6 @@ import { getOfferings, purchasePackage, restorePurchases, getCustomerInfo } from
 import { RemindersOverlay } from "@/components/RemindersOverlay";
 import { initializeNotifications } from "@/utils/notifications";
 import { exportJournalsToPdf, getExportPreview } from "@/utils/pdfExport";
-import { loadGitHubConfig, exportJournalsToGitHub } from "@/utils/github";
 
 const styles = StyleSheet.create({
   container: {
@@ -182,7 +181,6 @@ export default function ProfileScreen() {
   const [loading, setLoading] = useState(true);
   const [isPremium, setIsPremium] = useState(false);
   const [showRemindersOverlay, setShowRemindersOverlay] = useState(false);
-  const [exportingToGitHub, setExportingToGitHub] = useState(false);
   const { theme, toggleTheme } = useTheme();
   const colors = getColors(theme);
 
@@ -304,45 +302,7 @@ export default function ProfileScreen() {
     }
   };
 
-  const handleExportToGitHub = async () => {
-    try {
-      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      console.log('Export to GitHub tapped');
-      
-      const config = await loadGitHubConfig();
-      if (!config) {
-        Alert.alert(
-          'GitHub Not Configured',
-          'Please set up GitHub integration first.',
-          [
-            { text: 'Cancel', style: 'cancel' },
-            { text: 'Set Up', onPress: () => router.push('/github-setup') },
-          ]
-        );
-        return;
-      }
-      
-      setExportingToGitHub(true);
-      const entries = await getAllJournalEntries();
-      
-      if (entries.length === 0) {
-        Alert.alert('No Entries', 'You have no journal entries to export.');
-        setExportingToGitHub(false);
-        return;
-      }
-      
-      await exportJournalsToGitHub(config, entries);
-      
-      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert('Success', `Exported ${entries.length} journal entries to GitHub!`);
-    } catch (error) {
-      console.error('Failed to export to GitHub:', error);
-      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      Alert.alert('Error', 'Failed to export to GitHub. Please check your configuration and try again.');
-    } finally {
-      setExportingToGitHub(false);
-    }
-  };
+
 
   const handleToggleDarkMode = async () => {
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -389,11 +349,7 @@ export default function ProfileScreen() {
     }
   };
 
-  const handleGitHubSetup = async () => {
-    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    console.log('GitHub setup tapped');
-    router.push('/github-setup');
-  };
+
 
   const handlePrivacy = () => {
     console.log('Privacy tapped');
@@ -496,42 +452,6 @@ export default function ProfileScreen() {
                   </View>
                 </View>
                 <IconSymbol ios_icon_name="chevron.right" android_material_icon_name="arrow-forward" size={20} color={colors.textSecondary} />
-              </TouchableOpacity>
-              
-              <TouchableOpacity style={styles.menuItem} onPress={handleGitHubSetup}>
-                <View style={styles.menuItemLeft}>
-                  <IconSymbol ios_icon_name="link" android_material_icon_name="link" size={24} color={colors.text} />
-                  <View style={{ flex: 1 }}>
-                    <Text style={[styles.menuItemText, { color: colors.text }]}>GitHub Setup</Text>
-                    <Text style={[styles.menuItemSubtext, { color: colors.textSecondary }]}>
-                      Configure GitHub integration
-                    </Text>
-                  </View>
-                </View>
-                <IconSymbol ios_icon_name="chevron.right" android_material_icon_name="arrow-forward" size={20} color={colors.textSecondary} />
-              </TouchableOpacity>
-              
-              <TouchableOpacity 
-                style={styles.menuItem} 
-                onPress={handleExportToGitHub}
-                disabled={exportingToGitHub}
-              >
-                <View style={styles.menuItemLeft}>
-                  <IconSymbol ios_icon_name="cloud.upload" android_material_icon_name="cloud-upload" size={24} color={colors.text} />
-                  <View style={{ flex: 1 }}>
-                    <Text style={[styles.menuItemText, { color: colors.text }]}>
-                      {exportingToGitHub ? 'Exporting...' : 'Export to GitHub'}
-                    </Text>
-                    <Text style={[styles.menuItemSubtext, { color: colors.textSecondary }]}>
-                      Backup journals to GitHub
-                    </Text>
-                  </View>
-                </View>
-                {exportingToGitHub ? (
-                  <ActivityIndicator size="small" color={colors.text} />
-                ) : (
-                  <IconSymbol ios_icon_name="chevron.right" android_material_icon_name="arrow-forward" size={20} color={colors.textSecondary} />
-                )}
               </TouchableOpacity>
             </View>
           </View>

@@ -1,12 +1,16 @@
 {
   "cli": {
-    "version": ">= 5.0.0"
+    "version": ">= 5.0.0",
+    "packageManager": "npm"
   },
   "build": {
     "development": {
       "developmentClient": true,
       "distribution": "internal",
       "node": "22.11.0",
+      "npm": {
+        "cache": true
+      },
       "ios": {
         "simulator": true,
         "buildConfiguration": "Debug"
@@ -24,6 +28,9 @@
     "preview": {
       "distribution": "internal",
       "node": "22.11.0",
+      "npm": {
+        "cache": true
+      },
       "ios": {
         "simulator": false,
         "buildConfiguration": "Release"
@@ -41,6 +48,9 @@
     "production": {
       "distribution": "store",
       "node": "22.11.0",
+      "npm": {
+        "cache": true
+      },
       "ios": {
         "simulator": false,
         "buildConfiguration": "Release",
