@@ -1,9 +1,7 @@
-
 {
   "name": "indigo-habits",
   "version": "1.0.0",
   "main": "index.ts",
-  "packageManager": "npm@10.9.2",
   "scripts": {
     "dev": "EXPO_NO_TELEMETRY=1 expo start --tunnel",
     "android": "EXPO_NO_TELEMETRY=1 expo start --android",
@@ -70,7 +68,7 @@
     "react-native-gesture-handler": "^2.24.0",
     "react-native-maps": "^1.20.1",
     "react-native-pager-view": "^8.0.0",
-    "react-native-purchases": "^9.7.1",
+    "react-native-purchases": "^9.9.0",
     "react-native-reanimated": "~4.1.0",
     "react-native-safe-area-context": "^5.4.0",
     "react-native-screens": "~4.16.0",
