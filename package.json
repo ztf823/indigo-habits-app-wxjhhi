@@ -1,7 +1,9 @@
+
 {
   "name": "indigo-habits",
   "version": "1.0.0",
   "main": "index.ts",
+  "packageManager": "npm@10.9.2",
   "scripts": {
     "dev": "EXPO_NO_TELEMETRY=1 expo start --tunnel",
     "android": "EXPO_NO_TELEMETRY=1 expo start --android",
@@ -15,7 +17,7 @@
     "submit:ios": "eas submit --platform ios",
     "submit:android": "eas submit --platform android",
     "lint": "eslint .",
-    "postinstall": "echo 'Dependencies installed with npm' && npm list --depth=0"
+    "postinstall": "echo 'npm was used for installation.'"
   },
   "dependencies": {
     "@babel/plugin-proposal-export-namespace-from": "^7.18.9",
@@ -101,7 +103,7 @@
   },
   "private": true,
   "engines": {
-    "node": ">=18.0.0",
-    "npm": ">=9.0.0"
+    "node": ">=22.11.0",
+    "npm": ">=10.9.2"
   }
 }
