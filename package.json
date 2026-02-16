@@ -17,7 +17,7 @@
     "submit:ios": "eas submit --platform ios",
     "submit:android": "eas submit --platform android",
     "lint": "eslint .",
-    "postinstall": "echo 'Dependencies installed with npm'"
+    "postinstall": "echo 'Dependencies installed with npm' && npm list --depth=0"
   },
   "dependencies": {
     "@babel/plugin-proposal-export-namespace-from": "^7.18.9",
