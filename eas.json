@@ -4,70 +4,22 @@
     "development": {
       "developmentClient": true,
       "distribution": "internal",
-      "node": "22.11.0",
       "ios": {
-        "simulator": true,
-        "buildConfiguration": "Debug"
-      },
-      "android": {
-        "buildType": "apk",
-        "gradleCommand": ":app:assembleDebug"
+        "simulator": true
       },
       "env": {
-        "EXPO_PUBLIC_ENV": "development",
-        "npm_config_yes": "true",
         "COREPACK_ENABLE_STRICT": "0"
       }
     },
     "preview": {
       "distribution": "internal",
-      "node": "22.11.0",
-      "ios": {
-        "simulator": false,
-        "buildConfiguration": "Release"
-      },
-      "android": {
-        "buildType": "apk",
-        "gradleCommand": ":app:assembleRelease"
-      },
       "env": {
-        "EXPO_PUBLIC_ENV": "preview",
-        "npm_config_yes": "true",
         "COREPACK_ENABLE_STRICT": "0"
       }
     },
     "production": {
-      "distribution": "store",
-      "node": "22.11.0",
-      "ios": {
-        "simulator": false,
-        "buildConfiguration": "Release",
-        "autoIncrement": true,
-        "resourceClass": "m-medium"
-      },
-      "android": {
-        "buildType": "app-bundle",
-        "gradleCommand": ":app:bundleRelease"
-      },
       "env": {
-        "EXPO_PUBLIC_ENV": "production",
-        "npm_config_yes": "true",
         "COREPACK_ENABLE_STRICT": "0"
-      }
-    }
-  },
-  "submit": {
-    "production": {
-      "ios": {
-        "appleId": "your-apple-id@example.com",
-        "ascAppId": "your-asc-app-id",
-        "appleTeamId": "your-team-id",
-        "sku": "indigo-habits-001"
-      },
-      "android": {
-        "serviceAccountKeyPath": "./google-play-service-account.json",
-        "track": "internal",
-        "releaseStatus": "draft"
       }
     }
   }
