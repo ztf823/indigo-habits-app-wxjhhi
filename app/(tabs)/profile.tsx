@@ -184,10 +184,6 @@ export default function ProfileScreen() {
   const { theme, toggleTheme } = useTheme();
   const colors = getColors(theme);
 
-  useEffect(() => {
-    loadProfileData();
-  }, []);
-
   const loadProfileData = useCallback(async () => {
     try {
       setLoading(true);
@@ -200,6 +196,10 @@ export default function ProfileScreen() {
       setLoading(false);
     }
   }, []);
+
+  useEffect(() => {
+    loadProfileData();
+  }, [loadProfileData]);
 
   const handlePickImage = async () => {
     try {
