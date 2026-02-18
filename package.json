@@ -1,7 +1,9 @@
+
 {
   "name": "indigo-habits",
   "version": "1.0.0",
   "main": "index.ts",
+  "packageManager": "npm@10.9.2",
   "scripts": {
     "dev": "EXPO_NO_TELEMETRY=1 expo start --tunnel",
     "android": "EXPO_NO_TELEMETRY=1 expo start --android",
@@ -96,12 +98,8 @@
     "typescript": "^5.9.3",
     "webpack-cli": "^6.0.1"
   },
-  "resolutions": {
-    "@expo/prebuild-config": "latest"
-  },
   "private": true,
   "engines": {
-    "node": ">=22.11.0",
-    "npm": ">=10.9.2"
+    "node": ">=20.0.0"
   }
 }
