@@ -3,7 +3,7 @@
   "name": "indigo-habits",
   "version": "1.0.0",
   "main": "index.ts",
-  "packageManager": "npm@10.9.2",
+  "packageManager": "npm@11.6.2",
   "scripts": {
     "dev": "EXPO_NO_TELEMETRY=1 expo start --tunnel",
     "android": "EXPO_NO_TELEMETRY=1 expo start --android",
