@@ -5,8 +5,10 @@
       "developmentClient": true,
       "distribution": "internal",
       "ios": {
-        "simulator": true
+        "simulator": false,
+        "buildConfiguration": "Debug"
       },
+      "channel": "development",
       "env": {
         "COREPACK_ENABLE_STRICT": "0"
       }
