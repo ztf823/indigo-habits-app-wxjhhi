@@ -1,8 +1,9 @@
+
 {
   "expo": {
     "name": "Indigo Habits",
-    "slug": "Indigo Habits",
-    "scheme": "Indigo Habits",
+    "slug": "indigo-habits",
+    "scheme": "indigo-habits",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/6d55fc54-d63d-4404-853f-c341ea5517d1.png",
