@@ -99,6 +99,8 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 4,
+    borderWidth: 3,
+    borderColor: '#FFD700',
   },
   premiumBadge: {
     flexDirection: 'row',
@@ -107,26 +109,50 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   premiumBadgeText: {
-    fontSize: 16,
+    fontSize: 20,
     fontWeight: '700',
-    color: '#FFFFFF',
+    color: '#1F2937',
   },
   premiumDescription: {
-    fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.9)',
+    fontSize: 16,
+    color: '#6B7280',
     marginBottom: 16,
-    lineHeight: 20,
+    lineHeight: 24,
+  },
+  premiumFeatures: {
+    gap: 12,
+    marginBottom: 20,
+  },
+  premiumFeature: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  premiumFeatureText: {
+    fontSize: 15,
+    color: '#374151',
+    flex: 1,
   },
   premiumButton: {
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    backgroundColor: '#4F46E5',
     borderRadius: 12,
     padding: 14,
     alignItems: 'center',
+    marginBottom: 12,
   },
   premiumButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 18,
+    fontWeight: '700',
     color: '#FFFFFF',
+  },
+  restoreButton: {
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  restoreButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#4F46E5',
   },
   menuItem: {
     flexDirection: 'row',
@@ -372,8 +398,9 @@ export default function ProfileScreen() {
   }
 
   const userName = profile?.name || 'User';
-  const userEmail = profile?.email || 'user@example.com';
+  const userEmail = profile?.email || 'Keep building your habits';
   const profilePicture = profile?.profilePicture;
+  const priceText = "$4.99/month";
 
   return (
     <>
@@ -398,23 +425,59 @@ export default function ProfileScreen() {
 
           {!isPremium && (
             <View style={styles.section}>
-              <LinearGradient
-                colors={['#F59E0B', '#EF4444']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.premiumCard}
-              >
+              <View style={[styles.premiumCard, { backgroundColor: colors.card }]}>
                 <View style={styles.premiumBadge}>
-                  <IconSymbol ios_icon_name="star.fill" android_material_icon_name="star" size={24} color="#FFFFFF" />
-                  <Text style={styles.premiumBadgeText}>Unlock Premium</Text>
+                  <IconSymbol ios_icon_name="star.fill" android_material_icon_name="star" size={28} color="#FFD700" />
+                  <Text style={[styles.premiumBadgeText, { color: colors.text }]}>Unlock Premium</Text>
                 </View>
-                <Text style={styles.premiumDescription}>
-                  Get unlimited habits, affirmations, and exclusive features to supercharge your journey.
+                <Text style={[styles.premiumDescription, { color: colors.textSecondary }]}>
+                  Get unlimited affirmations and habits for just {priceText}
                 </Text>
+                <View style={styles.premiumFeatures}>
+                  <View style={styles.premiumFeature}>
+                    <IconSymbol
+                      ios_icon_name="checkmark.circle.fill"
+                      android_material_icon_name="check-circle"
+                      size={20}
+                      color="#10B981"
+                    />
+                    <Text style={[styles.premiumFeatureText, { color: colors.text }]}>Unlimited daily affirmations</Text>
+                  </View>
+                  <View style={styles.premiumFeature}>
+                    <IconSymbol
+                      ios_icon_name="checkmark.circle.fill"
+                      android_material_icon_name="check-circle"
+                      size={20}
+                      color="#10B981"
+                    />
+                    <Text style={[styles.premiumFeatureText, { color: colors.text }]}>Unlimited daily habits</Text>
+                  </View>
+                  <View style={styles.premiumFeature}>
+                    <IconSymbol
+                      ios_icon_name="checkmark.circle.fill"
+                      android_material_icon_name="check-circle"
+                      size={20}
+                      color="#10B981"
+                    />
+                    <Text style={[styles.premiumFeatureText, { color: colors.text }]}>Journal & habit reminders</Text>
+                  </View>
+                  <View style={styles.premiumFeature}>
+                    <IconSymbol
+                      ios_icon_name="checkmark.circle.fill"
+                      android_material_icon_name="check-circle"
+                      size={20}
+                      color="#10B981"
+                    />
+                    <Text style={[styles.premiumFeatureText, { color: colors.text }]}>All future features included</Text>
+                  </View>
+                </View>
                 <TouchableOpacity style={styles.premiumButton} onPress={handleUnlockPremium}>
-                  <Text style={styles.premiumButtonText}>Upgrade Now</Text>
+                  <Text style={styles.premiumButtonText}>Subscribe for {priceText}</Text>
                 </TouchableOpacity>
-              </LinearGradient>
+                <TouchableOpacity style={styles.restoreButton} onPress={handleRestorePurchases}>
+                  <Text style={styles.restoreButtonText}>Restore Purchases</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           )}
 

@@ -20,7 +20,7 @@ export default function ProfileScreen() {
   const colors = getColors(isDark);
   
   const [profileImage, setProfileImage] = useState<string | null>(null);
-  const [userName, setUserName] = useState<string>("Habit Builder");
+  const [userName, setUserName] = useState<string>("User");
   const [userEmail, setUserEmail] = useState<string>("Keep building your habits");
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -189,10 +189,11 @@ export default function ProfileScreen() {
   };
 
   const handleUnlockPremium = async () => {
-    console.log("[Profile] User tapped Unlock Premium button");
+    console.log("[Profile] User tapped Subscribe button");
     
     try {
       setIsPurchasing(true);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       console.log("[Profile] Fetching RevenueCat offerings...");
       
       const offering = await getOfferings();
@@ -212,53 +213,31 @@ export default function ProfileScreen() {
       ) || offering.availablePackages[0];
       
       console.log("[Profile] Selected package:", monthlyPackage.identifier);
+      console.log("[Profile] Processing subscription...");
       
-      // Show confirmation with actual price
-      const priceString = monthlyPackage.product.priceString;
+      const result = await purchasePackage(monthlyPackage);
       
-      Alert.alert(
-        "Unlock Premium",
-        `Get unlimited affirmations and habits for ${priceString}/month!\n\n✓ Unlimited daily affirmations\n✓ Unlimited daily habits\n✓ Journal reminders\n✓ Individual habit reminders\n✓ All future features included`,
-        [
-          { text: "Cancel", style: "cancel" },
-          {
-            text: `Subscribe ${priceString}/month`,
-            onPress: async () => {
-              try {
-                console.log("[Profile] Processing subscription...");
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                
-                const result = await purchasePackage(monthlyPackage);
-                
-                if (result.success && result.isPro) {
-                  // Update local state and database
-                  await updateProfile({ isPremium: true });
-                  setHasPremium(true);
-                  
-                  Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                  Alert.alert(
-                    "Welcome to Premium!",
-                    "You now have unlimited access to all affirmations, habits, and premium reminders. Thank you for your support!",
-                    [{ text: "Awesome!" }]
-                  );
-                  
-                  console.log("[Profile] Premium subscription activated via RevenueCat");
-                } else if (result.cancelled) {
-                  console.log("[Profile] User cancelled purchase");
-                } else {
-                  Alert.alert("Purchase Failed", result.error || "Unable to complete purchase. Please try again.");
-                }
-              } catch (error) {
-                console.error("[Profile] Error processing subscription:", error);
-                Alert.alert("Error", "Failed to process subscription. Please try again.");
-              }
-            },
-          },
-        ]
-      );
+      if (result.success && result.isPro) {
+        // Update local state and database
+        await updateProfile({ isPremium: true });
+        setHasPremium(true);
+        
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        Alert.alert(
+          "Welcome to Premium!",
+          "You now have unlimited access to all affirmations, habits, and premium features. Thank you for your support!",
+          [{ text: "Awesome!" }]
+        );
+        
+        console.log("[Profile] Premium subscription activated via RevenueCat");
+      } else if (result.cancelled) {
+        console.log("[Profile] User cancelled purchase");
+      } else {
+        Alert.alert("Purchase Failed", result.error || "Unable to complete purchase. Please try again.");
+      }
     } catch (error) {
-      console.error("[Profile] Error fetching offerings:", error);
-      Alert.alert("Error", "Failed to load subscription options. Please try again.");
+      console.error("[Profile] Error processing subscription:", error);
+      Alert.alert("Error", "Failed to process subscription. Please try again.");
     } finally {
       setIsPurchasing(false);
     }
@@ -381,7 +360,7 @@ export default function ProfileScreen() {
                   onPress: () => {
                     // Reset state
                     setProfileImage(null);
-                    setUserName("Habit Builder");
+                    setUserName("User");
                     setUserEmail("Keep building your habits");
                     setHasPremium(false);
                     
@@ -437,6 +416,8 @@ export default function ProfileScreen() {
       </LinearGradient>
     );
   }
+
+  const priceText = "$4.99/month";
 
   return (
     <LinearGradient 
@@ -516,20 +497,20 @@ export default function ProfileScreen() {
           )}
         </View>
 
-        {/* Premium Unlock Section */}
+        {/* Premium Unlock Section - Original Design */}
         {!hasPremium && (
-          <View style={[styles.premiumCard, { backgroundColor: colors.card, borderColor: isDark ? colors.primary : "#FFD700" }]}>
+          <View style={[styles.premiumCard, { backgroundColor: colors.card, borderColor: "#FFD700" }]}>
             <View style={styles.premiumHeader}>
               <IconSymbol
-                ios_icon_name="crown.fill"
-                android_material_icon_name="workspace-premium"
+                ios_icon_name="star.fill"
+                android_material_icon_name="star"
                 size={32}
                 color="#FFD700"
               />
               <Text style={[styles.premiumTitle, { color: colors.text }]}>Unlock Premium</Text>
             </View>
             <Text style={[styles.premiumDescription, { color: colors.textSecondary }]}>
-              Get unlimited affirmations and habits
+              Get unlimited affirmations and habits for just {priceText}
             </Text>
             <View style={styles.premiumFeatures}>
               <View style={styles.premiumFeature}>
@@ -577,7 +558,7 @@ export default function ProfileScreen() {
               {isPurchasing ? (
                 <ActivityIndicator color="#FFFFFF" />
               ) : (
-                <Text style={styles.premiumButtonText}>View Subscription Options</Text>
+                <Text style={styles.premiumButtonText}>Subscribe for {priceText}</Text>
               )}
             </TouchableOpacity>
             <TouchableOpacity style={styles.restoreButton} onPress={handleRestorePurchases}>
@@ -846,7 +827,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 24,
     marginBottom: 24,
-    borderWidth: 2,
+    borderWidth: 3,
     borderColor: "#FFD700",
   },
   premiumHeader: {
