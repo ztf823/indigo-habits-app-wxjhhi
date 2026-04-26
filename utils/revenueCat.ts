@@ -1,5 +1,8 @@
 
-import Purchases, { LOG_LEVEL, PurchasesOffering } from 'react-native-purchases';
+// NOTE: react-native-purchases is imported LAZILY (inside try/catch) so a native
+// module failure cannot crash the app on launch (which caused App Store rejection).
+import type Purchases from 'react-native-purchases';
+import type { PurchasesOffering } from 'react-native-purchases';
 import { Platform } from 'react-native';
 
 // RevenueCat API Keys
@@ -7,37 +10,71 @@ const REVENUECAT_GOOGLE_API_KEY = 'goog_eNogZNZZAtzunNmzzDNXxYafmpy';
 const REVENUECAT_APPLE_API_KEY = 'appl_KVaWqlpxQpKqoMgILPRLHowDNxe';
 
 // Product identifiers
-export const PREMIUM_MONTHLY_PRODUCT_ID = 'premium_monthly'; // $4.40/month
+export const PREMIUM_MONTHLY_PRODUCT_ID = 'premium_monthly'; // $4.99/month
+
+// Module-level guard: track whether RevenueCat ever initialized successfully.
+let rcReady = false;
+let rcModule: typeof Purchases | null = null;
+
+async function loadPurchases(): Promise<typeof Purchases | null> {
+  if (rcModule) return rcModule;
+  try {
+    // Lazy require so a missing/broken native module cannot crash launch.
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const mod = require('react-native-purchases');
+    rcModule = (mod?.default ?? mod) as typeof Purchases;
+    return rcModule;
+  } catch (err) {
+    console.warn('[RevenueCat] Failed to load native module:', err);
+    return null;
+  }
+}
+
+// Wrap a promise in a timeout so a hanging native call cannot block app start.
+function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms);
+    p.then(
+      (v) => { clearTimeout(timer); resolve(v); },
+      (e) => { clearTimeout(timer); reject(e); },
+    );
+  });
+}
 
 /**
- * Initialize RevenueCat SDK
- * Call this once when the app starts
+ * Initialize RevenueCat SDK.
+ * Call this once when the app starts. Hardened against any failure mode:
+ * lazy import, try/catch, timeout. Never throws.
  */
-export async function initializeRevenueCat() {
+export async function initializeRevenueCat(): Promise<void> {
   try {
-    console.log('[RevenueCat] Initializing SDK...');
-    
-    // Skip initialization on web
     if (Platform.OS === 'web') {
-      console.log('[RevenueCat] Web platform detected - RevenueCat not available');
+      console.log('[RevenueCat] Web platform detected - skipping');
       return;
     }
-    
-    // Configure SDK with debug logging for development
-    Purchases.setLogLevel(__DEV__ ? LOG_LEVEL.DEBUG : LOG_LEVEL.INFO);
-    
-    // Initialize with platform-specific API key
-    if (Platform.OS === 'android') {
-      await Purchases.configure({ apiKey: REVENUECAT_GOOGLE_API_KEY });
-      console.log('[RevenueCat] Configured for Android with Google Play');
-    } else if (Platform.OS === 'ios') {
-      await Purchases.configure({ apiKey: REVENUECAT_APPLE_API_KEY });
-      console.log('[RevenueCat] Configured for iOS with App Store');
+
+    const Purchases = await loadPurchases();
+    if (!Purchases) {
+      console.warn('[RevenueCat] Module unavailable, app will run without RevenueCat');
+      return;
     }
-    
+
+    try {
+      const LOG_LEVEL = (require('react-native-purchases') as any).LOG_LEVEL;
+      Purchases.setLogLevel(__DEV__ ? LOG_LEVEL.DEBUG : LOG_LEVEL.INFO);
+    } catch {}
+
+    const apiKey = Platform.OS === 'android' ? REVENUECAT_GOOGLE_API_KEY : REVENUECAT_APPLE_API_KEY;
+    await withTimeout(
+      Purchases.configure({ apiKey }),
+      4000,
+      '[RevenueCat] configure',
+    );
+    rcReady = true;
     console.log('[RevenueCat] SDK initialized successfully');
   } catch (error) {
-    console.error('[RevenueCat] Failed to initialize:', error);
+    // Swallow ALL errors. Launch must never fail because of RevenueCat.
+    console.warn('[RevenueCat] init skipped due to error:', error);
   }
 }
 
@@ -46,8 +83,9 @@ export async function initializeRevenueCat() {
  */
 export async function getCustomerInfo() {
   try {
+    if (!rcReady || !rcModule) return { isPro: false, customerInfo: null };
     console.log('[RevenueCat] Fetching customer info...');
-    const customerInfo = await Purchases.getCustomerInfo();
+    const customerInfo = await rcModule.getCustomerInfo();
     
     // Check for 'pro' entitlement
     const isPro = typeof customerInfo.entitlements.active['pro'] !== 'undefined';
@@ -71,8 +109,9 @@ export async function getCustomerInfo() {
  */
 export async function getOfferings(): Promise<PurchasesOffering | null> {
   try {
+    if (!rcReady || !rcModule) return null;
     console.log('[RevenueCat] Fetching available offerings...');
-    const offerings = await Purchases.getOfferings();
+    const offerings = await rcModule.getOfferings();
     
     if (offerings.current !== null) {
       console.log('[RevenueCat] Current offering:', offerings.current.identifier);
@@ -107,7 +146,10 @@ export async function purchasePackage(packageToPurchase: any) {
     console.log('[RevenueCat] Product ID:', packageToPurchase.product.identifier);
     console.log('[RevenueCat] Price:', packageToPurchase.product.priceString);
     
-    const { customerInfo } = await Purchases.purchasePackage(packageToPurchase);
+    if (!rcReady || !rcModule) {
+      return { success: false, cancelled: false, error: 'RevenueCat unavailable' };
+    }
+    const { customerInfo } = await rcModule.purchasePackage(packageToPurchase);
     
     const isPro = typeof customerInfo.entitlements.active['pro'] !== 'undefined';
     console.log('[RevenueCat] Purchase completed successfully! Pro status:', isPro);
@@ -145,7 +187,10 @@ export async function restorePurchases() {
   try {
     console.log('[RevenueCat] Restoring purchases...');
     
-    const customerInfo = await Purchases.restorePurchases();
+    if (!rcReady || !rcModule) {
+      return { success: false, isPro: false, error: 'RevenueCat unavailable' };
+    }
+    const customerInfo = await rcModule.restorePurchases();
     
     const isPro = typeof customerInfo.entitlements.active['pro'] !== 'undefined';
     console.log('[RevenueCat] Purchases restored. Pro status:', isPro);
