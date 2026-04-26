@@ -32,5 +32,14 @@
         "COREPACK_ENABLE_STRICT": "0"
       }
     }
+  },
+  "submit": {
+    "production": {
+      "ios": {
+        "appleId": "tommyfrancisco@hotmail.com",
+        "ascAppId": "6759208557",
+        "appleTeamId": "3CF57PQ7T5"
+      }
+    }
   }
 }
