@@ -1,6 +1,6 @@
 import { StyleSheet, Text, View, Pressable } from 'react-native';
 import { router } from 'expo-router';
-import { GlassView } from 'expo-glass-effect';
+import { GlassView } from '@/components/GlassViewShim';
 import { useTheme } from '@react-navigation/native';
 
 export default function Modal() {

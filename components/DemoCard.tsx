@@ -4,7 +4,7 @@ import { Pressable, StyleSheet, View, Text } from "react-native";
 import { IconSymbol } from "@/components/IconSymbol";
 import { useTheme } from "@react-navigation/native";
 import { ModalDemo } from "./homeData";
-import { GlassView } from "expo-glass-effect";
+import { GlassView } from '@/components/GlassViewShim';
 
 interface DemoCardProps {
   item: ModalDemo;
