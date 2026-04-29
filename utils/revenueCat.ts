@@ -42,6 +42,16 @@ export async function initializeRevenueCat(): Promise<void> {
       return;
     }
 
+    // iOS 26 Beta: RevenueCat's DangerousSettings.__allocating_init crashes on iOS 26
+    // due to StoreKit 2 enforcement. Skip initialization entirely on iOS 26+.
+    if (Platform.OS === 'ios') {
+      const iosMajor = parseInt(String(Platform.Version), 10);
+      if (iosMajor >= 26) {
+        console.warn('[RevenueCat] iOS 26+ detected — skipping init (StoreKit 2 incompatibility)');
+        return;
+      }
+    }
+
     const Purchases = await loadPurchases();
     if (!Purchases) {
       console.warn('[RevenueCat] Module unavailable, app will run without RevenueCat');
