@@ -207,8 +207,8 @@ export default function ProfileScreen() {
   const [loading, setLoading] = useState(true);
   const [isPremium, setIsPremium] = useState(false);
   const [showRemindersOverlay, setShowRemindersOverlay] = useState(false);
-  const { theme, toggleTheme } = useTheme();
-  const colors = getColors(theme);
+  const { isDark, toggleTheme } = useTheme();
+  const colors = getColors(isDark);
 
   const loadProfileData = useCallback(async () => {
     try {
@@ -277,7 +277,7 @@ export default function ProfileScreen() {
         if (packageToPurchase) {
           const purchaseResult = await purchasePackage(packageToPurchase);
           if (purchaseResult) {
-            await updateProfile({ isPremium: 1 });
+            await updateProfile({ isPremium: true });
             await loadProfileData();
             await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
             Alert.alert('Success', 'Premium unlocked! Enjoy unlimited habits and affirmations.');
@@ -295,11 +295,11 @@ export default function ProfileScreen() {
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       console.log('Restore purchases tapped');
       
-      const customerInfo = await restorePurchases();
-      const hasPremium = customerInfo?.entitlements?.active?.premium !== undefined;
+      const result = await restorePurchases();
+      const hasPremium = result?.isPro === true;
       
       if (hasPremium) {
-        await updateProfile({ isPremium: 1 });
+        await updateProfile({ isPremium: true });
         await loadProfileData();
         await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         Alert.alert('Success', 'Premium restored successfully!');
@@ -528,7 +528,7 @@ export default function ProfileScreen() {
                   <Text style={[styles.menuItemText, { color: colors.text }]}>Dark Mode</Text>
                 </View>
                 <Switch
-                  value={theme === 'dark'}
+                  value={isDark}
                   onValueChange={handleToggleDarkMode}
                   trackColor={{ false: '#D1D5DB', true: colors.primary }}
                   thumbColor="#FFFFFF"
