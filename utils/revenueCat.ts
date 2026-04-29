@@ -3,7 +3,7 @@
 // module failure cannot crash the app on launch (which caused App Store rejection).
 import type Purchases from 'react-native-purchases';
 import type { PurchasesOffering } from 'react-native-purchases';
-import { Platform, InteractionManager } from 'react-native';
+import { Platform } from 'react-native';
 
 // RevenueCat API Keys
 const REVENUECAT_GOOGLE_API_KEY = 'goog_eNogZNZZAtzunNmzzDNXxYafmpy';
@@ -28,17 +28,6 @@ async function loadPurchases(): Promise<typeof Purchases | null> {
     console.warn('[RevenueCat] Failed to load native module:', err);
     return null;
   }
-}
-
-// Wrap a promise in a timeout so a hanging native call cannot block app start.
-function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
-  return new Promise<T>((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms);
-    p.then(
-      (v) => { clearTimeout(timer); resolve(v); },
-      (e) => { clearTimeout(timer); reject(e); },
-    );
-  });
 }
 
 /**
@@ -66,29 +55,7 @@ export async function initializeRevenueCat(): Promise<void> {
     } catch {}
 
     const apiKey = Platform.OS === 'android' ? REVENUECAT_GOOGLE_API_KEY : REVENUECAT_APPLE_API_KEY;
-
-    // Wait for interactions to complete so the JS thread is idle
-    // before handing off to the native StoreKit layer.
-    await new Promise<void>((resolve) => {
-      InteractionManager.runAfterInteractions(() => resolve());
-    });
-
-    await withTimeout(
-      new Promise<void>((resolve, reject) => {
-        // setTimeout(0) yields to the main run loop, ensuring configure()
-        // is called from the main thread context on iOS 26+.
-        setTimeout(() => {
-          try {
-            Purchases.configure({ apiKey });
-            resolve();
-          } catch (e) {
-            reject(e);
-          }
-        }, 0);
-      }),
-      5000,
-      '[RevenueCat] configure',
-    );
+    Purchases.configure({ apiKey });
     rcReady = true;
     console.log('[RevenueCat] SDK initialized successfully');
   } catch (error) {
