@@ -256,11 +256,18 @@ export default function HomeScreen() {
 
   useEffect(() => {
     if (!loading) {
-      loadAffirmations();
-      loadHabits();
-      loadTodayJournal();
+      const loadAll = async () => {
+        try {
+          await loadAffirmations();
+          await loadHabits();
+          await loadTodayJournal();
+        } catch (e) {
+          console.warn('[HomeScreen] Data load error (non-fatal):', e);
+        }
+      };
+      loadAll();
     }
-  }, [loading, loadAffirmations, loadHabits, loadTodayJournal]);
+  }, [loading]);
 
   useEffect(() => {
     loadData();

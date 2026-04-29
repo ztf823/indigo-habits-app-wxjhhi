@@ -57,17 +57,16 @@ const createMockDb = () => {
 };
 
 /**
- * Get the database instance
+ * Get the database instance.
+ * Returns null if not yet initialized — callers must null-check before use.
  */
 const getDb = (): any => {
-  if (!db) {
-    throw new Error('Database not initialized. Call initDatabase() first.');
-  }
-  return db;
+  return db; // returns null if not initialized — callers must null-check
 };
 
 /**
- * Initialize the database and create tables
+ * Initialize the database and create tables.
+ * Never re-throws — failures are logged only so the app can continue.
  */
 export const initDatabase = async (): Promise<void> => {
   try {
@@ -153,8 +152,8 @@ export const initDatabase = async (): Promise<void> => {
     
     console.log('[Database] Database initialized successfully');
   } catch (error) {
+    // Never re-throw — log only so the app can continue with db=null
     console.error('[Database] Error initializing database:', error);
-    throw error;
   }
 };
 
@@ -164,11 +163,13 @@ export const initDatabase = async (): Promise<void> => {
 
 export const getAllAffirmations = async () => {
   const database = getDb();
+  if (!database) { console.warn('[Database] getAllAffirmations called before init'); return []; }
   return await database.getAllAsync('SELECT * FROM affirmations ORDER BY orderIndex ASC, createdAt DESC');
 };
 
 export const getAffirmationById = async (id: string) => {
   const database = getDb();
+  if (!database) { console.warn('[Database] getAffirmationById called before init'); return null; }
   return await database.getFirstAsync('SELECT * FROM affirmations WHERE id = ?', [id]);
 };
 
@@ -181,6 +182,7 @@ export const createAffirmation = async (affirmation: {
   orderIndex?: number;
 }) => {
   const database = getDb();
+  if (!database) { console.warn('[Database] createAffirmation called before init'); return affirmation; }
   await database.runAsync(
     'INSERT INTO affirmations (id, text, isCustom, isFavorite, isRepeating, orderIndex) VALUES (?, ?, ?, ?, ?, ?)',
     [
@@ -202,6 +204,7 @@ export const updateAffirmation = async (id: string, updates: {
   orderIndex?: number;
 }) => {
   const database = getDb();
+  if (!database) { console.warn('[Database] updateAffirmation called before init'); return; }
   const fields: string[] = [];
   const values: any[] = [];
   
@@ -233,6 +236,7 @@ export const updateAffirmation = async (id: string, updates: {
 
 export const deleteAffirmation = async (id: string) => {
   const database = getDb();
+  if (!database) { console.warn('[Database] deleteAffirmation called before init'); return; }
   await database.runAsync('DELETE FROM affirmations WHERE id = ?', [id]);
 };
 
@@ -242,11 +246,13 @@ export const deleteAffirmation = async (id: string) => {
 
 export const getAllHabits = async () => {
   const database = getDb();
+  if (!database) { console.warn('[Database] getAllHabits called before init'); return []; }
   return await database.getAllAsync('SELECT * FROM habits WHERE isActive = 1 ORDER BY orderIndex ASC, createdAt DESC');
 };
 
 export const getHabitById = async (id: string) => {
   const database = getDb();
+  if (!database) { console.warn('[Database] getHabitById called before init'); return null; }
   return await database.getFirstAsync('SELECT * FROM habits WHERE id = ?', [id]);
 };
 
@@ -259,6 +265,7 @@ export const createHabit = async (habit: {
   orderIndex?: number;
 }) => {
   const database = getDb();
+  if (!database) { console.warn('[Database] createHabit called before init'); return habit; }
   await database.runAsync(
     'INSERT INTO habits (id, title, color, isRepeating, isFavorite, orderIndex) VALUES (?, ?, ?, ?, ?, ?)',
     [
@@ -281,6 +288,7 @@ export const updateHabit = async (id: string, updates: {
   orderIndex?: number;
 }) => {
   const database = getDb();
+  if (!database) { console.warn('[Database] updateHabit called before init'); return; }
   const fields: string[] = [];
   const values: any[] = [];
   
@@ -316,6 +324,7 @@ export const updateHabit = async (id: string, updates: {
 
 export const deleteHabit = async (id: string) => {
   const database = getDb();
+  if (!database) { console.warn('[Database] deleteHabit called before init'); return; }
   await database.runAsync('UPDATE habits SET isActive = 0 WHERE id = ?', [id]);
 };
 
@@ -325,6 +334,7 @@ export const deleteHabit = async (id: string) => {
 
 export const getHabitCompletion = async (habitId: string, date: string) => {
   const database = getDb();
+  if (!database) { console.warn('[Database] getHabitCompletion called before init'); return null; }
   return await database.getFirstAsync(
     'SELECT * FROM habit_completions WHERE habitId = ? AND date = ?',
     [habitId, date]
@@ -333,6 +343,7 @@ export const getHabitCompletion = async (habitId: string, date: string) => {
 
 export const setHabitCompletion = async (habitId: string, date: string, completed: boolean) => {
   const database = getDb();
+  if (!database) { console.warn('[Database] setHabitCompletion called before init'); return; }
   const id = `${habitId}_${date}`;
   
   await database.runAsync(
@@ -345,6 +356,7 @@ export const setHabitCompletion = async (habitId: string, date: string, complete
 
 export const getHabitCompletionsForDate = async (date: string) => {
   const database = getDb();
+  if (!database) { console.warn('[Database] getHabitCompletionsForDate called before init'); return []; }
   return await database.getAllAsync(
     'SELECT * FROM habit_completions WHERE date = ?',
     [date]
@@ -353,6 +365,7 @@ export const getHabitCompletionsForDate = async (date: string) => {
 
 export const getHabitCompletionsForRange = async (startDate: string, endDate: string) => {
   const database = getDb();
+  if (!database) { console.warn('[Database] getHabitCompletionsForRange called before init'); return []; }
   return await database.getAllAsync(
     'SELECT * FROM habit_completions WHERE date >= ? AND date <= ? ORDER BY date ASC',
     [startDate, endDate]
@@ -365,16 +378,19 @@ export const getHabitCompletionsForRange = async (startDate: string, endDate: st
 
 export const getAllJournalEntries = async () => {
   const database = getDb();
+  if (!database) { console.warn('[Database] getAllJournalEntries called before init'); return []; }
   return await database.getAllAsync('SELECT * FROM journal_entries ORDER BY date DESC, createdAt DESC');
 };
 
 export const getJournalEntryById = async (id: string) => {
   const database = getDb();
+  if (!database) { console.warn('[Database] getJournalEntryById called before init'); return null; }
   return await database.getFirstAsync('SELECT * FROM journal_entries WHERE id = ?', [id]);
 };
 
 export const getJournalEntriesForDate = async (date: string) => {
   const database = getDb();
+  if (!database) { console.warn('[Database] getJournalEntriesForDate called before init'); return []; }
   return await database.getAllAsync('SELECT * FROM journal_entries WHERE date = ?', [date]);
 };
 
@@ -387,6 +403,7 @@ export const createJournalEntry = async (entry: {
   date: string;
 }) => {
   const database = getDb();
+  if (!database) { console.warn('[Database] createJournalEntry called before init'); return entry; }
   await database.runAsync(
     'INSERT INTO journal_entries (id, content, photoUri, audioUri, affirmationText, date, isFavorite) VALUES (?, ?, ?, ?, ?, ?, ?)',
     [entry.id, entry.content, entry.photoUri || null, entry.audioUri || null, entry.affirmationText || null, entry.date, 0]
@@ -402,6 +419,7 @@ export const updateJournalEntry = async (id: string, updates: {
   isFavorite?: boolean;
 }) => {
   const database = getDb();
+  if (!database) { console.warn('[Database] updateJournalEntry called before init'); return; }
   const fields: string[] = [];
   const values: any[] = [];
   
@@ -437,6 +455,7 @@ export const updateJournalEntry = async (id: string, updates: {
 
 export const deleteJournalEntry = async (id: string) => {
   const database = getDb();
+  if (!database) { console.warn('[Database] deleteJournalEntry called before init'); return; }
   await database.runAsync('DELETE FROM journal_entries WHERE id = ?', [id]);
 };
 
@@ -446,6 +465,7 @@ export const deleteJournalEntry = async (id: string) => {
 
 export const getProfile = async () => {
   const database = getDb();
+  if (!database) { console.warn('[Database] getProfile called before init'); return null; }
   let profile = await database.getFirstAsync('SELECT * FROM profile WHERE id = ?', ['default']);
   
   if (!profile) {
@@ -467,6 +487,7 @@ export const updateProfile = async (updates: {
   isPremium?: boolean;
 }) => {
   const database = getDb();
+  if (!database) { console.warn('[Database] updateProfile called before init'); return; }
   const fields: string[] = [];
   const values: any[] = [];
   
@@ -504,6 +525,7 @@ export const updateProfile = async (updates: {
 
 export const getStreakData = async () => {
   const database = getDb();
+  if (!database) { console.warn('[Database] getStreakData called before init'); return { currentStreak: 0, longestStreak: 0, totalCompletions: 0 }; }
   
   // Get all completions ordered by date
   const completions = await database.getAllAsync(`
@@ -555,6 +577,7 @@ export const getStreakData = async () => {
 
 export const getCalendarData = async (startDate: string, endDate: string) => {
   const database = getDb();
+  if (!database) { console.warn('[Database] getCalendarData called before init'); return []; }
   
   const data = await database.getAllAsync(`
     SELECT 
@@ -575,6 +598,7 @@ export const getCalendarData = async (startDate: string, endDate: string) => {
  */
 export const clearAllData = async () => {
   const database = getDb();
+  if (!database) { console.warn('[Database] clearAllData called before init'); return; }
   await database.execAsync(`
     DELETE FROM affirmations;
     DELETE FROM habits;

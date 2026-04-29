@@ -66,10 +66,14 @@ export default function TabLayout() {
   }, [pathname, getCurrentIndex]);
 
   const handleTabPress = (index: number) => {
-    console.log('User tapped tab:', tabs[index].label);
-    setCurrentPage(index);
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    router.push(tabs[index].route);
+    try {
+      console.log('User tapped tab:', tabs[index].label);
+      setCurrentPage(index);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      router.push(tabs[index].route);
+    } catch (e) {
+      console.warn('[TabLayout] handleTabPress error:', e);
+    }
   };
 
   const navigateToTab = useCallback((direction: 'left' | 'right') => {
