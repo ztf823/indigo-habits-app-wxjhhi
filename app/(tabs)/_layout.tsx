@@ -5,7 +5,7 @@ import { View, Platform } from 'react-native';
 import FloatingTabBar from '@/components/FloatingTabBar';
 import { useRouter, usePathname } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { GestureHandlerRootView, GestureDetector, Gesture } from 'react-native-gesture-handler';
+import { GestureDetector, Gesture } from 'react-native-gesture-handler';
 
 export default function TabLayout() {
   const pagerRef = useRef<any>(null);
@@ -112,7 +112,7 @@ export default function TabLayout() {
     });
 
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
+    <View style={{ flex: 1 }}>
       <GestureDetector gesture={panGesture}>
         <View style={{ flex: 1 }}>
           <Stack
@@ -134,6 +134,6 @@ export default function TabLayout() {
           />
         </View>
       </GestureDetector>
-    </GestureHandlerRootView>
+    </View>
   );
 }

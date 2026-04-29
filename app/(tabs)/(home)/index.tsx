@@ -37,8 +37,7 @@ import {
   updateJournalEntry,
 } from "@/utils/database";
 import { playChime } from "@/utils/sounds";
-import { GestureDetector, Gesture } from 'react-native-gesture-handler';
-import { useRouter, usePathname } from 'expo-router';
+
 import { getHabitReminderTime } from "@/utils/notifications";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
@@ -92,8 +91,6 @@ const SAMPLE_REMINDER_TIMES: { [key: string]: string } = {
 };
 
 export default function HomeScreen() {
-  const router = useRouter();
-  const pathname = usePathname();
   const [affirmations, setAffirmations] = useState<Affirmation[]>([]);
   const [habits, setHabits] = useState<Habit[]>([]);
   const [loading, setLoading] = useState(true);
@@ -115,97 +112,6 @@ export default function HomeScreen() {
     y: number;
     height: number;
   } | null>(null);
-
-  const tabs = useMemo(() => [
-    {
-      name: '(home)',
-      route: '/(tabs)/(home)/' as any,
-      label: 'Home',
-    },
-    {
-      name: 'habits',
-      route: '/(tabs)/habits' as any,
-      label: 'Habits',
-    },
-    {
-      name: 'history',
-      route: '/(tabs)/history' as any,
-      label: 'History',
-    },
-    {
-      name: 'progress',
-      route: '/(tabs)/progress' as any,
-      label: 'Progress',
-    },
-    {
-      name: 'profile',
-      route: '/(tabs)/profile' as any,
-      label: 'Profile',
-    },
-  ], []);
-
-  const getCurrentIndex = useCallback(() => {
-    const currentPath = pathname.split('/').filter(Boolean).pop() || '(home)';
-    const index = tabs.findIndex(tab => 
-      tab.name === currentPath || 
-      (tab.name === '(home)' && (currentPath === '' || currentPath === '(home)'))
-    );
-    return index >= 0 ? index : 0;
-  }, [pathname, tabs]);
-
-  const navigateToTab = useCallback((direction: 'left' | 'right') => {
-    const currentIndex = getCurrentIndex();
-    let nextIndex: number;
-
-    if (direction === 'right') {
-      nextIndex = currentIndex === 0 ? tabs.length - 1 : currentIndex - 1;
-    } else {
-      nextIndex = currentIndex === tabs.length - 1 ? 0 : currentIndex + 1;
-    }
-
-    console.log(`User swiped ${direction}, navigating from ${tabs[currentIndex].label} to ${tabs[nextIndex].label}`);
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    router.push(tabs[nextIndex].route);
-  }, [getCurrentIndex, router, tabs]);
-
-  const panGesture = Gesture.Pan()
-    .activeOffsetX([-20, 20])
-    .failOffsetY([-15, 15])
-    .onStart((event) => {
-      if (affirmationsLayout) {
-        const gestureY = event.absoluteY;
-        const affirmationsTop = affirmationsLayout.y;
-        const affirmationsBottom = affirmationsLayout.y + affirmationsLayout.height;
-        
-        if (gestureY >= affirmationsTop && gestureY <= affirmationsBottom) {
-          console.log('Gesture started inside affirmations card - allowing carousel only, blocking tab switch');
-        } else {
-          console.log('Gesture started outside affirmations card - tab switching enabled');
-        }
-      }
-    })
-    .onEnd((event) => {
-      if (affirmationsLayout) {
-        const gestureY = event.absoluteY;
-        const affirmationsTop = affirmationsLayout.y;
-        const affirmationsBottom = affirmationsLayout.y + affirmationsLayout.height;
-        
-        if (gestureY >= affirmationsTop && gestureY <= affirmationsBottom) {
-          console.log('Gesture ended inside affirmations card - ignoring for tab switch');
-          return;
-        }
-      }
-      
-      const { velocityX, translationX } = event;
-      
-      if (Math.abs(velocityX) > 300 || Math.abs(translationX) > 100) {
-        if (velocityX > 0 || translationX > 0) {
-          navigateToTab('right');
-        } else {
-          navigateToTab('left');
-        }
-      }
-    });
 
   const loadPremiumStatus = useCallback(async () => {
     try {
@@ -645,7 +551,7 @@ export default function HomeScreen() {
     : `Your Affirmations Today (${selectedAffirmationsCount}/${FREE_AFFIRMATION_LIMIT})`;
 
   return (
-    <GestureDetector gesture={panGesture}>
+    <>
       <LinearGradient
         colors={["#4F46E5", "#87CEEB"]}
         style={styles.gradient}
@@ -967,7 +873,7 @@ export default function HomeScreen() {
           </KeyboardAvoidingView>
         </Modal>
       </LinearGradient>
-    </GestureDetector>
+    </>
   );
 }
 
