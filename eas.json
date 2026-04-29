@@ -24,6 +24,7 @@
       }
     },
     "production": {
+      "autoIncrement": true,
       "distribution": "store",
       "ios": {
         "buildConfiguration": "Release"
@@ -38,7 +39,10 @@
       "ios": {
         "appleId": "tommyfrancisco@hotmail.com",
         "ascAppId": "6759208557",
-        "appleTeamId": "3CF57PQ7T5"
+        "appleTeamId": "3CF57PQ7T5",
+        "ascApiKeyPath": "/Users/tommyfrancisco/.appstoreconnect/AuthKey_8S9M7929L9.p8",
+        "ascApiKeyId": "8S9M7929L9",
+        "ascApiKeyIssuerId": "8bcd634e-1c4c-4bd6-850f-d6406516b131"
       }
     }
   }
