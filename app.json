@@ -2,7 +2,7 @@
   "expo": {
     "name": "Indigo Habits",
     "slug": "indigo-habits",
-    "scheme": "indigo-habits",
+    "scheme": "indigohabits",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/6d55fc54-d63d-4404-853f-c341ea5517d1.png",
@@ -81,7 +81,8 @@
         "projectId": "c9f381e8-423f-4420-b5c5-d3e6b08dd99d"
       },
       "revenueCatApple": "appl_KVaWqlpxQpKqoMgILPRLHowDNxe",
-      "revenueCatGoogle": "goog_KVaWqlpxQpKqoMgILPRLHowDNxe"
+      "revenueCatGoogle": "goog_KVaWqlpxQpKqoMgILPRLHowDNxe",
+      "backendUrl": "https://wtj7b5zqhh4h7kvtqmkdaefv9jzgd8n5.app.specular.dev"
     },
     "description": "Indigo Habits is a beautiful habit tracker and journal app that helps you build positive habits and reflect on your daily progress with affirmations, streaks, and mindful journaling.",
     "primaryColor": "#4F46E5"

@@ -71,5 +71,5 @@ export function usePremium() {
     }
   };
 
-  return { isPro, loading, upgradeToPro, checkProStatus: checkProStatusCallback };
+  return { isPro, loading, upgradeToPro, refreshPremiumStatus: checkProStatusCallback };
 }

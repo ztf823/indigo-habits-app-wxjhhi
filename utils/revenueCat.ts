@@ -20,7 +20,7 @@ async function loadPurchases(): Promise<typeof Purchases | null> {
   if (rcModule) return rcModule;
   try {
     // Lazy require so a missing/broken native module cannot crash launch.
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    // eslint-disable-next-line @typescript-eslint/no-var-requires, @typescript-eslint/no-require-imports
     const mod = require('react-native-purchases');
     rcModule = (mod?.default ?? mod) as typeof Purchases;
     return rcModule;
@@ -60,6 +60,7 @@ export async function initializeRevenueCat(): Promise<void> {
     }
 
     try {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
       const LOG_LEVEL = (require('react-native-purchases') as any).LOG_LEVEL;
       Purchases.setLogLevel(__DEV__ ? LOG_LEVEL.DEBUG : LOG_LEVEL.INFO);
     } catch {}
