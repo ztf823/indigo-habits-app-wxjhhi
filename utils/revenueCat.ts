@@ -67,8 +67,17 @@ export async function initializeRevenueCat(): Promise<void> {
 
     const apiKey = Platform.OS === 'android' ? REVENUECAT_GOOGLE_API_KEY : REVENUECAT_APPLE_API_KEY;
     await withTimeout(
-      Purchases.configure({ apiKey }),
-      4000,
+      new Promise<void>((resolve, reject) => {
+        setTimeout(() => {
+          try {
+            Purchases.configure({ apiKey });
+            resolve();
+          } catch (e) {
+            reject(e);
+          }
+        }, 500);
+      }),
+      5000,
       '[RevenueCat] configure',
     );
     rcReady = true;

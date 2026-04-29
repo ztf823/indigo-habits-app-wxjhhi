@@ -7,21 +7,6 @@ const config = getDefaultConfig(__dirname);
 
 config.resolver.unstable_enablePackageExports = true;
 
-// Shim node:module for @better-auth/expo (createRequire not available in RN)
-const originalResolver = config.resolver.resolveRequest;
-config.resolver.resolveRequest = (context, moduleName, platform) => {
-  if (moduleName === 'node:module') {
-    return {
-      filePath: require('path').resolve(__dirname, 'utils/polyfills/node-module-shim.js'),
-      type: 'sourceFile',
-    };
-  }
-  if (originalResolver) {
-    return originalResolver(context, moduleName, platform);
-  }
-  return context.resolveRequest(context, moduleName, platform);
-};
-
 // Use turborepo to restore the cache when possible
 config.cacheStores = [
     new FileStore({ root: path.join(__dirname, 'node_modules', '.cache', 'metro') }),

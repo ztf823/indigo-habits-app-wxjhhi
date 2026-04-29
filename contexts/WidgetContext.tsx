@@ -1,5 +1,5 @@
 import * as React from "react";
-import { createContext, useCallback, useContext } from "react";
+import { createContext, useContext } from "react";
 
 type WidgetContextType = {
   refreshWidget: () => void;
@@ -8,26 +8,10 @@ type WidgetContextType = {
 const WidgetContext = createContext<WidgetContextType | null>(null);
 
 export function WidgetProvider({ children }: { children: React.ReactNode }) {
-  React.useEffect(() => {
-    try {
-      const { ExtensionStorage } = require("@bacons/apple-targets");
-      ExtensionStorage.reloadWidget();
-    } catch (e) {
-      // Widget extension not available in this build — safe to ignore
-    }
-  }, []);
-
-  const refreshWidget = useCallback(() => {
-    try {
-      const { ExtensionStorage } = require("@bacons/apple-targets");
-      ExtensionStorage.reloadWidget();
-    } catch (e) {
-      // Widget extension not available — safe to ignore
-    }
-  }, []);
-
+  // Widget extension is not configured in this build.
+  // All widget calls are disabled to prevent native crashes.
   return (
-    <WidgetContext.Provider value={{ refreshWidget }}>
+    <WidgetContext.Provider value={{ refreshWidget: () => {} }}>
       {children}
     </WidgetContext.Provider>
   );
