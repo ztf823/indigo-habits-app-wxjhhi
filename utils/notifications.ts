@@ -36,30 +36,21 @@ export const initializeNotifications = async () => {
     
     // Set notification handler to show notifications when app is in foreground
     Notifications.setNotificationHandler({
-      handleNotification: async (notification) => {
-        console.log('[Notifications] 🚀 PREVIEW MODE: Notification received, playing Tibetan bowl chime...');
-        
-        // Play Tibetan bowl chime when notification fires
-        await playTibetanChime();
-        
-        return {
-          shouldShowAlert: true,
-          shouldPlaySound: true,
-          shouldSetBadge: false,
-        };
-      },
+      handleNotification: async () => ({
+        shouldShowAlert: true,
+        shouldPlaySound: true,
+        shouldSetBadge: false,
+      }),
     });
 
-    // Add notification received listener to play chime
-    Notifications.addNotificationReceivedListener(async (notification) => {
-      console.log('[Notifications] 🚀 PREVIEW MODE: Notification received listener triggered');
-      await playTibetanChime();
+    // Add notification received listener
+    Notifications.addNotificationReceivedListener((notification) => {
+      console.log('[Notifications] Notification received');
     });
 
     // Add notification response listener (when user taps notification)
-    Notifications.addNotificationResponseReceivedListener(async (response) => {
-      console.log('[Notifications] 🚀 PREVIEW MODE: User tapped notification');
-      await playTibetanChime();
+    Notifications.addNotificationResponseReceivedListener((response) => {
+      console.log('[Notifications] User tapped notification');
     });
 
     // Request permissions

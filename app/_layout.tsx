@@ -35,15 +35,10 @@ export default function RootLayout() {
         console.log("[App] Initializing database...");
         await initDatabase();
         console.log("[App] Database initialized successfully");
-        
-        console.log("[App] Initializing RevenueCat...");
-        await initializeRevenueCat();
-        console.log("[App] RevenueCat initialized successfully");
-        
-        setIsReady(true);
       } catch (error) {
         console.error("[App] Error during initialization:", error);
-        setIsReady(true); // Continue anyway
+      } finally {
+        setIsReady(true);
       }
     }
 
@@ -51,6 +46,15 @@ export default function RootLayout() {
       prepare();
     }
   }, [loaded]);
+
+  // Fire RevenueCat init AFTER the app has rendered — never block launch on it
+  useEffect(() => {
+    if (loaded && isReady) {
+      initializeRevenueCat().catch((e) =>
+        console.warn("[App] RevenueCat background init error:", e)
+      );
+    }
+  }, [loaded, isReady]);
 
   useEffect(() => {
     if (loaded && isReady) {

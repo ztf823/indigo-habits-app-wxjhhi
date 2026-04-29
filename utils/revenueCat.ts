@@ -3,7 +3,7 @@
 // module failure cannot crash the app on launch (which caused App Store rejection).
 import type Purchases from 'react-native-purchases';
 import type { PurchasesOffering } from 'react-native-purchases';
-import { Platform } from 'react-native';
+import { Platform, InteractionManager } from 'react-native';
 
 // RevenueCat API Keys
 const REVENUECAT_GOOGLE_API_KEY = 'goog_eNogZNZZAtzunNmzzDNXxYafmpy';
@@ -66,8 +66,17 @@ export async function initializeRevenueCat(): Promise<void> {
     } catch {}
 
     const apiKey = Platform.OS === 'android' ? REVENUECAT_GOOGLE_API_KEY : REVENUECAT_APPLE_API_KEY;
+
+    // Wait for interactions to complete so the JS thread is idle
+    // before handing off to the native StoreKit layer.
+    await new Promise<void>((resolve) => {
+      InteractionManager.runAfterInteractions(() => resolve());
+    });
+
     await withTimeout(
       new Promise<void>((resolve, reject) => {
+        // setTimeout(0) yields to the main run loop, ensuring configure()
+        // is called from the main thread context on iOS 26+.
         setTimeout(() => {
           try {
             Purchases.configure({ apiKey });
@@ -75,7 +84,7 @@ export async function initializeRevenueCat(): Promise<void> {
           } catch (e) {
             reject(e);
           }
-        }, 500);
+        }, 0);
       }),
       5000,
       '[RevenueCat] configure',
