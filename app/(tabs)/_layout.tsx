@@ -90,24 +90,41 @@ export default function TabLayout() {
     router.push(tabs[nextIndex].route);
   }, [getCurrentIndex, router, tabs]);
 
+  // Wrap navigateToTab so exceptions are caught before reaching the native bridge
+  const safeNavigateToTab = useCallback((direction: 'left' | 'right') => {
+    try {
+      console.log('[TabLayout] Gesture swipe navigation:', direction);
+      navigateToTab(direction);
+    } catch (e) {
+      console.warn('[TabLayout] Navigation error in gesture handler:', e);
+    }
+  }, [navigateToTab]);
+
   // Create pan gesture for horizontal swipes
+  // .runOnJS(true) forces all callbacks onto the JS thread, preventing exceptions
+  // from escaping to the native bridge and triggering RCTFatal on iOS 26 Beta
   const panGesture = Gesture.Pan()
     .activeOffsetX([-20, 20]) // Require 20px horizontal movement to activate
     .failOffsetY([-15, 15]) // Fail if vertical movement exceeds 15px (preserves vertical scroll)
+    .runOnJS(true)
     .onEnd((event) => {
-      const { velocityX, translationX } = event;
-      
-      // Determine swipe direction based on velocity and translation
-      // Swipe right (positive velocity/translation) = previous tab
-      // Swipe left (negative velocity/translation) = next tab
-      if (Math.abs(velocityX) > 300 || Math.abs(translationX) > 100) {
-        if (velocityX > 0 || translationX > 0) {
-          // Swiped right
-          navigateToTab('right');
-        } else {
-          // Swiped left
-          navigateToTab('left');
+      try {
+        const { velocityX, translationX } = event;
+
+        // Determine swipe direction based on velocity and translation
+        // Swipe right (positive velocity/translation) = previous tab
+        // Swipe left (negative velocity/translation) = next tab
+        if (Math.abs(velocityX) > 300 || Math.abs(translationX) > 100) {
+          if (velocityX > 0 || translationX > 0) {
+            // Swiped right
+            safeNavigateToTab('right');
+          } else {
+            // Swiped left
+            safeNavigateToTab('left');
+          }
         }
+      } catch (e) {
+        console.warn('[TabLayout] Gesture onEnd error:', e);
       }
     });
 

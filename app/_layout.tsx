@@ -5,7 +5,7 @@ import { StatusBar } from "expo-status-bar";
 import { WidgetProvider } from "@/contexts/WidgetContext";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import * as SplashScreen from "expo-splash-screen";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { SystemBars } from "react-native-edge-to-edge";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import "react-native-reanimated";
@@ -24,6 +24,22 @@ SplashScreen.preventAutoHideAsync();
 export default function RootLayout() {
   const colorScheme = useColorScheme();
   const [isReady, setIsReady] = useState(false);
+
+  // Catch any unhandled promise rejections before they reach the native bridge
+  // and trigger RCTFatal on iOS 26 Beta
+  useEffect(() => {
+    const handler = (event: any) => {
+      console.warn('[App] Unhandled promise rejection caught:', event?.reason ?? event);
+      if (event?.preventDefault) event.preventDefault();
+    };
+    // @ts-expect-error global may not have addEventListener in all envs
+    if (typeof global !== 'undefined' && global.addEventListener) {
+      // @ts-expect-error global may not have addEventListener in all envs
+      global.addEventListener('unhandledrejection', handler);
+      // @ts-expect-error global may not have removeEventListener in all envs
+      return () => global.removeEventListener('unhandledrejection', handler);
+    }
+  }, []);
 
   const [loaded] = useFonts({
     SpaceMono: require("../assets/fonts/SpaceMono-Regular.ttf"),

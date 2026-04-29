@@ -32,26 +32,37 @@ export interface HabitReminder {
  */
 export const initializeNotifications = async () => {
   try {
-    console.log('[Notifications] 🚀 PREVIEW MODE: Initializing notification system with Tibetan bowl chime...');
-    
-    // Set notification handler to show notifications when app is in foreground
-    Notifications.setNotificationHandler({
-      handleNotification: async () => ({
-        shouldShowAlert: true,
-        shouldPlaySound: true,
-        shouldSetBadge: false,
-      }),
-    });
+    console.log('[Notifications] Initializing notification system...');
 
-    // Add notification received listener
-    Notifications.addNotificationReceivedListener((notification) => {
-      console.log('[Notifications] Notification received');
-    });
+    // Each setup call is individually guarded so a failure in one doesn't
+    // prevent the rest from running and no exception escapes to the native bridge
+    try {
+      Notifications.setNotificationHandler({
+        handleNotification: async () => ({
+          shouldShowAlert: true,
+          shouldPlaySound: true,
+          shouldSetBadge: false,
+        }),
+      });
+    } catch (e) {
+      console.warn('[Notifications] setNotificationHandler failed:', e);
+    }
 
-    // Add notification response listener (when user taps notification)
-    Notifications.addNotificationResponseReceivedListener((response) => {
-      console.log('[Notifications] User tapped notification');
-    });
+    try {
+      Notifications.addNotificationReceivedListener((notification) => {
+        console.log('[Notifications] Notification received');
+      });
+    } catch (e) {
+      console.warn('[Notifications] addNotificationReceivedListener failed:', e);
+    }
+
+    try {
+      Notifications.addNotificationResponseReceivedListener((response) => {
+        console.log('[Notifications] User tapped notification');
+      });
+    } catch (e) {
+      console.warn('[Notifications] addNotificationResponseReceivedListener failed:', e);
+    }
 
     // Request permissions
     const { status: existingStatus } = await Notifications.getPermissionsAsync();
@@ -72,16 +83,16 @@ export const initializeNotifications = async () => {
       await Notifications.setNotificationChannelAsync('habits-reminders', {
         name: 'Habits Reminders',
         importance: Notifications.AndroidImportance.HIGH,
-        sound: 'default', // We'll use default for now, can be customized later
+        sound: 'default',
         vibrationPattern: [0, 250, 250, 250],
         lightColor: '#4F46E5',
       });
     }
 
-    console.log('[Notifications] 🚀 PREVIEW MODE: Notification system initialized successfully with chime support');
+    console.log('[Notifications] Notification system initialized successfully');
     return true;
   } catch (error) {
-    console.error('[Notifications] Error initializing notifications:', error);
+    console.warn('[Notifications] Error initializing notifications (non-fatal):', error);
     return false;
   }
 };
