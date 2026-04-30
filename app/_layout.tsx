@@ -15,7 +15,7 @@ import {
   DefaultTheme,
   ThemeProvider as NavigationThemeProvider,
 } from "@react-navigation/native";
-import { initDatabase } from "@/utils/database";
+import { initDatabase, isDatabaseReady, retryDatabaseInit } from "@/utils/database";
 import { initializeRevenueCat } from "@/utils/revenueCat";
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
@@ -48,11 +48,18 @@ export default function RootLayout() {
   useEffect(() => {
     async function prepare() {
       try {
-        console.log("[App] Initializing database...");
         await initDatabase();
-        console.log("[App] Database initialized successfully");
+        if (!isDatabaseReady()) {
+          // First attempt failed — try once more after a short delay
+          console.warn('[App] Database init failed, retrying in 500ms...');
+          await new Promise(resolve => setTimeout(resolve, 500));
+          await retryDatabaseInit();
+        }
+        if (!isDatabaseReady()) {
+          console.error('[App] Database unavailable after retry — app will run in degraded mode');
+        }
       } catch (error) {
-        console.error("[App] Error during initialization:", error);
+        console.error('[App] Unexpected error during prepare:', error);
       } finally {
         setIsReady(true);
       }
