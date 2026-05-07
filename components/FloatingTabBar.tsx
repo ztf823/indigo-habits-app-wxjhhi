@@ -1,10 +1,5 @@
 
 import { IconSymbol } from '@/components/IconSymbol';
-import Animated, {
-  useAnimatedStyle,
-  useSharedValue,
-  withSpring,
-} from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
 import { useTheme } from '@react-navigation/native';
 import {
@@ -14,10 +9,11 @@ import {
   StyleSheet,
   Platform,
   Dimensions,
+  Animated,
 } from 'react-native';
 import { Href } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { colors } from '@/styles/commonStyles';
 import { BlurView } from 'expo-blur';
 
@@ -47,21 +43,17 @@ export default function FloatingTabBar({
 }: FloatingTabBarProps) {
   const router = useRouter();
   const theme = useTheme();
-  const indicatorPosition = useSharedValue(0);
+  const tabWidth = containerWidth / tabs.length;
+  const indicatorPosition = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    const tabWidth = containerWidth / tabs.length;
-    indicatorPosition.value = withSpring(currentIndex * tabWidth, {
-      damping: 20,
-      stiffness: 90,
-    });
-  }, [currentIndex, containerWidth, tabs.length, indicatorPosition]);
-
-  const animatedIndicatorStyle = useAnimatedStyle(() => {
-    return {
-      transform: [{ translateX: indicatorPosition.value }],
-    };
-  });
+    Animated.spring(indicatorPosition, {
+      toValue: currentIndex * tabWidth,
+      tension: 50,
+      friction: 7,
+      useNativeDriver: true,
+    }).start();
+  }, [currentIndex, tabWidth, indicatorPosition]);
 
   const handleTabPress = (route: Href, index: number) => {
     console.log(`User tapped tab: ${tabs[index].label}`);
@@ -70,8 +62,6 @@ export default function FloatingTabBar({
     }
     router.push(route);
   };
-
-  const tabWidth = containerWidth / tabs.length;
 
   return (
     <SafeAreaView
@@ -95,8 +85,8 @@ export default function FloatingTabBar({
             {
               width: tabWidth,
               borderRadius: borderRadius - 4,
+              transform: [{ translateX: indicatorPosition }],
             },
-            animatedIndicatorStyle,
           ]}
         />
 
