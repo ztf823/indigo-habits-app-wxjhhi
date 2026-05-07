@@ -1,8 +1,9 @@
 diff --git a/apple/reanimated/apple/RCTEventDispatcher+Reanimated.m b/apple/reanimated/apple/RCTEventDispatcher+Reanimated.m
-index 1234567..abcdefg 100644
 --- a/apple/reanimated/apple/RCTEventDispatcher+Reanimated.m
 +++ b/apple/reanimated/apple/RCTEventDispatcher+Reanimated.m
-@@ -26,12 +26,8 @@ @implementation RCTEventDispatcher (Reanimated)
+@@ -24,19 +24,10 @@
+ 
+   // Pass the event to React Native by calling the original method
    [self reanimated_sendEvent:event];
  }
  
@@ -16,6 +17,8 @@ index 1234567..abcdefg 100644
 -    method_exchangeImplementations(originalMethod, swizzledMethod);
 -  });
 -}
-+// +load removed: swizzling RCTEventDispatcher crashes on iOS 26 Beta (AXRuntime/UIAccessibility abort)
++// +load removed: swizzling RCTEventDispatcher crashes on iOS 26 Beta
  
  @end
+ 
+ #endif // RCT_NEW_ARCH_ENABLED

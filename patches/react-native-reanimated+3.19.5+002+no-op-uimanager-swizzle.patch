@@ -1,14 +1,12 @@
 diff --git a/apple/reanimated/apple/LayoutReanimation/REASwizzledUIManager.mm b/apple/reanimated/apple/LayoutReanimation/REASwizzledUIManager.mm
-index 1234567..abcdefg 100644
 --- a/apple/reanimated/apple/LayoutReanimation/REASwizzledUIManager.mm
 +++ b/apple/reanimated/apple/LayoutReanimation/REASwizzledUIManager.mm
-@@ -40,7 +40,8 @@ @implementation REASwizzledUIManager
+@@ -40,7 +40,7 @@
      isFlushingBlocks = 0;
      hasPendingBlocks = false;
      [uiManager setAnimationsManager:animationsManager];
 -    [self swizzleMethods];
-+    // swizzleMethods removed: swizzling RCTUIManager crashes on iOS 26 Beta (manageChildren abort)
-+    // Layout animations are disabled as a result — acceptable trade-off for stability.
++    // swizzleMethods removed: swizzling RCTUIManager crashes on iOS 26 Beta
  
      IMP isExecutingUpdatesBatchImpl = imp_implementationWithBlock(^() {
        return hasPendingBlocks || isFlushingBlocks > 0;
