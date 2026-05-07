@@ -3,7 +3,7 @@
     "name": "Indigo Habits",
     "slug": "indigo-habits",
     "scheme": "indigohabits",
-    "version": "1.0.52",
+    "version": "1.0.54",
     "orientation": "portrait",
     "icon": "./assets/images/6d55fc54-d63d-4404-853f-c341ea5517d1.png",
     "userInterfaceStyle": "automatic",
