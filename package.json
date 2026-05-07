@@ -15,7 +15,7 @@
     "submit:ios": "eas submit --platform ios",
     "submit:android": "eas submit --platform android",
     "lint": "eslint .",
-    "postinstall": "echo 'npm was used for installation.'"
+    "postinstall": "patch-package"
   },
   "dependencies": {
     "@babel/plugin-proposal-export-namespace-from": "^7.18.9",
@@ -85,7 +85,8 @@
     "eslint-plugin-react": "^7.37.4",
     "globals": "^15.14.0",
     "typescript": "^5.9.3",
-    "webpack-cli": "^6.0.1"
+    "webpack-cli": "^6.0.1",
+    "patch-package": "^8.0.0"
   },
   "private": true,
   "engines": {
