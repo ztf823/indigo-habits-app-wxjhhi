@@ -121,31 +121,38 @@ export const scheduleDailyHabitsReminder = async (time: string) => {
     console.log('[Notifications] Scheduling daily habits reminder for', time);
     
     // Cancel existing notification
-    await Notifications.cancelScheduledNotificationAsync(DAILY_HABITS_NOTIFICATION_ID);
+    try {
+      await Notifications.cancelScheduledNotificationAsync(DAILY_HABITS_NOTIFICATION_ID);
+    } catch (cancelError) {
+      console.warn('[Notifications] Could not cancel daily habits notification (may not exist):', cancelError);
+    }
     
     // Parse time (HH:MM format)
     const [hours, minutes] = time.split(':').map(Number);
     
     // Schedule new notification
-    await Notifications.scheduleNotificationAsync({
-      identifier: DAILY_HABITS_NOTIFICATION_ID,
-      content: {
-        title: 'Time for your daily habits! 🌟',
-        body: 'Complete your habits to build your streak',
-        sound: 'default',
-        data: { type: 'daily-habits' },
-      },
-      trigger: {
-        hour: hours,
-        minute: minutes,
-        repeats: true,
-      },
-    });
-    
-    console.log('[Notifications] Daily habits reminder scheduled successfully');
+    try {
+      await Notifications.scheduleNotificationAsync({
+        identifier: DAILY_HABITS_NOTIFICATION_ID,
+        content: {
+          title: 'Time for your daily habits! 🌟',
+          body: 'Complete your habits to build your streak',
+          sound: 'default',
+          data: { type: 'daily-habits' },
+        },
+        trigger: {
+          type: Notifications.SchedulableTriggerInputTypes.CALENDAR,
+          hour: hours,
+          minute: minutes,
+          repeats: true,
+        },
+      });
+      console.log('[Notifications] Daily habits reminder scheduled successfully');
+    } catch (scheduleError) {
+      console.warn('[Notifications] Could not schedule daily habits notification:', scheduleError);
+    }
   } catch (error) {
-    console.error('[Notifications] Error scheduling daily habits reminder:', error);
-    throw error;
+    console.warn('[Notifications] Error in scheduleDailyHabitsReminder:', error);
   }
 };
 
@@ -169,31 +176,38 @@ export const scheduleJournalReminder = async (time: string) => {
     console.log('[Notifications] Scheduling journal reminder for', time);
     
     // Cancel existing notification
-    await Notifications.cancelScheduledNotificationAsync(JOURNAL_NOTIFICATION_ID);
+    try {
+      await Notifications.cancelScheduledNotificationAsync(JOURNAL_NOTIFICATION_ID);
+    } catch (cancelError) {
+      console.warn('[Notifications] Could not cancel journal notification (may not exist):', cancelError);
+    }
     
     // Parse time (HH:MM format)
     const [hours, minutes] = time.split(':').map(Number);
     
     // Schedule new notification
-    await Notifications.scheduleNotificationAsync({
-      identifier: JOURNAL_NOTIFICATION_ID,
-      content: {
-        title: 'Time to journal 📝',
-        body: 'Reflect on your day and capture your thoughts',
-        sound: 'default',
-        data: { type: 'journal' },
-      },
-      trigger: {
-        hour: hours,
-        minute: minutes,
-        repeats: true,
-      },
-    });
-    
-    console.log('[Notifications] Journal reminder scheduled successfully');
+    try {
+      await Notifications.scheduleNotificationAsync({
+        identifier: JOURNAL_NOTIFICATION_ID,
+        content: {
+          title: 'Time to journal 📝',
+          body: 'Reflect on your day and capture your thoughts',
+          sound: 'default',
+          data: { type: 'journal' },
+        },
+        trigger: {
+          type: Notifications.SchedulableTriggerInputTypes.CALENDAR,
+          hour: hours,
+          minute: minutes,
+          repeats: true,
+        },
+      });
+      console.log('[Notifications] Journal reminder scheduled successfully');
+    } catch (scheduleError) {
+      console.warn('[Notifications] Could not schedule journal notification:', scheduleError);
+    }
   } catch (error) {
-    console.error('[Notifications] Error scheduling journal reminder:', error);
-    throw error;
+    console.warn('[Notifications] Error in scheduleJournalReminder:', error);
   }
 };
 
@@ -219,31 +233,38 @@ export const scheduleHabitReminder = async (habitId: string, habitTitle: string,
     const notificationId = `habit-${habitId}`;
     
     // Cancel existing notification for this habit
-    await Notifications.cancelScheduledNotificationAsync(notificationId);
+    try {
+      await Notifications.cancelScheduledNotificationAsync(notificationId);
+    } catch (cancelError) {
+      console.warn('[Notifications] Could not cancel habit notification (may not exist):', cancelError);
+    }
     
     // Parse time (HH:MM format)
     const [hours, minutes] = time.split(':').map(Number);
     
     // Schedule new notification
-    await Notifications.scheduleNotificationAsync({
-      identifier: notificationId,
-      content: {
-        title: `Time for: ${habitTitle} ⏰`,
-        body: 'Complete this habit to maintain your streak',
-        sound: 'default',
-        data: { type: 'habit', habitId },
-      },
-      trigger: {
-        hour: hours,
-        minute: minutes,
-        repeats: true,
-      },
-    });
-    
-    console.log('[Notifications] Habit reminder scheduled successfully');
+    try {
+      await Notifications.scheduleNotificationAsync({
+        identifier: notificationId,
+        content: {
+          title: `Time for: ${habitTitle} ⏰`,
+          body: 'Complete this habit to maintain your streak',
+          sound: 'default',
+          data: { type: 'habit', habitId },
+        },
+        trigger: {
+          type: Notifications.SchedulableTriggerInputTypes.CALENDAR,
+          hour: hours,
+          minute: minutes,
+          repeats: true,
+        },
+      });
+      console.log('[Notifications] Habit reminder scheduled successfully');
+    } catch (scheduleError) {
+      console.warn('[Notifications] Could not schedule habit notification:', scheduleError);
+    }
   } catch (error) {
-    console.error('[Notifications] Error scheduling habit reminder:', error);
-    throw error;
+    console.warn('[Notifications] Error in scheduleHabitReminder:', error);
   }
 };
 
