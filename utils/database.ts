@@ -114,74 +114,98 @@ export const initDatabase = async (): Promise<void> => {
         return;
       }
 
-      const SQLite = await import('expo-sqlite');
-      db = await SQLite.openDatabaseAsync(DB_NAME);
+      let SQLite: any;
+      try {
+        SQLite = await import('expo-sqlite');
+      } catch (importErr) {
+        console.warn('[Database] expo-sqlite import failed:', importErr);
+        dbInitFailed = true;
+        dbInitPromise = null;
+        return;
+      }
 
-      await db.execAsync(`
-        PRAGMA journal_mode = WAL;
-        
-        -- Affirmations table
-        CREATE TABLE IF NOT EXISTS affirmations (
-          id TEXT PRIMARY KEY,
-          text TEXT NOT NULL,
-          isCustom INTEGER DEFAULT 0,
-          isFavorite INTEGER DEFAULT 0,
-          isRepeating INTEGER DEFAULT 0,
-          orderIndex INTEGER DEFAULT 0,
-          createdAt TEXT DEFAULT CURRENT_TIMESTAMP
-        );
-        
-        -- Habits table
-        CREATE TABLE IF NOT EXISTS habits (
-          id TEXT PRIMARY KEY,
-          title TEXT NOT NULL,
-          color TEXT NOT NULL,
-          isActive INTEGER DEFAULT 1,
-          isRepeating INTEGER DEFAULT 0,
-          isFavorite INTEGER DEFAULT 0,
-          orderIndex INTEGER DEFAULT 0,
-          createdAt TEXT DEFAULT CURRENT_TIMESTAMP
-        );
-        
-        -- Habit completions table (for tracking daily completions)
-        CREATE TABLE IF NOT EXISTS habit_completions (
-          id TEXT PRIMARY KEY,
-          habitId TEXT NOT NULL,
-          date TEXT NOT NULL,
-          completed INTEGER DEFAULT 0,
-          FOREIGN KEY (habitId) REFERENCES habits(id) ON DELETE CASCADE,
-          UNIQUE(habitId, date)
-        );
-        
-        -- Journal entries table
-        CREATE TABLE IF NOT EXISTS journal_entries (
-          id TEXT PRIMARY KEY,
-          content TEXT NOT NULL,
-          photoUri TEXT,
-          audioUri TEXT,
-          affirmationText TEXT,
-          isFavorite INTEGER DEFAULT 0,
-          date TEXT NOT NULL,
-          createdAt TEXT DEFAULT CURRENT_TIMESTAMP
-        );
-        
-        -- Profile table
-        CREATE TABLE IF NOT EXISTS profile (
-          id TEXT PRIMARY KEY DEFAULT 'default',
-          name TEXT,
-          email TEXT,
-          photoUri TEXT,
-          isPremium INTEGER DEFAULT 0,
-          updatedAt TEXT DEFAULT CURRENT_TIMESTAMP
-        );
-        
-        -- Create indexes for better performance
-        CREATE INDEX IF NOT EXISTS idx_habit_completions_date ON habit_completions(date);
-        CREATE INDEX IF NOT EXISTS idx_habit_completions_habitId ON habit_completions(habitId);
-        CREATE INDEX IF NOT EXISTS idx_journal_entries_date ON journal_entries(date);
-        CREATE INDEX IF NOT EXISTS idx_affirmations_order ON affirmations(orderIndex);
-        CREATE INDEX IF NOT EXISTS idx_habits_order ON habits(orderIndex);
-      `);
+      try {
+        db = await SQLite.openDatabaseAsync(DB_NAME);
+      } catch (openErr) {
+        console.warn('[Database] openDatabaseAsync failed:', openErr);
+        dbInitFailed = true;
+        db = null;
+        dbInitPromise = null;
+        return;
+      }
+
+      try {
+        await db.execAsync(`
+          PRAGMA journal_mode = WAL;
+          
+          -- Affirmations table
+          CREATE TABLE IF NOT EXISTS affirmations (
+            id TEXT PRIMARY KEY,
+            text TEXT NOT NULL,
+            isCustom INTEGER DEFAULT 0,
+            isFavorite INTEGER DEFAULT 0,
+            isRepeating INTEGER DEFAULT 0,
+            orderIndex INTEGER DEFAULT 0,
+            createdAt TEXT DEFAULT CURRENT_TIMESTAMP
+          );
+          
+          -- Habits table
+          CREATE TABLE IF NOT EXISTS habits (
+            id TEXT PRIMARY KEY,
+            title TEXT NOT NULL,
+            color TEXT NOT NULL,
+            isActive INTEGER DEFAULT 1,
+            isRepeating INTEGER DEFAULT 0,
+            isFavorite INTEGER DEFAULT 0,
+            orderIndex INTEGER DEFAULT 0,
+            createdAt TEXT DEFAULT CURRENT_TIMESTAMP
+          );
+          
+          -- Habit completions table (for tracking daily completions)
+          CREATE TABLE IF NOT EXISTS habit_completions (
+            id TEXT PRIMARY KEY,
+            habitId TEXT NOT NULL,
+            date TEXT NOT NULL,
+            completed INTEGER DEFAULT 0,
+            FOREIGN KEY (habitId) REFERENCES habits(id) ON DELETE CASCADE,
+            UNIQUE(habitId, date)
+          );
+          
+          -- Journal entries table
+          CREATE TABLE IF NOT EXISTS journal_entries (
+            id TEXT PRIMARY KEY,
+            content TEXT NOT NULL,
+            photoUri TEXT,
+            audioUri TEXT,
+            affirmationText TEXT,
+            isFavorite INTEGER DEFAULT 0,
+            date TEXT NOT NULL,
+            createdAt TEXT DEFAULT CURRENT_TIMESTAMP
+          );
+          
+          -- Profile table
+          CREATE TABLE IF NOT EXISTS profile (
+            id TEXT PRIMARY KEY DEFAULT 'default',
+            name TEXT,
+            email TEXT,
+            photoUri TEXT,
+            isPremium INTEGER DEFAULT 0,
+            updatedAt TEXT DEFAULT CURRENT_TIMESTAMP
+          );
+          
+          -- Create indexes for better performance
+          CREATE INDEX IF NOT EXISTS idx_habit_completions_date ON habit_completions(date);
+          CREATE INDEX IF NOT EXISTS idx_habit_completions_habitId ON habit_completions(habitId);
+          CREATE INDEX IF NOT EXISTS idx_journal_entries_date ON journal_entries(date);
+          CREATE INDEX IF NOT EXISTS idx_affirmations_order ON affirmations(orderIndex);
+          CREATE INDEX IF NOT EXISTS idx_habits_order ON habits(orderIndex);
+        `);
+      } catch (schemaErr) {
+        console.warn('[Database] schema setup failed:', schemaErr);
+        dbInitFailed = true;
+        dbInitPromise = null;
+        return;
+      }
 
       dbInitialized = true;
       console.log('[Database] SQLite database ready');

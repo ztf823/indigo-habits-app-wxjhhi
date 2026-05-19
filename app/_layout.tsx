@@ -40,9 +40,13 @@ export default function RootLayout() {
     }
   }, []);
 
-  const [loaded] = useFonts({
+  const [loaded, fontError] = useFonts({
     SpaceMono: require("../assets/fonts/SpaceMono-Regular.ttf"),
   });
+
+  useEffect(() => {
+    if (fontError) console.warn('[App] Font load error (continuing anyway):', fontError);
+  }, [fontError]);
 
   useEffect(() => {
     async function prepare() {
@@ -64,10 +68,10 @@ export default function RootLayout() {
       }
     }
 
-    if (loaded) {
+    if (loaded || fontError) {
       prepare();
     }
-  }, [loaded]);
+  }, [loaded, fontError]);
 
   // Fire RevenueCat init AFTER the app has rendered — never block launch on it
   useEffect(() => {
@@ -84,7 +88,7 @@ export default function RootLayout() {
     }
   }, [loaded, isReady]);
 
-  if (!loaded || !isReady) {
+  if ((!loaded && !fontError) || !isReady) {
     return null;
   }
 
