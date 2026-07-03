@@ -5,7 +5,7 @@
     "scheme": "indigohabits",
     "version": "1.0.56",
     "orientation": "portrait",
-    "icon": "./assets/images/6d55fc54-d63d-4404-853f-c341ea5517d1.png",
+    "icon": "./assets/images/app-icon-no-alpha.png",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": false,
     "splash": {
