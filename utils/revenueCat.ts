@@ -5,9 +5,12 @@ import type Purchases from 'react-native-purchases';
 import type { PurchasesOffering } from 'react-native-purchases';
 import { Platform } from 'react-native';
 
-// RevenueCat API Keys
-const REVENUECAT_GOOGLE_API_KEY = 'goog_eNogZNZZAtzunNmzzDNXxYafmpy';
-const REVENUECAT_APPLE_API_KEY = 'appl_KVaWqlpxQpKqoMgILPRLHowDNxe';
+// RevenueCat API Keys — loaded from app.json extra (never hardcode secrets)
+import Constants from 'expo-constants';
+const REVENUECAT_GOOGLE_API_KEY: string =
+  Constants.expoConfig?.extra?.revenueCatGoogle ?? '';
+const REVENUECAT_APPLE_API_KEY: string =
+  Constants.expoConfig?.extra?.revenueCatApple ?? '';
 
 // Product identifiers
 export const PREMIUM_MONTHLY_PRODUCT_ID = 'premium_monthly'; // $4.99/month
