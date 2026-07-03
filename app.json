@@ -21,8 +21,7 @@
         "ITSAppUsesNonExemptEncryption": false,
         "NSPhotoLibraryUsageDescription": "Indigo Habits needs access to your photos to add images to your journal entries.",
         "NSCameraUsageDescription": "Indigo Habits needs access to your camera to take photos for your journal entries.",
-        "NSMicrophoneUsageDescription": "Indigo Habits needs access to your microphone to record audio notes for your journal entries.",
-        "NSUserTrackingUsageDescription": "This identifier will be used to deliver personalized ads to you."
+        "NSMicrophoneUsageDescription": "Indigo Habits needs access to your microphone to record audio notes for your journal entries."
       },
       "config": {
         "usesNonExemptEncryption": false
