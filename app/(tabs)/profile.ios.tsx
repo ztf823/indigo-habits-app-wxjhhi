@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useCallback } from "react";
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Image, ActivityIndicator, Platform, Switch } from "react-native";
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Image, ActivityIndicator, Platform, Switch, Linking } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { IconSymbol } from "@/components/IconSymbol";
 import { useRouter } from "expo-router";
@@ -261,7 +261,7 @@ export default function ProfileScreen() {
         Alert.alert("Success", "Premium subscription restored!");
         console.log("[Profile] Premium subscription restored via RevenueCat");
       } else if (result.success && !result.isPro) {
-        Alert.alert("No Purchases Found", "You don&apos;t have any active subscriptions to restore.");
+        Alert.alert("No Purchases Found", "You don't have any active subscriptions to restore.");
       } else {
         Alert.alert("Error", result.error || "Failed to restore purchases. Please try again.");
       }
@@ -281,7 +281,7 @@ export default function ProfileScreen() {
       if (preview.totalEntries === 0) {
         Alert.alert(
           "No Journal Entries",
-          "You don&apos;t have any journal entries to export yet. Start journaling to build your collection!",
+          "You don't have any journal entries to export yet. Start journaling to build your collection!",
           [{ text: "OK" }]
         );
         return;
@@ -387,11 +387,9 @@ export default function ProfileScreen() {
 
   const handlePrivacy = () => {
     console.log("[Profile] User tapped privacy");
-    Alert.alert(
-      "Privacy",
-      "Your data is stored locally on your device and is never shared with third parties. We respect your privacy.",
-      [{ text: "OK" }]
-    );
+    Linking.openURL('https://www.indigohabits.com/privacy').catch(() => {
+      Alert.alert('Privacy Policy', 'Your data is stored locally on your device and is never shared with third parties.');
+    });
   };
 
   const handleHelp = () => {
@@ -564,6 +562,14 @@ export default function ProfileScreen() {
             <TouchableOpacity style={styles.restoreButton} onPress={handleRestorePurchases}>
               <Text style={[styles.restoreButtonText, { color: colors.primary }]}>Restore Purchases</Text>
             </TouchableOpacity>
+            <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 16, marginTop: 8 }}>
+              <TouchableOpacity onPress={() => Linking.openURL('https://www.indigohabits.com/privacy')}>
+                <Text style={{ fontSize: 12, color: colors.primary ?? '#4F46E5', textDecorationLine: 'underline' }}>Privacy Policy</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => Linking.openURL('https://www.apple.com/legal/internet-services/itunes/dev/stdeula/')}>
+                <Text style={{ fontSize: 12, color: colors.primary ?? '#4F46E5', textDecorationLine: 'underline' }}>Terms of Use</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         )}
 
@@ -703,7 +709,7 @@ export default function ProfileScreen() {
         </View>
 
         <View style={styles.footer}>
-          <Text style={styles.footerText}>Indigo Habits v1.0.0</Text>
+          <Text style={styles.footerText}>Indigo Habits v1.0.56</Text>
           <Text style={styles.footerSubtext}>All data stored locally on your device</Text>
           <Text style={styles.footerSubtext}>Powered by RevenueCat</Text>
         </View>

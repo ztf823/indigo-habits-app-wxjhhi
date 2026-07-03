@@ -1,6 +1,6 @@
 
 import { IconSymbol } from "@/components/IconSymbol";
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Image, ActivityIndicator, Platform, Switch } from "react-native";
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Image, ActivityIndicator, Platform, Switch, Linking } from "react-native";
 import { useTheme } from "@/contexts/ThemeContext";
 import { getProfile, updateProfile, clearAllData } from "@/utils/database";
 import { useRouter } from "expo-router";
@@ -379,7 +379,9 @@ export default function ProfileScreen() {
 
   const handlePrivacy = () => {
     console.log('Privacy tapped');
-    Alert.alert('Privacy Policy', 'Your data is stored locally on your device and is never shared with third parties.');
+    Linking.openURL('https://www.indigohabits.com/privacy').catch(() => {
+      Alert.alert('Privacy Policy', 'Your data is stored locally on your device and is never shared with third parties.');
+    });
   };
 
   const handleHelp = () => {
@@ -477,6 +479,14 @@ export default function ProfileScreen() {
                 <TouchableOpacity style={styles.restoreButton} onPress={handleRestorePurchases}>
                   <Text style={styles.restoreButtonText}>Restore Purchases</Text>
                 </TouchableOpacity>
+                <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 16, marginTop: 8 }}>
+                  <TouchableOpacity onPress={() => Linking.openURL('https://www.indigohabits.com/privacy')}>
+                    <Text style={{ fontSize: 12, color: colors.primary ?? '#4F46E5', textDecorationLine: 'underline' }}>Privacy Policy</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => Linking.openURL('https://www.apple.com/legal/internet-services/itunes/dev/stdeula/')}>
+                    <Text style={{ fontSize: 12, color: colors.primary ?? '#4F46E5', textDecorationLine: 'underline' }}>Terms of Use</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
             </View>
           )}
