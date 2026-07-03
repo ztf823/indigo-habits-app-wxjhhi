@@ -142,14 +142,6 @@ export default function AuthScreen() {
             <View style={styles.dividerLine} />
           </View>
 
-          <TouchableOpacity
-            style={styles.socialButton}
-            onPress={() => handleSocialAuth("google")}
-            disabled={loading}
-          >
-            <Text style={styles.socialButtonText}>Continue with Google</Text>
-          </TouchableOpacity>
-
           {Platform.OS === "ios" && (
             <TouchableOpacity
               style={[styles.socialButton, styles.appleButton]}
@@ -161,6 +153,14 @@ export default function AuthScreen() {
               </Text>
             </TouchableOpacity>
           )}
+
+          <TouchableOpacity
+            style={styles.socialButton}
+            onPress={() => handleSocialAuth("google")}
+            disabled={loading}
+          >
+            <Text style={styles.socialButtonText}>Continue with Google</Text>
+          </TouchableOpacity>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>

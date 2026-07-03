@@ -14,8 +14,7 @@
     "build:all": "eas build --platform all --profile production",
     "submit:ios": "eas submit --platform ios",
     "submit:android": "eas submit --platform android",
-    "lint": "eslint .",
-    "postinstall": "patch -p1 -d node_modules/react-native-reanimated < patches/react-native-reanimated+3.19.5+001+no-op-event-dispatcher-load.patch && patch -p1 -d node_modules/react-native-reanimated < patches/react-native-reanimated+3.19.5+002+no-op-uimanager-swizzle.patch || true"
+    "lint": "eslint ."
   },
   "dependencies": {
     "@babel/plugin-proposal-export-namespace-from": "^7.18.9",
