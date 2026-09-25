@@ -19,6 +19,10 @@ import {
 } from "react-native";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
+import {
+  ExpoSpeechRecognitionModule,
+  useSpeechRecognitionEvent,
+} from "expo-speech-recognition";
 import { IconSymbol } from "@/components/IconSymbol";
 import {
   getAllAffirmations,
@@ -102,9 +106,26 @@ export default function HomeScreen() {
   const [journalPhoto, setJournalPhoto] = useState<string | null>(null);
   const [audioUri, setAudioUri] = useState<string | null>(null);
   const [isRecording, setIsRecording] = useState(false);
+  const dictationBaseRef = useRef("");
   const [isSaving, setIsSaving] = useState(false);
   const [currentJournalId, setCurrentJournalId] = useState<string | null>(null);
   const [journalIsFavorite, setJournalIsFavorite] = useState(false);
+
+  // Keep dictation local to the journal composer. The transcript is inserted as
+  // it arrives, so users can see and edit their words before saving.
+  useSpeechRecognitionEvent("start", () => setIsRecording(true));
+  useSpeechRecognitionEvent("end", () => setIsRecording(false));
+  useSpeechRecognitionEvent("result", (event) => {
+    const transcript = event.results[0]?.transcript?.trim();
+    if (!transcript) return;
+    setJournalContent(`${dictationBaseRef.current}${transcript}`);
+  });
+  useSpeechRecognitionEvent("error", (event) => {
+    setIsRecording(false);
+    if (event.error !== "aborted" && event.error !== "no-speech") {
+      Alert.alert("Dictation unavailable", event.message || "Please try again.");
+    }
+  });
 
   const autoSaveTimer = useRef<NodeJS.Timeout | null>(null);
   const affirmationsSectionRef = useRef<View>(null);
@@ -492,19 +513,46 @@ export default function HomeScreen() {
 
   const startRecording = async () => {
     try {
-      console.log("User tapped record button - audio recording disabled in this build");
-      Alert.alert("Audio Recording", "Audio recording is temporarily disabled. This feature will be available in a future update.");
+      if (!ExpoSpeechRecognitionModule.isRecognitionAvailable()) {
+        Alert.alert(
+          "Dictation unavailable",
+          "Turn on Speech Recognition or Siri & Dictation in your device settings, then try again."
+        );
+        return;
+      }
+
+      const permissions = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
+      if (!permissions.granted) {
+        Alert.alert(
+          "Permission required",
+          "Allow Microphone and Speech Recognition access to dictate a journal entry."
+        );
+        return;
+      }
+
+      dictationBaseRef.current = journalContent.trim()
+        ? `${journalContent.trim()} `
+        : "";
+      ExpoSpeechRecognitionModule.start({
+        lang: "en-US",
+        interimResults: true,
+        continuous: false,
+        iosTaskHint: "dictation",
+      });
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     } catch (error) {
-      console.error("Error with audio recording:", error);
+      console.error("Error starting dictation:", error);
+      setIsRecording(false);
+      Alert.alert("Dictation unavailable", "Please try again.");
     }
   };
 
   const stopRecording = async () => {
     try {
-      console.log("Stop recording called");
-      setIsRecording(false);
+      ExpoSpeechRecognitionModule.stop();
     } catch (error) {
-      console.error("Error stopping recording:", error);
+      console.error("Error stopping dictation:", error);
+      setIsRecording(false);
     }
   };
 
@@ -849,6 +897,8 @@ export default function HomeScreen() {
 
                 <TouchableOpacity
                   onPress={isRecording ? stopRecording : startRecording}
+                  accessibilityRole="button"
+                  accessibilityLabel={isRecording ? "Stop journal dictation" : "Start journal dictation"}
                   style={[
                     styles.journalModalActionButton,
                     isRecording && styles.journalModalRecordingButton,

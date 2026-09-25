@@ -16,12 +16,13 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.indigohabits.journal2026",
-      "buildNumber": "52",
+      "buildNumber": "61",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NSPhotoLibraryUsageDescription": "Indigo Habits needs access to your photos to add images to your journal entries.",
         "NSCameraUsageDescription": "Indigo Habits needs access to your camera to take photos for your journal entries.",
-        "NSMicrophoneUsageDescription": "Indigo Habits needs access to your microphone to record audio notes for your journal entries."
+        "NSMicrophoneUsageDescription": "Indigo Habits needs access to your microphone to record audio notes and dictate journal entries.",
+        "NSSpeechRecognitionUsageDescription": "Indigo Habits uses speech recognition to turn your spoken journal entries into text."
       },
       "config": {
         "usesNonExemptEncryption": false
@@ -67,6 +68,13 @@
           "color": "#4F46E5",
           "defaultChannel": "habits-reminders",
           "sounds": []
+        }
+      ],
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "Allow Indigo Habits to use your microphone for journal dictation.",
+          "speechRecognitionPermission": "Allow Indigo Habits to turn your spoken journal entries into text."
         }
       ]
     ],
