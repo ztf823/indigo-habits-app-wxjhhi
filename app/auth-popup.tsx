@@ -3,6 +3,7 @@ import { View, Text, ActivityIndicator, StyleSheet } from "react-native";
 import { Platform } from "react-native";
 import { useLocalSearchParams } from "expo-router";
 import { authClient } from "@/lib/auth";
+import { brandColors } from "@/styles/commonStyles";
 
 export default function AuthPopupScreen() {
   const { provider } = useLocalSearchParams<{ provider: string }>();
@@ -23,7 +24,7 @@ export default function AuthPopupScreen() {
 
   return (
     <View style={styles.container}>
-      <ActivityIndicator size="large" color="#007AFF" />
+      <ActivityIndicator size="large" color={brandColors.indigo} />
       <Text style={styles.text}>Redirecting to sign in...</Text>
     </View>
   );

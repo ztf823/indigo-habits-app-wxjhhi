@@ -29,6 +29,7 @@ import {
   ViewStyle,
   TextStyle,
 } from "react-native";
+import { brandColors } from "@/styles/commonStyles";
 
 interface LoadingButtonProps {
   onPress: () => void;
@@ -67,7 +68,7 @@ export function LoadingButton({
     >
       {loading ? (
         <ActivityIndicator
-          color={loadingColor || (variant === "outline" ? "#007AFF" : "#fff")}
+          color={loadingColor || (variant === "outline" ? brandColors.indigo : "#fff")}
         />
       ) : (
         <Text
@@ -93,15 +94,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
   },
   primary: {
-    backgroundColor: "#007AFF",
+    backgroundColor: brandColors.indigo,
   },
   secondary: {
-    backgroundColor: "#5856D6",
+    backgroundColor: brandColors.electricBlue,
   },
   outline: {
     backgroundColor: "transparent",
     borderWidth: 1,
-    borderColor: "#007AFF",
+    borderColor: brandColors.indigo,
   },
   pressed: {
     opacity: 0.8,
@@ -120,6 +121,6 @@ const styles = StyleSheet.create({
     color: "#fff",
   },
   outlineText: {
-    color: "#007AFF",
+    color: brandColors.indigo,
   },
 });

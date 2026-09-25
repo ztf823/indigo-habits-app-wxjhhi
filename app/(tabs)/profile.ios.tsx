@@ -11,8 +11,8 @@ import { exportJournalsToPdf, getExportPreview } from "@/utils/pdfExport";
 import { useTheme } from "@/contexts/ThemeContext";
 import { getColors } from "@/styles/commonStyles";
 import { RemindersOverlay } from "@/components/RemindersOverlay";
-import { initializeNotifications } from "@/utils/notifications";
-import { getOfferings, purchasePackage, restorePurchases, getCustomerInfo } from "@/utils/revenueCat";
+import { getOfferings, purchasePackage, restorePurchases, getCustomerInfo, selectMonthlyPackage } from "@/utils/revenueCat";
+import { persistPickedImage } from "@/utils/media";
 
 export default function ProfileScreen() {
   const router = useRouter();
@@ -28,6 +28,7 @@ export default function ProfileScreen() {
   const [isExporting, setIsExporting] = useState(false);
   const [showRemindersOverlay, setShowRemindersOverlay] = useState(false);
   const [isPurchasing, setIsPurchasing] = useState(false);
+  const [subscriptionPrice, setSubscriptionPrice] = useState<string | null>(null);
 
   const loadProfileData = useCallback(async () => {
     try {
@@ -35,7 +36,7 @@ export default function ProfileScreen() {
       console.log("[Profile] Loading profile data from SQLite...");
       
       // Load profile data from database
-      const profile = await getProfile();
+      const profile = await getProfile() as { photoUri?: string; name?: string; email?: string; isPremium?: number } | null;
       
       if (profile) {
         if ((profile as any).photoUri) {
@@ -60,15 +61,13 @@ export default function ProfileScreen() {
       
       // Check RevenueCat status
       try {
-        const { isPro } = await getCustomerInfo();
-        console.log("[Profile] RevenueCat premium status:", isPro);
-        
-        // Update database if RevenueCat status differs
-        const currentPremium = (profile as any)?.isPremium === 1;
-        if (isPro !== currentPremium) {
-          await updateProfile({ isPremium: isPro });
-          setHasPremium(isPro);
-          console.log("[Profile] Updated premium status from RevenueCat");
+        const entitlement = await getCustomerInfo();
+        if (entitlement.status !== 'unavailable') {
+          const currentPremium = profile?.isPremium === 1;
+          if (entitlement.isPro !== currentPremium) {
+            await updateProfile({ isPremium: entitlement.isPro });
+          }
+          setHasPremium(entitlement.isPro);
         }
       } catch (error) {
         console.error("[Profile] Error checking RevenueCat status:", error);
@@ -82,10 +81,17 @@ export default function ProfileScreen() {
 
   useEffect(() => {
     loadProfileData();
-    
-    // Initialize notifications
-    initializeNotifications();
   }, [loadProfileData]);
+
+  const loadSubscriptionPrice = useCallback(async () => {
+    const offering = await getOfferings();
+    const monthlyPackage = offering ? selectMonthlyPackage(offering) : null;
+    setSubscriptionPrice(monthlyPackage?.product.priceString ?? null);
+  }, []);
+
+  useEffect(() => {
+    loadSubscriptionPrice();
+  }, [loadSubscriptionPrice]);
 
   const handlePickImage = async () => {
     try {
@@ -111,7 +117,7 @@ export default function ProfileScreen() {
       });
 
       if (!result.canceled && result.assets[0]) {
-        const imageUri = result.assets[0].uri;
+        const imageUri = await persistPickedImage(result.assets[0].uri);
         console.log("[Profile] Image selected:", imageUri);
         await saveProfilePicture(imageUri);
       }
@@ -198,7 +204,7 @@ export default function ProfileScreen() {
       
       const offering = await getOfferings();
       
-      if (!offering || !offering.availablePackages || offering.availablePackages.length === 0) {
+      if (!offering) {
         Alert.alert(
           "No Packages Available",
           "Unable to load subscription packages. Please try again later.",
@@ -207,13 +213,13 @@ export default function ProfileScreen() {
         return;
       }
       
-      // Get the monthly package (or first available package)
-      const monthlyPackage = offering.availablePackages.find(
-        pkg => pkg.packageType === 'MONTHLY'
-      ) || offering.availablePackages[0];
+      const monthlyPackage = selectMonthlyPackage(offering);
+      if (!monthlyPackage) {
+        Alert.alert("Subscription Unavailable", "The configured Premium subscription could not be loaded. Please try again later.");
+        return;
+      }
       
-      console.log("[Profile] Selected package:", monthlyPackage.identifier);
-      console.log("[Profile] Processing subscription...");
+      setSubscriptionPrice(monthlyPackage.product.priceString);
       
       const result = await purchasePackage(monthlyPackage);
       
@@ -225,7 +231,7 @@ export default function ProfileScreen() {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         Alert.alert(
           "Welcome to Premium!",
-          "You now have unlimited access to all affirmations, habits, and premium features. Thank you for your support!",
+          "Your Premium subscription is active.",
           [{ text: "Awesome!" }]
         );
         
@@ -260,8 +266,10 @@ export default function ProfileScreen() {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         Alert.alert("Success", "Premium subscription restored!");
         console.log("[Profile] Premium subscription restored via RevenueCat");
-      } else if (result.success && !result.isPro) {
-        Alert.alert("No Purchases Found", "You don't have any active subscriptions to restore.");
+      } else if (result.success) {
+        await updateProfile({ isPremium: false });
+        setHasPremium(false);
+        Alert.alert("No Active Subscription", "No active Premium subscription was found for this Apple ID.");
       } else {
         Alert.alert("Error", result.error || "Failed to restore purchases. Please try again.");
       }
@@ -404,7 +412,7 @@ export default function ProfileScreen() {
   if (isLoading) {
     return (
       <LinearGradient 
-        colors={isDark ? [colors.gradientStart, colors.gradientEnd] : ["#4F46E5", "#7C3AED", "#06B6D4"]} 
+        colors={isDark ? [colors.gradientStart, colors.gradientEnd] : ["#0B0B5C", "#2637D9", "#149BFF"]}
         style={styles.container}
       >
         <View style={styles.loadingContainer}>
@@ -415,11 +423,11 @@ export default function ProfileScreen() {
     );
   }
 
-  const priceText = "$4.99/month";
+  const subscriptionCta = subscriptionPrice ? `Subscribe for ${subscriptionPrice}` : "View subscription options";
 
   return (
     <LinearGradient 
-      colors={isDark ? [colors.gradientStart, colors.gradientEnd] : ["#4F46E5", "#7C3AED", "#06B6D4"]} 
+      colors={isDark ? [colors.gradientStart, colors.gradientEnd] : ["#0B0B5C", "#2637D9", "#149BFF"]}
       style={styles.container}
     >
       <ScrollView contentContainerStyle={styles.scrollContent}>
@@ -508,7 +516,7 @@ export default function ProfileScreen() {
               <Text style={[styles.premiumTitle, { color: colors.text }]}>Unlock Premium</Text>
             </View>
             <Text style={[styles.premiumDescription, { color: colors.textSecondary }]}>
-              Get unlimited affirmations and habits for just {priceText}
+              Unlock Premium features. The App Store confirms the current price before purchase.
             </Text>
             <View style={styles.premiumFeatures}>
               <View style={styles.premiumFeature}>
@@ -518,7 +526,7 @@ export default function ProfileScreen() {
                   size={20}
                   color="#10B981"
                 />
-                <Text style={[styles.premiumFeatureText, { color: colors.text }]}>Unlimited daily affirmations</Text>
+                <Text style={[styles.premiumFeatureText, { color: colors.text }]}>More daily affirmations</Text>
               </View>
               <View style={styles.premiumFeature}>
                 <IconSymbol
@@ -527,7 +535,7 @@ export default function ProfileScreen() {
                   size={20}
                   color="#10B981"
                 />
-                <Text style={[styles.premiumFeatureText, { color: colors.text }]}>Unlimited daily habits</Text>
+                <Text style={[styles.premiumFeatureText, { color: colors.text }]}>Up to 10 daily habits</Text>
               </View>
               <View style={styles.premiumFeature}>
                 <IconSymbol
@@ -545,7 +553,7 @@ export default function ProfileScreen() {
                   size={20}
                   color="#10B981"
                 />
-                <Text style={[styles.premiumFeatureText, { color: colors.text }]}>All future features included</Text>
+                <Text style={[styles.premiumFeatureText, { color: colors.text }]}>Premium feature access</Text>
               </View>
             </View>
             <TouchableOpacity 
@@ -556,7 +564,7 @@ export default function ProfileScreen() {
               {isPurchasing ? (
                 <ActivityIndicator color="#FFFFFF" />
               ) : (
-                <Text style={styles.premiumButtonText}>Subscribe for {priceText}</Text>
+                <Text style={styles.premiumButtonText}>{subscriptionCta}</Text>
               )}
             </TouchableOpacity>
             <TouchableOpacity style={styles.restoreButton} onPress={handleRestorePurchases}>

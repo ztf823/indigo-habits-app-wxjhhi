@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
-import { getCustomerInfo, checkProStatus } from '@/utils/revenueCat';
+import { getCustomerInfo } from '@/utils/revenueCat';
 
 const PREMIUM_KEY = '@indigo_habits_premium';
 
@@ -24,23 +24,16 @@ export function usePremium() {
         return;
       }
       
-      // On native platforms, check RevenueCat
-      try {
-        const revenueCatStatus = await checkProStatus();
-        console.log('[usePremium] RevenueCat premium status:', revenueCatStatus);
-        
-        // Update local storage to match RevenueCat
-        await AsyncStorage.setItem(PREMIUM_KEY, revenueCatStatus.toString());
-        setIsPro(revenueCatStatus);
-      } catch (error) {
-        console.error('[usePremium] Error checking RevenueCat status:', error);
-        
-        // Fallback to local storage if RevenueCat fails
-        const stored = await AsyncStorage.getItem(PREMIUM_KEY);
-        const isProStored = stored === 'true';
-        setIsPro(isProStored);
-        console.log('[usePremium] Using fallback storage value:', isProStored);
+      // Native entitlement state comes from RevenueCat. Do not revoke or grant
+      // access from a stale cache when the SDK/network is temporarily unavailable.
+      const result = await getCustomerInfo();
+      if (result.status === 'unavailable') {
+        console.warn('[usePremium] Subscription status unavailable; retaining current state.');
+        return;
       }
+
+      await AsyncStorage.setItem(PREMIUM_KEY, result.isPro.toString());
+      setIsPro(result.isPro);
     } catch (error) {
       console.error('[usePremium] Error loading premium status:', error);
       setIsPro(false);
@@ -59,13 +52,10 @@ export function usePremium() {
 
   const upgradeToPro = async () => {
     try {
-      console.log('[usePremium] Upgrading to pro...');
-      
-      // This will be called after successful purchase
+      // Call this only after a successful purchase result whose `pro`
+      // entitlement is active. It intentionally does not contact the store.
       await AsyncStorage.setItem(PREMIUM_KEY, 'true');
       setIsPro(true);
-      
-      console.log('[usePremium] Pro status updated');
     } catch (error) {
       console.error('[usePremium] Error upgrading to pro:', error);
     }

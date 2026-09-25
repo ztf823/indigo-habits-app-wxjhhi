@@ -1,6 +1,6 @@
 
 import { SafeAreaView } from "react-native-safe-area-context";
-import { authenticatedApiCall } from "@/utils/api";
+import { getJournalEntryById } from "@/utils/database";
 import { IconSymbol } from "@/components/IconSymbol";
 import { LinearGradient } from "expo-linear-gradient";
 import React, { useState, useEffect, useCallback } from "react";
@@ -14,11 +14,12 @@ import {
   TouchableOpacity,
 } from "react-native";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
+import { brandColors } from "@/styles/commonStyles";
 
 interface EntryDetail {
   id: string;
   content: string;
-  photoUrl?: string;
+  photoUri?: string;
   createdAt: string;
 }
 
@@ -30,8 +31,8 @@ export default function EntryDetailScreen() {
 
   const loadEntry = useCallback(async () => {
     try {
-      const data = await authenticatedApiCall(`/api/journal-entries/${id}`);
-      setEntry(data);
+      const data = await getJournalEntryById(String(id));
+      setEntry(data as EntryDetail | null);
     } catch (error) {
       console.error("Error loading entry:", error);
     } finally {
@@ -58,7 +59,7 @@ export default function EntryDetailScreen() {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#6366F1" />
+        <ActivityIndicator size="large" color={brandColors.indigo} />
       </View>
     );
   }
@@ -72,7 +73,7 @@ export default function EntryDetailScreen() {
   }
 
   return (
-    <LinearGradient colors={["#6366F1", "#87CEEB"]} style={styles.container}>
+    <LinearGradient colors={[brandColors.navy, brandColors.indigo, brandColors.electricBlue]} style={styles.container}>
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.header}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
@@ -91,8 +92,8 @@ export default function EntryDetailScreen() {
           <View style={styles.card}>
             <Text style={styles.date}>{formatDate(entry.createdAt)}</Text>
             
-            {entry.photoUrl && (
-              <Image source={{ uri: entry.photoUrl }} style={styles.photo} />
+            {entry.photoUri && (
+              <Image source={{ uri: entry.photoUri }} style={styles.photo} />
             )}
 
             <Text style={styles.content}>{entry.content}</Text>
@@ -158,7 +159,7 @@ const styles = StyleSheet.create({
   },
   date: {
     fontSize: 14,
-    color: "#6366F1",
+    color: brandColors.indigo,
     fontWeight: "600",
     marginBottom: 16,
   },

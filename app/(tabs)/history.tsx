@@ -15,6 +15,7 @@ import { useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import React, { useState, useEffect, useCallback } from "react";
+import { brandColors } from "@/styles/commonStyles";
 import {
   getAllJournalEntries,
   getAllAffirmations,
@@ -139,7 +140,7 @@ export default function HistoryScreen() {
 
   return (
     <LinearGradient
-      colors={["#4F46E5", "#87CEEB"]}
+      colors={[brandColors.navy, brandColors.indigo, brandColors.electricBlue]}
       style={styles.container}
       start={{ x: 0, y: 0 }}
       end={{ x: 0, y: 1 }}
@@ -391,7 +392,7 @@ const styles = StyleSheet.create({
     color: "#FFF",
   },
   activeTabText: {
-    color: "#4F46E5",
+    color: brandColors.indigo,
   },
   loadingContainer: {
     flex: 1,
@@ -441,7 +442,7 @@ const styles = StyleSheet.create({
   entryDate: {
     fontSize: 14,
     fontWeight: "600",
-    color: "#4F46E5",
+    color: brandColors.indigo,
   },
   entryTime: {
     fontSize: 12,
@@ -495,7 +496,7 @@ const styles = StyleSheet.create({
   },
   customBadge: {
     alignSelf: "flex-start",
-    backgroundColor: "#4F46E5",
+    backgroundColor: brandColors.indigo,
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 6,

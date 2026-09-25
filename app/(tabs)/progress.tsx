@@ -3,6 +3,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import React, { useState, useEffect, useCallback } from "react";
 import { IconSymbol } from "@/components/IconSymbol";
 import { BadgeIcon } from "@/components/BadgeIcon";
+import { brandColors } from "@/styles/commonStyles";
 import { getStreakData } from "@/utils/database";
 import {
   View,
@@ -31,17 +32,17 @@ interface Badge {
 }
 
 const BADGES: Badge[] = [
-  { id: "1", name: "Indigo Warrior", description: "3-day streak", daysRequired: 3, earned: false, glowColor: "#4B0082" },
-  { id: "2", name: "Indigo Guardian", description: "7-day streak", daysRequired: 7, earned: false, glowColor: "#5B1A9E" },
-  { id: "3", name: "Indigo Sentinel", description: "14-day streak", daysRequired: 14, earned: false, glowColor: "#6B2AB8" },
-  { id: "4", name: "Indigo Champion", description: "21-day streak", daysRequired: 21, earned: false, glowColor: "#7B3AD2" },
-  { id: "5", name: "Indigo Legend", description: "30-day streak", daysRequired: 30, earned: false, glowColor: "#8B4AEC" },
-  { id: "6", name: "Indigo Sovereign", description: "60-day streak", daysRequired: 60, earned: false, glowColor: "#9B5AFF" },
-  { id: "7", name: "Indigo Eternal", description: "90-day streak", daysRequired: 90, earned: false, glowColor: "#AB6AFF" },
-  { id: "8", name: "Indigo Vanguard", description: "120-day streak", daysRequired: 120, earned: false, glowColor: "#BB7AFF" },
-  { id: "9", name: "Indigo Titan", description: "150-day streak", daysRequired: 150, earned: false, glowColor: "#CB8AFF" },
-  { id: "10", name: "Indigo Immortal", description: "180-day streak", daysRequired: 180, earned: false, glowColor: "#DB9AFF" },
-  { id: "11", name: "Indigo Apex", description: "240-day streak", daysRequired: 240, earned: false, glowColor: "#EBAAFF" },
+  { id: "1", name: "Indigo Warrior", description: "3-day streak", daysRequired: 3, earned: false, glowColor: "#2637D9" },
+  { id: "2", name: "Indigo Guardian", description: "7-day streak", daysRequired: 7, earned: false, glowColor: "#1C50E8" },
+  { id: "3", name: "Indigo Sentinel", description: "14-day streak", daysRequired: 14, earned: false, glowColor: "#166BEF" },
+  { id: "4", name: "Indigo Champion", description: "21-day streak", daysRequired: 21, earned: false, glowColor: "#1489F6" },
+  { id: "5", name: "Indigo Legend", description: "30-day streak", daysRequired: 30, earned: false, glowColor: "#149BFF" },
+  { id: "6", name: "Indigo Sovereign", description: "60-day streak", daysRequired: 60, earned: false, glowColor: "#18AEFF" },
+  { id: "7", name: "Indigo Eternal", description: "90-day streak", daysRequired: 90, earned: false, glowColor: "#22C3FF" },
+  { id: "8", name: "Indigo Vanguard", description: "120-day streak", daysRequired: 120, earned: false, glowColor: "#2ED2F6" },
+  { id: "9", name: "Indigo Titan", description: "150-day streak", daysRequired: 150, earned: false, glowColor: "#35D9F3" },
+  { id: "10", name: "Indigo Immortal", description: "180-day streak", daysRequired: 180, earned: false, glowColor: "#61E3FA" },
+  { id: "11", name: "Indigo Apex", description: "240-day streak", daysRequired: 240, earned: false, glowColor: "#93EEFF" },
   { id: "12", name: "Indigo Master", description: "365-day streak", daysRequired: 365, earned: false, glowColor: "#FFD700" },
 ];
 
@@ -93,7 +94,7 @@ export default function ProgressScreen() {
 
   if (isLoading) {
     return (
-      <LinearGradient colors={["#4F46E5", "#7C3AED", "#87CEEB"]} style={styles.container}>
+      <LinearGradient colors={[brandColors.navy, brandColors.indigo, brandColors.electricBlue]} style={styles.container}>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#FFF" />
           <Text style={styles.loadingText}>Loading progress...</Text>
@@ -107,7 +108,7 @@ export default function ProgressScreen() {
   const earnedBadges = badges.filter(b => b.earned);
 
   return (
-    <LinearGradient colors={["#4F46E5", "#7C3AED", "#87CEEB"]} style={styles.container}>
+    <LinearGradient colors={[brandColors.navy, brandColors.indigo, brandColors.electricBlue]} style={styles.container}>
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         refreshControl={
@@ -295,7 +296,7 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     fontSize: 16,
-    color: "#E0E7FF",
+    color: brandColors.softIndigo,
     marginBottom: 24,
   },
   section: {

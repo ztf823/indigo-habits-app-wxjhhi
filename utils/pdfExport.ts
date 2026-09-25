@@ -13,6 +13,7 @@ import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import { Platform } from 'react-native';
 import { getAllJournalEntries } from './database';
+import { brandColors } from '@/styles/commonStyles';
 
 interface JournalEntry {
   id: string;
@@ -78,8 +79,8 @@ const generatePdfHtml = (entries: JournalEntry[]): string => {
       const hasPhoto = entry.photoUri ? true : false;
       const hasAudio = entry.audioUri ? true : false;
       const affirmation = entry.affirmationText
-        ? `<div style="background: #EEF2FF; padding: 12px; border-radius: 8px; margin-bottom: 12px; border-left: 4px solid #4F46E5;">
-             <p style="margin: 0; font-style: italic; color: #4F46E5; font-size: 14px;">
+        ? `<div style="background: ${brandColors.softIndigo}; padding: 12px; border-radius: 8px; margin-bottom: 12px; border-left: 4px solid ${brandColors.indigo};">
+             <p style="margin: 0; font-style: italic; color: ${brandColors.indigo}; font-size: 14px;">
                "${escapeHtml(entry.affirmationText)}"
              </p>
            </div>`
@@ -87,7 +88,7 @@ const generatePdfHtml = (entries: JournalEntry[]): string => {
 
       return `
         <div style="page-break-inside: avoid; margin-bottom: 32px; padding: 20px; background: #FFFFFF; border-radius: 12px; border: 1px solid #E5E7EB;">
-          <div style="border-bottom: 2px solid #4F46E5; padding-bottom: 12px; margin-bottom: 16px;">
+          <div style="border-bottom: 2px solid ${brandColors.indigo}; padding-bottom: 12px; margin-bottom: 16px;">
             <h2 style="margin: 0 0 4px 0; color: #1F2937; font-size: 20px; font-weight: 600;">
               ${date}
             </h2>
@@ -108,7 +109,7 @@ const generatePdfHtml = (entries: JournalEntry[]): string => {
                    ${
                      hasPhoto
                        ? `<div style="display: flex; align-items: center; gap: 6px; padding: 8px 12px; background: #F3F4F6; border-radius: 6px;">
-                            <span style="color: #4F46E5; font-size: 16px;">📷</span>
+                            <span style="color: ${brandColors.indigo}; font-size: 16px;">📷</span>
                             <span style="color: #6B7280; font-size: 13px;">Photo attached</span>
                           </div>`
                        : ''
@@ -116,7 +117,7 @@ const generatePdfHtml = (entries: JournalEntry[]): string => {
                    ${
                      hasAudio
                        ? `<div style="display: flex; align-items: center; gap: 6px; padding: 8px 12px; background: #F3F4F6; border-radius: 6px;">
-                            <span style="color: #4F46E5; font-size: 16px;">🎤</span>
+                            <span style="color: ${brandColors.indigo}; font-size: 16px;">🎤</span>
                             <span style="color: #6B7280; font-size: 13px;">Voice memo attached</span>
                           </div>`
                        : ''
@@ -145,7 +146,7 @@ const generatePdfHtml = (entries: JournalEntry[]): string => {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
             margin: 0;
             padding: 40px 20px;
-            background: linear-gradient(135deg, #4F46E5 0%, #7C3AED 50%, #06B6D4 100%);
+            background: linear-gradient(135deg, ${brandColors.navy} 0%, ${brandColors.indigo} 50%, ${brandColors.electricBlue} 100%);
             color: #1F2937;
           }
           
@@ -165,7 +166,7 @@ const generatePdfHtml = (entries: JournalEntry[]): string => {
           
           .header h1 {
             margin: 0 0 8px 0;
-            color: #4F46E5;
+            color: ${brandColors.indigo};
             font-size: 32px;
             font-weight: 700;
           }
@@ -193,7 +194,7 @@ const generatePdfHtml = (entries: JournalEntry[]): string => {
             display: block;
             font-size: 28px;
             font-weight: 700;
-            color: #4F46E5;
+            color: ${brandColors.indigo};
             margin-bottom: 4px;
           }
           

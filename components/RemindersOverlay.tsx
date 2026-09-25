@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -11,7 +11,6 @@ import {
   ScrollView,
   Alert,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { IconSymbol } from './IconSymbol';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import * as Haptics from 'expo-haptics';
@@ -20,10 +19,9 @@ import {
   saveDailyHabitsReminderSettings,
   getJournalReminderSettings,
   saveJournalReminderSettings,
-  ReminderSettings,
 } from '@/utils/notifications';
 import { useTheme } from '@/contexts/ThemeContext';
-import { getColors } from '@/styles/commonStyles';
+import { brandColors, getColors } from '@/styles/commonStyles';
 
 interface RemindersOverlayProps {
   visible: boolean;
@@ -45,19 +43,21 @@ export function RemindersOverlay({ visible, onClose, isPremium }: RemindersOverl
   
   const [loading, setLoading] = useState(true);
 
-  // 🚀 PREVIEW MODE: Always treat as premium
-  const effectiveIsPremium = true;
+  const effectiveIsPremium = isPremium;
+  const saving = useRef(false);
+  const [busy, setBusy] = useState(false);
+  const errorMessage = (error: unknown) => error instanceof Error ? error.message : 'Failed to update reminder settings.';
 
   useEffect(() => {
     if (visible) {
       loadSettings();
     }
-  }, [visible]);
+  }, [visible, isPremium]);
 
   const loadSettings = async () => {
     try {
       setLoading(true);
-      console.log('[RemindersOverlay] 🚀 PREVIEW MODE: Loading reminder settings (all features unlocked)...');
+      console.log('[RemindersOverlay] Loading reminder settings...');
       
       // Load daily habits reminder
       const dailyHabitsSettings = await getDailyHabitsReminderSettings();
@@ -67,13 +67,14 @@ export function RemindersOverlay({ visible, onClose, isPremium }: RemindersOverl
       dhDate.setHours(dhHours, dhMinutes, 0, 0);
       setDailyHabitsTime(dhDate);
       
-      // 🚀 PREVIEW MODE: Always load journal reminder (premium feature)
-      const journalSettings = await getJournalReminderSettings();
-      setJournalEnabled(journalSettings.enabled);
-      const [jHours, jMinutes] = journalSettings.time.split(':').map(Number);
-      const jDate = new Date();
-      jDate.setHours(jHours, jMinutes, 0, 0);
-      setJournalTime(jDate);
+      {
+        const journalSettings = await getJournalReminderSettings();
+        setJournalEnabled(journalSettings.enabled);
+        const [jHours, jMinutes] = journalSettings.time.split(':').map(Number);
+        const jDate = new Date();
+        jDate.setHours(jHours, jMinutes, 0, 0);
+        setJournalTime(jDate);
+      }
       
       console.log('[RemindersOverlay] Settings loaded successfully');
     } catch (error) {
@@ -84,95 +85,53 @@ export function RemindersOverlay({ visible, onClose, isPremium }: RemindersOverl
     }
   };
 
-  const handleDailyHabitsToggle = async (value: boolean) => {
+  const saveChange = async (operation: () => Promise<void>) => {
+    if (saving.current || loading) return;
+    saving.current = true;
+    setBusy(true);
     try {
-      console.log('[RemindersOverlay] Toggling daily habits reminder:', value);
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      
-      setDailyHabitsEnabled(value);
-      
-      const timeString = formatTimeToString(dailyHabitsTime);
-      await saveDailyHabitsReminderSettings({ enabled: value, time: timeString });
-      
-      if (value) {
-        Alert.alert(
-          'Reminder Set! 🔔',
-          `You'll receive a daily reminder at ${formatTimeDisplay(dailyHabitsTime)} to complete your habits.`,
-          [{ text: 'OK' }]
-        );
-      }
+      await operation();
     } catch (error) {
-      console.error('[RemindersOverlay] Error toggling daily habits reminder:', error);
-      Alert.alert('Error', 'Failed to update reminder settings');
-      setDailyHabitsEnabled(!value); // Revert on error
+      Alert.alert('Reminder not updated', errorMessage(error));
+    } finally {
+      saving.current = false;
+      setBusy(false);
     }
   };
 
-  const handleDailyHabitsTimeChange = async (event: any, selectedDate?: Date) => {
+  const handleDailyHabitsToggle = (value: boolean) => saveChange(async () => {
+    await saveDailyHabitsReminderSettings({ enabled: value, time: formatTimeToString(dailyHabitsTime) });
+    setDailyHabitsEnabled(value);
+  });
+
+  const handleDailyHabitsTimeChange = (event: any, selectedDate?: Date) => {
     setShowDailyHabitsTimePicker(Platform.OS === 'ios');
-    
-    if (selectedDate) {
-      console.log('[RemindersOverlay] Daily habits time changed:', selectedDate);
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      
-      // 🚀 PREVIEW MODE: No time restrictions (premium feature)
+    if (event.type === 'dismissed' || !selectedDate) return;
+    void saveChange(async () => {
+      await saveDailyHabitsReminderSettings({ enabled: dailyHabitsEnabled, time: formatTimeToString(selectedDate) });
       setDailyHabitsTime(selectedDate);
-      
-      if (dailyHabitsEnabled) {
-        try {
-          const timeString = formatTimeToString(selectedDate);
-          await saveDailyHabitsReminderSettings({ enabled: true, time: timeString });
-        } catch (error) {
-          console.error('[RemindersOverlay] Error updating daily habits time:', error);
-          Alert.alert('Error', 'Failed to update reminder time');
-        }
-      }
-    }
+    });
   };
 
-  const handleJournalToggle = async (value: boolean) => {
-    try {
-      console.log('[RemindersOverlay] 🚀 PREVIEW MODE: Toggling journal reminder (premium feature):', value);
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      
+  const handleJournalToggle = (value: boolean) => {
+    // Expired subscribers must still be able to turn an existing reminder off.
+    if (value && !effectiveIsPremium) {
+      Alert.alert('Premium Required', 'Journal reminders are a Premium feature.');
+      return;
+    }
+    void saveChange(async () => {
+      await saveJournalReminderSettings({ enabled: value, time: formatTimeToString(journalTime) });
       setJournalEnabled(value);
-      
-      const timeString = formatTimeToString(journalTime);
-      await saveJournalReminderSettings({ enabled: value, time: timeString });
-      
-      if (value) {
-        Alert.alert(
-          'Reminder Set! 🔔',
-          `You'll receive a daily reminder at ${formatTimeDisplay(journalTime)} to journal.`,
-          [{ text: 'OK' }]
-        );
-      }
-    } catch (error) {
-      console.error('[RemindersOverlay] Error toggling journal reminder:', error);
-      Alert.alert('Error', 'Failed to update reminder settings');
-      setJournalEnabled(!value); // Revert on error
-    }
+    });
   };
 
-  const handleJournalTimeChange = async (event: any, selectedDate?: Date) => {
+  const handleJournalTimeChange = (event: any, selectedDate?: Date) => {
     setShowJournalTimePicker(Platform.OS === 'ios');
-    
-    if (selectedDate) {
-      console.log('[RemindersOverlay] Journal time changed:', selectedDate);
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      
+    if (event.type === 'dismissed' || !selectedDate || !effectiveIsPremium) return;
+    void saveChange(async () => {
+      await saveJournalReminderSettings({ enabled: journalEnabled, time: formatTimeToString(selectedDate) });
       setJournalTime(selectedDate);
-      
-      if (journalEnabled) {
-        try {
-          const timeString = formatTimeToString(selectedDate);
-          await saveJournalReminderSettings({ enabled: true, time: timeString });
-        } catch (error) {
-          console.error('[RemindersOverlay] Error updating journal time:', error);
-          Alert.alert('Error', 'Failed to update reminder time');
-        }
-      }
-    }
+    });
   };
 
   const formatTimeToString = (date: Date): string => {
@@ -205,7 +164,7 @@ export function RemindersOverlay({ visible, onClose, isPremium }: RemindersOverl
       <View style={styles.modalOverlay}>
         <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
           {/* Header */}
-          <View style={styles.header}>
+          <View style={[styles.header, { borderBottomColor: colors.border }]}>
             <View style={styles.headerLeft}>
               <IconSymbol
                 ios_icon_name="bell.fill"
@@ -226,21 +185,8 @@ export function RemindersOverlay({ visible, onClose, isPremium }: RemindersOverl
           </View>
 
           <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-            {/* 🚀 PREVIEW MODE Banner */}
-            <View style={[styles.infoBanner, { backgroundColor: 'rgba(255, 215, 0, 0.2)', borderColor: '#FFD700', borderWidth: 1 }]}>
-              <IconSymbol
-                ios_icon_name="crown.fill"
-                android_material_icon_name="workspace-premium"
-                size={20}
-                color="#FFD700"
-              />
-              <Text style={[styles.infoBannerText, { color: colors.text, fontWeight: '600' }]}>
-                🚀 PREVIEW MODE: All premium reminder features unlocked
-              </Text>
-            </View>
-
             {/* Info Banner */}
-            <View style={[styles.infoBanner, { backgroundColor: isDark ? `${colors.primary}20` : '#EEF2FF' }]}>
+            <View style={[styles.infoBanner, { backgroundColor: isDark ? `${colors.primary}20` : brandColors.softIndigo }]}>
               <IconSymbol
                 ios_icon_name="info.circle.fill"
                 android_material_icon_name="info"
@@ -248,12 +194,11 @@ export function RemindersOverlay({ visible, onClose, isPremium }: RemindersOverl
                 color={colors.primary}
               />
               <Text style={[styles.infoBannerText, { color: colors.text }]}>
-                All reminders play a soft Tibetan bowl chime 🔔
+                Reminders use your device’s notification sound and respect your notification settings.
               </Text>
             </View>
 
-            {/* 🚀 PREVIEW MODE: Hide Daily Habits Reminder for Pro users */}
-            {!effectiveIsPremium && (
+            {/* Daily Habits Reminder */}
               <View style={[styles.reminderSection, { backgroundColor: isDark ? colors.border : '#F9FAFB' }]}>
                 <View style={styles.reminderHeader}>
                   <View style={styles.reminderTitleRow}>
@@ -266,6 +211,7 @@ export function RemindersOverlay({ visible, onClose, isPremium }: RemindersOverl
                     <Text style={[styles.reminderTitle, { color: colors.text }]}>Daily habits reminder</Text>
                   </View>
                   <Switch
+                    disabled={loading || busy}
                     value={dailyHabitsEnabled}
                     onValueChange={handleDailyHabitsToggle}
                     trackColor={{ false: '#D1D5DB', true: colors.primary }}
@@ -278,6 +224,7 @@ export function RemindersOverlay({ visible, onClose, isPremium }: RemindersOverl
                   <React.Fragment>
                     <TouchableOpacity
                       style={[styles.timeButton, { backgroundColor: colors.card }]}
+                      disabled={loading || busy}
                       onPress={() => setShowDailyHabitsTimePicker(true)}
                     >
                       <IconSymbol
@@ -291,19 +238,15 @@ export function RemindersOverlay({ visible, onClose, isPremium }: RemindersOverl
                       </Text>
                     </TouchableOpacity>
                     
-                    <Text style={[styles.restrictionText, { color: colors.textSecondary }]}>
-                      ✓ Unlimited scheduling (Premium)
-                    </Text>
                   </React.Fragment>
                 )}
                 
                 <Text style={[styles.reminderDescription, { color: colors.textSecondary }]}>
-                  One reminder covers all your habits. One chime only.
+                  One daily reminder covers all your habits.
                 </Text>
               </View>
-            )}
 
-            {/* Journal Reminder - 🚀 PREVIEW MODE: Always show as available */}
+            {/* Journal Reminder */}
             <View style={[styles.reminderSection, { backgroundColor: isDark ? colors.border : '#F9FAFB' }]}>
               <View style={styles.reminderHeader}>
                 <View style={styles.reminderTitleRow}>
@@ -324,6 +267,7 @@ export function RemindersOverlay({ visible, onClose, isPremium }: RemindersOverl
                   </View>
                 </View>
                 <Switch
+                  disabled={loading || busy}
                   value={journalEnabled}
                   onValueChange={handleJournalToggle}
                   trackColor={{ false: '#D1D5DB', true: colors.primary }}
@@ -335,6 +279,7 @@ export function RemindersOverlay({ visible, onClose, isPremium }: RemindersOverl
               {journalEnabled && (
                 <TouchableOpacity
                   style={[styles.timeButton, { backgroundColor: colors.card }]}
+                  disabled={loading || busy || !effectiveIsPremium}
                   onPress={() => setShowJournalTimePicker(true)}
                 >
                   <IconSymbol
@@ -354,8 +299,7 @@ export function RemindersOverlay({ visible, onClose, isPremium }: RemindersOverl
               </Text>
             </View>
 
-            {/* Individual Habit Reminders Info - 🚀 PREVIEW MODE: Always show */}
-            <View style={[styles.infoSection, { backgroundColor: isDark ? `${colors.primary}20` : '#EEF2FF' }]}>
+            {effectiveIsPremium && <View style={[styles.infoSection, { backgroundColor: isDark ? `${colors.primary}20` : brandColors.softIndigo }]}>
               <IconSymbol
                 ios_icon_name="lightbulb.fill"
                 android_material_icon_name="lightbulb"
@@ -365,7 +309,7 @@ export function RemindersOverlay({ visible, onClose, isPremium }: RemindersOverl
               <Text style={[styles.infoText, { color: colors.text }]}>
                 <Text style={{ fontWeight: '600' }}>Pro Tip:</Text> Set individual habit reminders by tapping the ⏰ icon next to each habit in the Habits tab.
               </Text>
-            </View>
+            </View>}
           </ScrollView>
 
           {/* Time Pickers */}
@@ -438,7 +382,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    backgroundColor: '#EEF2FF',
+    backgroundColor: brandColors.softIndigo,
     padding: 16,
     borderRadius: 12,
     marginBottom: 20,
@@ -508,7 +452,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 12,
-    backgroundColor: '#EEF2FF',
+    backgroundColor: brandColors.softIndigo,
     padding: 16,
     borderRadius: 12,
     marginBottom: 16,

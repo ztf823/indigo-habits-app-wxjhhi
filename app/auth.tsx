@@ -13,6 +13,7 @@ import {
 } from "react-native";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRouter } from "expo-router";
+import { brandColors } from "@/styles/commonStyles";
 
 type Mode = "signin" | "signup";
 
@@ -199,7 +200,7 @@ const styles = StyleSheet.create({
   },
   primaryButton: {
     height: 50,
-    backgroundColor: "#007AFF",
+    backgroundColor: brandColors.indigo,
     borderRadius: 8,
     justifyContent: "center",
     alignItems: "center",
@@ -218,7 +219,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   switchModeText: {
-    color: "#007AFF",
+    color: brandColors.indigo,
     fontSize: 14,
   },
   divider: {

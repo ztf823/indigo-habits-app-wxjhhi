@@ -1,0 +1,4 @@
+allowBuilds:
+  unrs-resolver: false
+overrides:
+  react-native-reanimated: 3.19.5

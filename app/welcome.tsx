@@ -12,6 +12,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { IconSymbol } from "@/components/IconSymbol";
 import { useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { brandColors } from "@/styles/commonStyles";
 
 export default function WelcomeScreen() {
   const router = useRouter();
@@ -32,7 +33,7 @@ export default function WelcomeScreen() {
 
   return (
     <LinearGradient
-      colors={["#4F46E5", "#06B6D4"]}
+      colors={[brandColors.navy, brandColors.indigo, brandColors.electricBlue]}
       style={styles.gradient}
       start={{ x: 0, y: 0 }}
       end={{ x: 0, y: 1 }}
@@ -121,7 +122,7 @@ export default function WelcomeScreen() {
               ios_icon_name="arrow.right"
               android_material_icon_name="arrow-forward"
               size={20}
-              color="#4F46E5"
+              color={brandColors.indigo}
             />
           </TouchableOpacity>
         </View>
@@ -206,6 +207,6 @@ const styles = StyleSheet.create({
   buttonText: {
     fontSize: 18,
     fontWeight: "700",
-    color: "#4F46E5",
+    color: brandColors.indigo,
   },
 });

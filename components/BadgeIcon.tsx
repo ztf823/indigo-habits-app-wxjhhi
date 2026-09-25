@@ -2,6 +2,8 @@
 import React from "react";
 import { View, StyleSheet } from "react-native";
 import { IconSymbol } from "@/components/IconSymbol";
+import MaterialIcons from "@expo/vector-icons/MaterialIcons";
+import { brandColors } from "@/styles/commonStyles";
 
 interface BadgeIconProps {
   badgeName: string;
@@ -11,7 +13,7 @@ interface BadgeIconProps {
 }
 
 // Map badge names to their unique icons
-const BADGE_ICON_MAP: Record<string, { ios: string; android: string }> = {
+const BADGE_ICON_MAP: Record<string, { ios: string; android: keyof typeof MaterialIcons.glyphMap }> = {
   "Indigo Warrior": { ios: "sword", android: "sports-martial-arts" }, // sword icon
   "Indigo Guardian": { ios: "shield.fill", android: "shield" }, // shield icon
   "Indigo Sentinel": { ios: "eye.fill", android: "visibility" }, // eye icon
@@ -50,7 +52,7 @@ export function BadgeIcon({ badgeName, earned, size = 40, glowColor }: BadgeIcon
           elevation: 8,
         },
         !earned && {
-          backgroundColor: "#4F46E520", // Indigo tint for locked
+          backgroundColor: `${brandColors.indigo}20`,
         },
       ]}
     >

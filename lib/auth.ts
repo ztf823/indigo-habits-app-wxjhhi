@@ -32,7 +32,7 @@ export const authClient = createAuthClient({
   baseURL: API_URL,
   plugins: [
     expoClient({
-      scheme: "natively",
+      scheme: "indigohabits",
       storagePrefix: "indigo-habits",
       storage,
     }),

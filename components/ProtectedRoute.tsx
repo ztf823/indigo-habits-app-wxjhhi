@@ -27,6 +27,7 @@ import React, { useEffect } from "react";
 import { View, ActivityIndicator, StyleSheet } from "react-native";
 import { useRouter } from "expo-router";
 import { useAuth } from "@/contexts/AuthContext"; // TODO: Update import path
+import { brandColors } from "@/styles/commonStyles";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -53,7 +54,7 @@ export function ProtectedRoute({
   if (loading) {
     return loadingComponent || (
       <View style={styles.container}>
-        <ActivityIndicator size="large" color="#007AFF" />
+        <ActivityIndicator size="large" color={brandColors.indigo} />
       </View>
     );
   }

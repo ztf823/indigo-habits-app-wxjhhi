@@ -1,243 +1,171 @@
 
-// NOTE: react-native-purchases is imported LAZILY (inside try/catch) so a native
-// module failure cannot crash the app on launch (which caused App Store rejection).
+// RevenueCat is loaded lazily so a native module problem never prevents the
+// rest of the app from launching. Subscription access is only granted when the
+// current customer information has the active `pro` entitlement.
 import type Purchases from 'react-native-purchases';
-import type { PurchasesOffering } from 'react-native-purchases';
+import type { CustomerInfo, PurchasesOffering, PurchasesPackage } from 'react-native-purchases';
 import { Platform } from 'react-native';
-
-// RevenueCat API Keys — loaded from app.json extra (never hardcode secrets)
 import Constants from 'expo-constants';
-const REVENUECAT_GOOGLE_API_KEY: string =
-  Constants.expoConfig?.extra?.revenueCatGoogle ?? '';
-const REVENUECAT_APPLE_API_KEY: string =
-  Constants.expoConfig?.extra?.revenueCatApple ?? '';
 
-// Product identifiers
-export const PREMIUM_MONTHLY_PRODUCT_ID = 'premium_monthly'; // $4.99/month
+const REVENUECAT_GOOGLE_API_KEY: string = Constants.expoConfig?.extra?.revenueCatGoogle ?? '';
+const REVENUECAT_APPLE_API_KEY: string = Constants.expoConfig?.extra?.revenueCatApple ?? '';
 
-// Module-level guard: track whether RevenueCat ever initialized successfully.
+// Matches the only subscription configured in App Store Connect.
+export const PREMIUM_MONTHLY_PRODUCT_ID = 'com.indigohabits.pro.monthly';
+export type EntitlementStatus = 'active' | 'inactive' | 'unavailable';
+export type CustomerInfoResult = {
+  status: EntitlementStatus;
+  isPro: boolean;
+  customerInfo: CustomerInfo | null;
+  error?: string;
+};
+
+type PurchaseResult =
+  | { success: true; isPro: true; customerInfo: CustomerInfo }
+  | { success: false; isPro: false; cancelled: boolean; error: string };
+type RestoreResult =
+  | { success: true; isPro: boolean; customerInfo: CustomerInfo }
+  | { success: false; isPro: false; error: string };
+
 let rcReady = false;
 let rcModule: typeof Purchases | null = null;
+let initializationPromise: Promise<boolean> | null = null;
 
 async function loadPurchases(): Promise<typeof Purchases | null> {
   if (rcModule) return rcModule;
   try {
-    // Lazy require so a missing/broken native module cannot crash launch.
-    // eslint-disable-next-line @typescript-eslint/no-var-requires, @typescript-eslint/no-require-imports
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const mod = require('react-native-purchases');
     rcModule = (mod?.default ?? mod) as typeof Purchases;
     return rcModule;
-  } catch (err) {
-    console.warn('[RevenueCat] Failed to load native module:', err);
+  } catch (error) {
+    console.warn('[RevenueCat] Native module unavailable:', error);
     return null;
   }
 }
 
-/**
- * Initialize RevenueCat SDK.
- * Call this once when the app starts. Hardened against any failure mode:
- * lazy import, try/catch, timeout. Never throws.
- */
-export async function initializeRevenueCat(): Promise<void> {
-  try {
-    if (Platform.OS === 'web') {
-      console.log('[RevenueCat] Web platform detected - skipping');
-      return;
-    }
+function entitlementIsActive(customerInfo: CustomerInfo): boolean {
+  return customerInfo.entitlements.active.pro !== undefined;
+}
 
-    // iOS 26 Beta: RevenueCat's DangerousSettings.__allocating_init crashes on iOS 26
-    // due to StoreKit 2 enforcement. Skip initialization entirely on iOS 26+.
-    if (Platform.OS === 'ios') {
-      const iosMajor = parseInt(String(Platform.Version), 10);
-      if (iosMajor >= 26) {
-        console.warn('[RevenueCat] iOS 26+ detected — skipping init (StoreKit 2 incompatibility)');
-        return;
-      }
-    }
+/** Initializes exactly once for concurrent callers. Failed attempts are retryable. */
+export async function initializeRevenueCat(): Promise<boolean> {
+  if (Platform.OS === 'web') return false;
+  if (rcReady) return true;
+  if (initializationPromise) return initializationPromise;
 
+  initializationPromise = (async () => {
     const Purchases = await loadPurchases();
-    if (!Purchases) {
-      console.warn('[RevenueCat] Module unavailable, app will run without RevenueCat');
-      return;
+    if (!Purchases) return false;
+
+    const apiKey = Platform.OS === 'android' ? REVENUECAT_GOOGLE_API_KEY : REVENUECAT_APPLE_API_KEY;
+    if (!apiKey) {
+      console.warn('[RevenueCat] Public SDK key is missing.');
+      return false;
     }
 
     try {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const LOG_LEVEL = (require('react-native-purchases') as any).LOG_LEVEL;
-      Purchases.setLogLevel(__DEV__ ? LOG_LEVEL.DEBUG : LOG_LEVEL.INFO);
-    } catch {}
+      try {
+        Purchases.setLogLevel(__DEV__ ? Purchases.LOG_LEVEL.DEBUG : Purchases.LOG_LEVEL.INFO);
+      } catch {
+        // Logging must never block subscriptions.
+      }
 
-    const apiKey = Platform.OS === 'android' ? REVENUECAT_GOOGLE_API_KEY : REVENUECAT_APPLE_API_KEY;
-    Purchases.configure({ apiKey });
-    rcReady = true;
-    console.log('[RevenueCat] SDK initialized successfully');
-  } catch (error) {
-    // Swallow ALL errors. Launch must never fail because of RevenueCat.
-    console.warn('[RevenueCat] init skipped due to error:', error);
-  }
-}
-
-/**
- * Get current customer info including subscription status
- */
-export async function getCustomerInfo() {
-  try {
-    if (!rcReady || !rcModule) return { isPro: false, customerInfo: null };
-    console.log('[RevenueCat] Fetching customer info...');
-    const customerInfo = await rcModule.getCustomerInfo();
-    
-    // Check for 'pro' entitlement
-    const isPro = typeof customerInfo.entitlements.active['pro'] !== 'undefined';
-    console.log('[RevenueCat] Customer info retrieved. Pro status:', isPro);
-    
-    return {
-      isPro,
-      customerInfo,
-    };
-  } catch (error) {
-    console.error('[RevenueCat] Error fetching customer info:', error);
-    return {
-      isPro: false,
-      customerInfo: null,
-    };
-  }
-}
-
-/**
- * Get available offerings (subscription packages)
- */
-export async function getOfferings(): Promise<PurchasesOffering | null> {
-  try {
-    if (!rcReady || !rcModule) return null;
-    console.log('[RevenueCat] Fetching available offerings...');
-    const offerings = await rcModule.getOfferings();
-    
-    if (offerings.current !== null) {
-      console.log('[RevenueCat] Current offering:', offerings.current.identifier);
-      console.log('[RevenueCat] Available packages:', offerings.current.availablePackages.length);
-      
-      // Log package details for debugging
-      offerings.current.availablePackages.forEach((pkg) => {
-        console.log(`[RevenueCat] Package: ${pkg.identifier}`);
-        console.log(`[RevenueCat] - Product: ${pkg.product.identifier}`);
-        console.log(`[RevenueCat] - Price: ${pkg.product.priceString}`);
-        console.log(`[RevenueCat] - Period: ${pkg.product.subscriptionPeriod}`);
-      });
-      
-      return offerings.current;
-    } else {
-      console.warn('[RevenueCat] No current offering available');
-      console.warn('[RevenueCat] Make sure you have configured offerings in RevenueCat dashboard');
-      return null;
+      // Guard this check so a future older native binary remains safe.
+      const isConfigured = (Purchases as any).isConfigured;
+      const alreadyConfigured = typeof isConfigured === 'function'
+        ? await isConfigured.call(Purchases)
+        : false;
+      if (!alreadyConfigured) Purchases.configure({ apiKey });
+      rcReady = true;
+      return true;
+    } catch (error) {
+      console.warn('[RevenueCat] Initialization failed:', error);
+      return false;
     }
+  })();
+
+  try {
+    return await initializationPromise;
+  } finally {
+    if (!rcReady) initializationPromise = null;
+  }
+}
+
+export async function getCustomerInfo(): Promise<CustomerInfoResult> {
+  if (!(await initializeRevenueCat()) || !rcModule) {
+    return { status: 'unavailable', isPro: false, customerInfo: null, error: 'RevenueCat unavailable' };
+  }
+  try {
+    const customerInfo = await rcModule.getCustomerInfo();
+    const isPro = entitlementIsActive(customerInfo);
+    return { status: isPro ? 'active' : 'inactive', isPro, customerInfo };
   } catch (error) {
-    console.error('[RevenueCat] Error fetching offerings:', error);
+    console.warn('[RevenueCat] Could not refresh customer information:', error);
+    return {
+      status: 'unavailable', isPro: false, customerInfo: null,
+      error: error instanceof Error ? error.message : 'Unable to refresh subscription status',
+    };
+  }
+}
+
+export async function getOfferings(): Promise<PurchasesOffering | null> {
+  if (!(await initializeRevenueCat()) || !rcModule) return null;
+  try {
+    return (await rcModule.getOfferings()).current ?? null;
+  } catch (error) {
+    console.warn('[RevenueCat] Could not load offerings:', error);
     return null;
   }
 }
 
-/**
- * Purchase a subscription package
- */
-export async function purchasePackage(packageToPurchase: any) {
+export function selectMonthlyPackage(offering: PurchasesOffering): PurchasesPackage | null {
+  return offering.availablePackages.find(
+    (pkg) => pkg.product.identifier === PREMIUM_MONTHLY_PRODUCT_ID,
+  ) ?? null;
+}
+
+/** A purchase is successful only when the `pro` entitlement is active. */
+export async function purchasePackage(packageToPurchase: PurchasesPackage): Promise<PurchaseResult> {
+  if (!(await initializeRevenueCat()) || !rcModule) {
+    return { success: false, isPro: false, cancelled: false, error: 'Subscriptions are unavailable right now. Please try again.' };
+  }
   try {
-    console.log('[RevenueCat] Initiating purchase for package:', packageToPurchase.identifier);
-    console.log('[RevenueCat] Product ID:', packageToPurchase.product.identifier);
-    console.log('[RevenueCat] Price:', packageToPurchase.product.priceString);
-    
-    if (!rcReady || !rcModule) {
-      return { success: false, cancelled: false, error: 'RevenueCat unavailable' };
-    }
     const { customerInfo } = await rcModule.purchasePackage(packageToPurchase);
-    
-    const isPro = typeof customerInfo.entitlements.active['pro'] !== 'undefined';
-    console.log('[RevenueCat] Purchase completed successfully! Pro status:', isPro);
-    
-    return {
-      success: true,
-      isPro,
-      customerInfo,
-    };
-  } catch (error: any) {
-    console.error('[RevenueCat] Purchase error:', error);
-    
-    // Check if user cancelled
-    if (error.userCancelled) {
-      console.log('[RevenueCat] User cancelled the purchase');
+    if (!entitlementIsActive(customerInfo)) {
       return {
-        success: false,
-        cancelled: true,
-        error: 'Purchase cancelled',
+        success: false, isPro: false, cancelled: false,
+        error: 'The purchase completed but Premium has not activated yet. Please restore purchases or try again shortly.',
       };
     }
-    
-    return {
-      success: false,
-      cancelled: false,
-      error: error.message || 'Purchase failed',
-    };
+    return { success: true, isPro: true, customerInfo };
+  } catch (error: any) {
+    if (error?.userCancelled) {
+      return { success: false, isPro: false, cancelled: true, error: 'Purchase cancelled' };
+    }
+    return { success: false, isPro: false, cancelled: false, error: error?.message || 'Purchase failed' };
   }
 }
 
-/**
- * Restore previous purchases
- */
-export async function restorePurchases() {
+export async function restorePurchases(): Promise<RestoreResult> {
+  if (!(await initializeRevenueCat()) || !rcModule) {
+    return { success: false, isPro: false, error: 'Subscriptions are unavailable right now. Please try again.' };
+  }
   try {
-    console.log('[RevenueCat] Restoring purchases...');
-    
-    if (!rcReady || !rcModule) {
-      return { success: false, isPro: false, error: 'RevenueCat unavailable' };
-    }
     const customerInfo = await rcModule.restorePurchases();
-    
-    const isPro = typeof customerInfo.entitlements.active['pro'] !== 'undefined';
-    console.log('[RevenueCat] Purchases restored. Pro status:', isPro);
-    
-    return {
-      success: true,
-      isPro,
-      customerInfo,
-    };
+    return { success: true, isPro: entitlementIsActive(customerInfo), customerInfo };
   } catch (error) {
-    console.error('[RevenueCat] Error restoring purchases:', error);
-    return {
-      success: false,
-      isPro: false,
-      error: error instanceof Error ? error.message : 'Failed to restore purchases',
-    };
+    return { success: false, isPro: false, error: error instanceof Error ? error.message : 'Failed to restore purchases' };
   }
 }
 
-/**
- * Check if user has active pro subscription
- */
+/** Kept for existing callers. `false` can mean inactive or temporarily unavailable. */
 export async function checkProStatus(): Promise<boolean> {
-  try {
-    const { isPro } = await getCustomerInfo();
-    return isPro;
-  } catch (error) {
-    console.error('[RevenueCat] Error checking pro status:', error);
-    return false;
-  }
+  return (await getCustomerInfo()).isPro;
 }
 
-/**
- * Get subscription management URL
- */
 export async function getManagementURL(): Promise<string | null> {
-  try {
-    console.log('[RevenueCat] Getting management URL...');
-    
-    if (Platform.OS === 'ios') {
-      return 'https://apps.apple.com/account/subscriptions';
-    } else if (Platform.OS === 'android') {
-      return 'https://play.google.com/store/account/subscriptions';
-    }
-    
-    return null;
-  } catch (error) {
-    console.error('[RevenueCat] Error getting management URL:', error);
-    return null;
-  }
+  if (Platform.OS === 'ios') return 'https://apps.apple.com/account/subscriptions';
+  if (Platform.OS === 'android') return 'https://play.google.com/store/account/subscriptions';
+  return null;
 }

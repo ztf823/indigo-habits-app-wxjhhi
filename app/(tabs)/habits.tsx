@@ -1,6 +1,8 @@
 
+import { useFocusEffect } from "expo-router";
+import { colors } from "@/styles/commonStyles";
 import { LinearGradient } from "expo-linear-gradient";
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useCallback } from "react";
 import {
   View,
   Text,
@@ -18,6 +20,7 @@ import * as Haptics from "expo-haptics";
 import { IconSymbol } from "@/components/IconSymbol";
 import DateTimePicker from '@react-native-community/datetimepicker';
 import {
+  getProfile,
   getAllHabits,
   getAllAffirmations,
   createHabit,
@@ -26,10 +29,11 @@ import {
   createAffirmation,
   updateAffirmation,
   deleteAffirmation,
-  getProfile,
+  updateProfile,
 } from "@/utils/database";
 import { getRandomAffirmation } from "@/utils/affirmations";
 import { playChime } from "@/utils/sounds";
+import { getCustomerInfo } from "@/utils/revenueCat";
 import {
   saveHabitReminder,
   removeHabitReminder,
@@ -64,17 +68,9 @@ const COLORS = [
   "#EF4444", // Red
 ];
 
-// 🚀 PREVIEW MODE: Removed display limits
-const FREE_HOME_DISPLAY_LIMIT = 999999; // Effectively unlimited
-
-// Default habits matching home screen
-const DEFAULT_HABITS = [
-  { title: "Morning meditation", color: "#10B981" },
-  { title: "Exercise", color: "#3B82F6" },
-  { title: "Read 10 pages", color: "#F59E0B" },
-  { title: "Drink 8 glasses of water", color: "#06B6D4" },
-  { title: "Practice gratitude", color: "#8B5CF6" },
-];
+const FREE_HABIT_LIMIT = 3;
+const PREMIUM_HABIT_LIMIT = 10;
+const FREE_AFFIRMATION_LIMIT = 5;
 
 export default function HabitsScreen() {
   const [activeTab, setActiveTab] = useState<"habits" | "affirmations">("habits");
@@ -82,8 +78,7 @@ export default function HabitsScreen() {
   const [affirmations, setAffirmations] = useState<Affirmation[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  // 🚀 PREVIEW MODE: Always set premium to true
-  const [isPremium, setIsPremium] = useState(true);
+  const [isPremium, setIsPremium] = useState(false);
 
   // Habit modal state
   const [habitModalVisible, setHabitModalVisible] = useState(false);
@@ -104,9 +99,13 @@ export default function HabitsScreen() {
 
   const loadPremiumStatus = useCallback(async () => {
     try {
-      // 🚀 PREVIEW MODE: Always set premium to true
-      setIsPremium(true);
-      console.log('🚀 PREVIEW MODE: Premium status forced to true for testing');
+      const cached = await getProfile();
+      setIsPremium(Boolean(cached?.isPremium));
+      const result = await getCustomerInfo();
+      if (result.status !== 'unavailable') {
+        await updateProfile({ isPremium: result.isPro });
+        setIsPremium(result.isPro);
+      }
     } catch (error) {
       console.error("Error loading premium status:", error);
     }
@@ -115,25 +114,6 @@ export default function HabitsScreen() {
   const loadHabits = useCallback(async () => {
     try {
       const dbHabits = await getAllHabits() as Habit[];
-      
-      // If no habits exist, create default ones
-      if (dbHabits.length === 0) {
-        console.log(`Creating ${DEFAULT_HABITS.length} default habits...`);
-        
-        for (let i = 0; i < DEFAULT_HABITS.length; i++) {
-          const defaultHabit = DEFAULT_HABITS[i];
-          const newHabit = {
-            id: `habit_${Date.now()}_${i}`,
-            title: defaultHabit.title,
-            color: defaultHabit.color,
-            isRepeating: true, // Default habits are repeating
-            isFavorite: false,
-            orderIndex: i,
-          };
-          await createHabit(newHabit);
-          dbHabits.push({ ...newHabit, isActive: 1, isRepeating: 1 } as any);
-        }
-      }
       
       setHabits(dbHabits);
       console.log(`Loaded ${dbHabits.length} habits`);
@@ -150,6 +130,7 @@ export default function HabitsScreen() {
       console.log(`Loaded ${Object.keys(reminders).length} habit reminders`);
     } catch (error) {
       console.error("Error loading habits:", error);
+      throw error;
     }
   }, []);
 
@@ -160,6 +141,7 @@ export default function HabitsScreen() {
       console.log(`Loaded ${dbAffirmations.length} affirmations`);
     } catch (error) {
       console.error("Error loading affirmations:", error);
+      throw error;
     }
   }, []);
 
@@ -179,9 +161,9 @@ export default function HabitsScreen() {
     }
   }, [loadPremiumStatus, loadHabits, loadAffirmations]);
 
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
+  useFocusEffect(useCallback(() => {
+    void loadData();
+  }, [loadData]));
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -195,7 +177,11 @@ export default function HabitsScreen() {
       return;
     }
 
-    // 🚀 PREVIEW MODE: No limits - create unlimited habits
+    const habitLimit = isPremium ? PREMIUM_HABIT_LIMIT : FREE_HABIT_LIMIT;
+    if (habits.length >= habitLimit) {
+      Alert.alert("Premium Required", `Free members can track up to ${FREE_HABIT_LIMIT} habits. Upgrade to Premium for up to ${PREMIUM_HABIT_LIMIT}.`);
+      return;
+    }
     try {
       console.log("User adding new habit:", habitTitle);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -292,8 +278,11 @@ export default function HabitsScreen() {
 
       const newRepeating = habit.isRepeating === 1 ? 0 : 1;
       
-      // 🚀 PREVIEW MODE: No limits - allow unlimited repeating habits
-      console.log("🚀 PREVIEW MODE: Toggling habit daily repeat (no limits):", habitId);
+      const homeLimit = isPremium ? PREMIUM_HABIT_LIMIT : FREE_HABIT_LIMIT;
+      if (newRepeating === 1 && habits.filter((item) => item.isRepeating === 1).length >= homeLimit) {
+        Alert.alert("Premium Required", `Free members can show up to ${FREE_HABIT_LIMIT} habits on the home screen.`);
+        return;
+      }
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
       setHabits((prev) =>
@@ -315,7 +304,10 @@ export default function HabitsScreen() {
       return;
     }
 
-    // 🚀 PREVIEW MODE: No limits - create unlimited affirmations
+    if (!isPremium && affirmations.filter((item) => item.isCustom === 1).length >= FREE_AFFIRMATION_LIMIT) {
+      Alert.alert("Premium Required", `Free members can save up to ${FREE_AFFIRMATION_LIMIT} custom affirmations.`);
+      return;
+    }
     try {
       console.log("User adding custom affirmation");
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -349,8 +341,10 @@ export default function HabitsScreen() {
 
       const newRepeating = affirmation.isRepeating === 1 ? 0 : 1;
       
-      // 🚀 PREVIEW MODE: No limits - allow unlimited repeating affirmations
-      console.log("🚀 PREVIEW MODE: Toggling affirmation daily repeat (no limits):", affirmationId);
+      if (newRepeating === 1 && !isPremium && affirmations.filter((item) => item.isRepeating === 1).length >= FREE_AFFIRMATION_LIMIT) {
+        Alert.alert("Premium Required", `Free members can show up to ${FREE_AFFIRMATION_LIMIT} affirmations on the home screen.`);
+        return;
+      }
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
       setAffirmations((prev) =>
@@ -417,7 +411,11 @@ export default function HabitsScreen() {
 
   const openReminderModal = async (habit: Habit) => {
     try {
-      console.log("🚀 PREVIEW MODE: User tapped clock icon for habit:", habit.title);
+      if (!isPremium) {
+        Alert.alert("Premium Required", "Individual habit reminders are a Premium feature.");
+        return;
+      }
+      console.log("User tapped clock icon for habit:", habit.title);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       
       setSelectedHabitForReminder(habit);
@@ -446,7 +444,7 @@ export default function HabitsScreen() {
     if (!selectedHabitForReminder) return;
     
     try {
-      console.log("🚀 PREVIEW MODE: Saving habit reminder for:", selectedHabitForReminder.title);
+      console.log("Saving habit reminder for:", selectedHabitForReminder.title);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       
       const timeString = formatTimeToString(reminderTime);
@@ -476,7 +474,7 @@ export default function HabitsScreen() {
     if (!selectedHabitForReminder) return;
     
     try {
-      console.log("🚀 PREVIEW MODE: Removing habit reminder for:", selectedHabitForReminder.title);
+      console.log("Removing habit reminder for:", selectedHabitForReminder.title);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       
       await removeHabitReminder(selectedHabitForReminder.id);
@@ -529,7 +527,7 @@ export default function HabitsScreen() {
   if (loading) {
     return (
       <LinearGradient
-        colors={["#6366F1", "#87CEEB"]}
+        colors={[colors.gradientStart, colors.gradientEnd]}
         style={styles.gradient}
         start={{ x: 0, y: 0 }}
         end={{ x: 0, y: 1 }}
@@ -547,7 +545,7 @@ export default function HabitsScreen() {
 
   return (
     <LinearGradient
-      colors={["#6366F1", "#87CEEB"]}
+      colors={[colors.gradientStart, colors.gradientEnd]}
       style={styles.gradient}
       start={{ x: 0, y: 0 }}
       end={{ x: 0, y: 1 }}
@@ -558,11 +556,10 @@ export default function HabitsScreen() {
           <Text style={styles.headerTitle}>
             {activeTab === "habits" ? "Manage Habits" : "Manage Affirmations"}
           </Text>
-          {/* 🚀 PREVIEW MODE: Show unlimited status */}
           <Text style={styles.headerSubtitle}>
             {activeTab === "habits" 
-              ? `${habits.length} total • ${repeatingHabits} on home screen (unlimited)`
-              : `${affirmations.length} total • ${repeatingAffirmations} on home screen (unlimited)`
+              ? `${habits.length}/${isPremium ? PREMIUM_HABIT_LIMIT : FREE_HABIT_LIMIT} habits • ${repeatingHabits} on home screen`
+              : `${affirmations.length} total • ${repeatingAffirmations} on home screen`
             }
           </Text>
         </View>
@@ -640,7 +637,6 @@ export default function HabitsScreen() {
                           <Text style={styles.habitTitle}>{habit.title}</Text>
                         </View>
                         <View style={styles.habitActions}>
-                          {/* 🚀 PREVIEW MODE: Clock icon for individual habit reminders */}
                           <TouchableOpacity
                             onPress={() => openReminderModal(habit)}
                             style={[
@@ -652,7 +648,7 @@ export default function HabitsScreen() {
                               ios_icon_name="alarm.fill"
                               android_material_icon_name="alarm"
                               size={20}
-                              color={habitReminders[habit.id] ? "#10B981" : "#6366F1"}
+                              color={habitReminders[habit.id] ? "#10B981" : colors.primary}
                             />
                           </TouchableOpacity>
                           <TouchableOpacity
@@ -663,7 +659,7 @@ export default function HabitsScreen() {
                               ios_icon_name="pencil"
                               android_material_icon_name="edit"
                               size={20}
-                              color="#6366F1"
+                              color={colors.primary}
                             />
                           </TouchableOpacity>
                           <TouchableOpacity
@@ -693,7 +689,7 @@ export default function HabitsScreen() {
                             ios_icon_name="repeat"
                             android_material_icon_name="repeat"
                             size={16}
-                            color={habit.isRepeating === 1 ? "white" : "#6366F1"}
+                            color={habit.isRepeating === 1 ? "white" : colors.primary}
                           />
                           <Text
                             style={[
@@ -784,7 +780,7 @@ export default function HabitsScreen() {
                             ios_icon_name="repeat"
                             android_material_icon_name="repeat"
                             size={16}
-                            color={affirmation.isRepeating === 1 ? "white" : "#6366F1"}
+                            color={affirmation.isRepeating === 1 ? "white" : colors.primary}
                           />
                           <Text
                             style={[
@@ -922,7 +918,7 @@ export default function HabitsScreen() {
         </View>
       </Modal>
 
-      {/* Habit Reminder Modal - 🚀 PREVIEW MODE */}
+      {/* Habit Reminder Modal */}
       <Modal
         visible={reminderModalVisible}
         animationType="slide"
@@ -941,7 +937,6 @@ export default function HabitsScreen() {
           </View>
 
           <View style={styles.modalContent}>
-            {/* 🚀 PREVIEW MODE Badge */}
             <View style={styles.previewBadge}>
               <IconSymbol
                 ios_icon_name="crown.fill"
@@ -950,7 +945,7 @@ export default function HabitsScreen() {
                 color="#FFD700"
               />
               <Text style={styles.previewBadgeText}>
-                🚀 PREVIEW MODE: Pro feature unlocked
+                Premium reminder
               </Text>
             </View>
 
@@ -978,7 +973,7 @@ export default function HabitsScreen() {
                     ios_icon_name="clock.fill"
                     android_material_icon_name="access-time"
                     size={24}
-                    color="#6366F1"
+                    color={colors.primary}
                   />
                   <Text style={styles.timePickerText}>
                     {formatTimeDisplay(reminderTime)}
@@ -1067,7 +1062,7 @@ const styles = StyleSheet.create({
     color: "rgba(255, 255, 255, 0.9)",
   },
   activeTabText: {
-    color: "#6366F1",
+    color: colors.primary,
   },
   content: {
     flex: 1,
@@ -1162,12 +1157,12 @@ const styles = StyleSheet.create({
     alignSelf: "flex-start",
   },
   repeatToggleActive: {
-    backgroundColor: "#6366F1",
+    backgroundColor: colors.primary,
   },
   repeatToggleText: {
     fontSize: 14,
     fontWeight: "600",
-    color: "#6366F1",
+    color: colors.primary,
   },
   repeatToggleTextActive: {
     color: "white",
@@ -1218,7 +1213,7 @@ const styles = StyleSheet.create({
   badgeText: {
     fontSize: 12,
     fontWeight: "600",
-    color: "#6366F1",
+    color: colors.primary,
   },
   affirmationBottom: {
     gap: 8,
@@ -1230,7 +1225,7 @@ const styles = StyleSheet.create({
     width: 60,
     height: 60,
     borderRadius: 30,
-    backgroundColor: "#6366F1",
+    backgroundColor: colors.primary,
     justifyContent: "center",
     alignItems: "center",
     shadowColor: "#000",
@@ -1265,7 +1260,7 @@ const styles = StyleSheet.create({
   modalSave: {
     fontSize: 16,
     fontWeight: "600",
-    color: "#6366F1",
+    color: colors.primary,
   },
   modalContent: {
     padding: 20,

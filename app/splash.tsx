@@ -3,6 +3,7 @@ import React, { useEffect, useRef } from "react";
 import { View, Text, StyleSheet, Animated, Dimensions, Image } from "react-native";
 import { useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { brandColors } from "@/styles/commonStyles";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 
@@ -71,7 +72,7 @@ export default function SplashScreen() {
         ]}
       >
         <Image
-          source={require("@/assets/images/f61de770-7b2e-4a90-b8f2-478836e42e2a.png")}
+          source={require("@/assets/images/indigo-blue-flame-icon.png")}
           style={styles.logo}
           resizeMode="contain"
         />
@@ -103,7 +104,7 @@ export default function SplashScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#FFFFFF", // Solid white background
+    backgroundColor: brandColors.navy,
     justifyContent: "center",
     alignItems: "center",
     position: "relative",
@@ -119,7 +120,7 @@ const styles = StyleSheet.create({
   tagline: {
     fontSize: 20,
     fontWeight: "bold", // Bold text
-    color: "#000000", // Solid black
+    color: "#FFFFFF",
     textAlign: "center",
     paddingHorizontal: 40,
     letterSpacing: 0.5,
@@ -130,7 +131,7 @@ const styles = StyleSheet.create({
     left: 0,
     width: 80, // Thin silver shine
     height: "100%", // Covers entire screen height
-    backgroundColor: "rgba(192, 192, 192, 0.25)", // Thin silver shine
+    backgroundColor: "rgba(53, 217, 243, 0.20)", // Flame-blue shine
     transform: [{ skewX: "-20deg" }],
   },
 });

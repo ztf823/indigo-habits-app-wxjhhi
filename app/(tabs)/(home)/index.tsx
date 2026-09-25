@@ -1,5 +1,8 @@
 
 import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { colors, brandColors } from "@/styles/commonStyles";
+import { useFocusEffect } from "expo-router";
+import { localDateKey } from "@/utils/dates";
 import { LinearGradient } from "expo-linear-gradient";
 import { getRandomAffirmation } from "@/utils/affirmations";
 import {
@@ -19,14 +22,13 @@ import {
 } from "react-native";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
+import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from "expo-speech-recognition";
 import { IconSymbol } from "@/components/IconSymbol";
 import {
   getAllAffirmations,
   getAllHabits,
-  createAffirmation,
   updateAffirmation,
   deleteAffirmation,
-  createHabit,
   updateHabit,
   deleteHabit,
   getHabitCompletion,
@@ -35,8 +37,11 @@ import {
   createJournalEntry,
   getAllJournalEntries,
   updateJournalEntry,
+  updateProfile,
 } from "@/utils/database";
+import { persistPickedImage } from "@/utils/media";
 import { playChime } from "@/utils/sounds";
+import { getCustomerInfo } from "@/utils/revenueCat";
 
 import { getHabitReminderTime } from "@/utils/notifications";
 
@@ -71,34 +76,18 @@ interface JournalEntry {
   isFavorite?: number;
 }
 
-const FREE_HOME_DISPLAY_LIMIT = 999999;
+const FREE_HOME_DISPLAY_LIMIT = 3;
+const PREMIUM_HOME_DISPLAY_LIMIT = 10;
 const FREE_AFFIRMATION_LIMIT = 5;
-
-const DEFAULT_HABITS = [
-  { title: "Morning meditation", color: "#10B981" },
-  { title: "Exercise", color: "#3B82F6" },
-  { title: "Read 10 pages", color: "#F59E0B" },
-  { title: "Drink 8 glasses of water", color: "#06B6D4" },
-  { title: "Practice gratitude", color: "#8B5CF6" },
-];
-
-const SAMPLE_REMINDER_TIMES: { [key: string]: string } = {
-  "Morning meditation": "06:30",
-  "Exercise": "07:00",
-  "Read 10 pages": "20:00",
-  "Drink 8 glasses of water": "09:00",
-  "Practice gratitude": "21:00",
-};
 
 export default function HomeScreen() {
   const [affirmations, setAffirmations] = useState<Affirmation[]>([]);
   const [habits, setHabits] = useState<Habit[]>([]);
   const [loading, setLoading] = useState(true);
-  const [isPremium, setIsPremium] = useState(true);
+  const [isPremium, setIsPremium] = useState(false);
 
   const [journalModalVisible, setJournalModalVisible] = useState(false);
   const [journalContent, setJournalContent] = useState("");
-  const [journalTitle, setJournalTitle] = useState("");
   const [journalPhoto, setJournalPhoto] = useState<string | null>(null);
   const [audioUri, setAudioUri] = useState<string | null>(null);
   const [isRecording, setIsRecording] = useState(false);
@@ -106,7 +95,45 @@ export default function HomeScreen() {
   const [currentJournalId, setCurrentJournalId] = useState<string | null>(null);
   const [journalIsFavorite, setJournalIsFavorite] = useState(false);
 
-  const autoSaveTimer = useRef<NodeJS.Timeout | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [isClosingJournal, setIsClosingJournal] = useState(false);
+  const journalDraft = useRef({ content: "", photoUri: "", audioUri: "" });
+  const journalIdRef = useRef<string | null>(null);
+  const journalDirty = useRef(false);
+  const saveQueue = useRef<Promise<boolean>>(Promise.resolve(true));
+  const mounted = useRef(true);
+  const speechActive = useRef(false);
+  const speechStarting = useRef(false);
+  const speechInterim = useRef("");
+  const speechEndResolve = useRef<(() => void) | null>(null);
+  const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const appendTranscript = (transcript: string) => {
+    if (!transcript.trim()) return;
+    const current = journalDraft.current.content;
+    handleJournalTextChange(current.trim() ? `${current.trimEnd()} ${transcript.trim()}` : transcript.trim());
+  };
+  useSpeechRecognitionEvent("start", () => setIsRecording(true));
+  useSpeechRecognitionEvent("end", () => {
+    if (speechActive.current && speechInterim.current) appendTranscript(speechInterim.current);
+    speechInterim.current = "";
+    speechActive.current = false;
+    setIsRecording(false);
+    speechEndResolve.current?.();
+    speechEndResolve.current = null;
+  });
+  useSpeechRecognitionEvent("result", (event) => {
+    if (!speechActive.current) return;
+    const transcript = event.results[0]?.transcript?.trim() || "";
+    speechInterim.current = event.isFinal ? "" : transcript;
+    if (event.isFinal) appendTranscript(transcript);
+  });
+  useSpeechRecognitionEvent("error", (event) => {
+    if (event.error !== "aborted" && event.error !== "no-speech") {
+      Alert.alert("Voice-to-Text Unavailable", event.message || "Please try again or type your entry.");
+    }
+  });
+
   const affirmationsSectionRef = useRef<View>(null);
   const [affirmationsLayout, setAffirmationsLayout] = useState<{
     y: number;
@@ -115,8 +142,10 @@ export default function HomeScreen() {
 
   const loadPremiumStatus = useCallback(async () => {
     try {
-      setIsPremium(true);
-      console.log('🚀 PREVIEW MODE: Premium status forced to true for testing');
+      const result = await getCustomerInfo();
+      if (result.status === "unavailable") return;
+      await updateProfile({ isPremium: result.isPro });
+      setIsPremium(result.isPro);
     } catch (error) {
       console.error("Error loading premium status:", error);
     }
@@ -126,60 +155,23 @@ export default function HomeScreen() {
     try {
       const dbAffirmations = (await getAllAffirmations()) as Affirmation[];
       
-      let repeatingAffirmations = dbAffirmations.filter(a => a.isRepeating === 1);
+      const repeatingAffirmations = dbAffirmations.filter(a => a.isRepeating === 1);
       
-      if (repeatingAffirmations.length < FREE_HOME_DISPLAY_LIMIT) {
-        const needed = Math.min(5, FREE_HOME_DISPLAY_LIMIT - repeatingAffirmations.length);
-        console.log(`Creating ${needed} default affirmations...`);
-        
-        for (let i = 0; i < needed; i++) {
-          const affirmation = getRandomAffirmation();
-          const newAffirmation = {
-            id: `affirmation_${Date.now()}_${i}`,
-            text: affirmation,
-            isCustom: false,
-            isRepeating: true,
-            isFavorite: false,
-            orderIndex: repeatingAffirmations.length + i,
-          };
-          await createAffirmation(newAffirmation);
-          repeatingAffirmations.push({ ...newAffirmation, isCustom: 0, isRepeating: 1, isFavorite: 0 });
-        }
-      }
-      
-      const displayAffirmations = repeatingAffirmations;
+      const displayAffirmations = repeatingAffirmations.slice(0, isPremium ? PREMIUM_HOME_DISPLAY_LIMIT : FREE_AFFIRMATION_LIMIT);
       
       setAffirmations(displayAffirmations);
-      console.log(`🚀 PREVIEW MODE: Loaded ${displayAffirmations.length} affirmations (unlimited)`);
+      console.log(`Loaded ${displayAffirmations.length} affirmations`);
     } catch (error) {
       console.error("Error loading affirmations:", error);
     }
-  }, []);
+  }, [isPremium]);
 
   const loadHabits = useCallback(async () => {
     try {
       const dbHabits = (await getAllHabits()) as Habit[];
-      const today = new Date().toISOString().split("T")[0];
+      const today = localDateKey(new Date());
 
-      let repeatingHabits = dbHabits.filter(h => h.isRepeating === 1);
-
-      if (repeatingHabits.length === 0) {
-        console.log(`Creating ${DEFAULT_HABITS.length} default habits...`);
-        
-        for (let i = 0; i < DEFAULT_HABITS.length; i++) {
-          const defaultHabit = DEFAULT_HABITS[i];
-          const newHabit = {
-            id: `habit_${Date.now()}_${i}`,
-            title: defaultHabit.title,
-            color: defaultHabit.color,
-            isRepeating: true,
-            isFavorite: false,
-            orderIndex: i,
-          };
-          await createHabit(newHabit);
-          repeatingHabits.push({ ...newHabit, isRepeating: 1, isFavorite: 0 } as any);
-        }
-      }
+      const repeatingHabits = dbHabits.filter(h => h.isRepeating === 1);
 
       const habitsWithCompletion = await Promise.all(
         repeatingHabits.map(async (habit) => {
@@ -195,11 +187,6 @@ export default function HomeScreen() {
         habitsWithCompletion.map(async (habit) => {
           let reminderTime = await getHabitReminderTime(habit.id);
           
-          if (!reminderTime && SAMPLE_REMINDER_TIMES[habit.title]) {
-            reminderTime = SAMPLE_REMINDER_TIMES[habit.title];
-            console.log(`🚀 PREVIEW MODE: Using sample time ${reminderTime} for habit "${habit.title}"`);
-          }
-          
           return {
             ...habit,
             reminderTime: reminderTime || undefined,
@@ -207,21 +194,24 @@ export default function HomeScreen() {
         })
       );
 
-      const displayHabits = habitsWithReminders;
+      const displayHabits = habitsWithReminders.slice(0, isPremium ? PREMIUM_HOME_DISPLAY_LIMIT : FREE_HOME_DISPLAY_LIMIT);
 
       setHabits(displayHabits);
-      console.log(`🚀 PREVIEW MODE: Loaded ${displayHabits.length} habits (unlimited) with reminder times`);
+      console.log(`Loaded ${displayHabits.length} habits`);
     } catch (error) {
       console.error("Error loading habits:", error);
     }
-  }, []);
+  }, [isPremium]);
 
   const loadTodayJournal = useCallback(async () => {
+    if (journalDirty.current || speechActive.current) return;
     try {
-      const today = new Date().toISOString().split("T")[0];
+      const today = localDateKey(new Date());
       const allEntries = await getAllJournalEntries() as JournalEntry[];
       const todayEntry = allEntries.find(e => e.date === today);
       
+      journalDraft.current = { content: todayEntry?.content || "", photoUri: todayEntry?.photoUri || "", audioUri: todayEntry?.audioUri || "" };
+      journalIdRef.current = todayEntry?.id || null;
       if (todayEntry) {
         setJournalContent(todayEntry.content || "");
         setJournalPhoto(todayEntry.photoUri || null);
@@ -267,14 +257,25 @@ export default function HomeScreen() {
       };
       loadAll();
     }
-  }, [loading]);
+  }, [loading, loadAffirmations, loadHabits, loadTodayJournal]);
+
+  useFocusEffect(useCallback(() => {
+    void loadData();
+  }, [loadData]));
 
   useEffect(() => {
-    loadData();
-  }, [loadData]);
-
-  useEffect(() => {
+    mounted.current = true;
     return () => {
+      mounted.current = false;
+      if (speechActive.current) {
+        if (speechInterim.current) {
+          journalDraft.current.content += ` ${speechInterim.current}`;
+          journalDirty.current = true;
+        }
+        speechActive.current = false;
+        ExpoSpeechRecognitionModule.abort();
+      }
+      if (journalDirty.current) void saveJournalEntry();
       if (autoSaveTimer.current) {
         clearTimeout(autoSaveTimer.current);
       }
@@ -293,7 +294,7 @@ export default function HomeScreen() {
       console.log(`User toggled habit: ${habitId}`);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
-      const today = new Date().toISOString().split("T")[0];
+      const today = localDateKey(new Date());
       const habit = habits.find((h) => h.id === habitId);
 
       if (!habit) return;
@@ -401,64 +402,79 @@ export default function HomeScreen() {
     setJournalModalVisible(true);
   };
 
-  const closeJournalModal = () => {
-    console.log("User closed journal modal");
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    
-    saveJournalEntry();
-    
-    setJournalModalVisible(false);
+  const closeJournalModal = async () => {
+    if (isClosingJournal || speechStarting.current) return;
+    setIsClosingJournal(true);
+    try {
+      if (speechActive.current) {
+        // Native stop emits the final result before end. Keep the editor open until then.
+        await new Promise<void>((resolve, reject) => {
+          const timeout = setTimeout(() => {
+            speechEndResolve.current = null;
+            reject(new Error("Speech recognition is still finishing. Please try Done again."));
+          }, 8000);
+          speechEndResolve.current = () => { clearTimeout(timeout); resolve(); };
+          ExpoSpeechRecognitionModule.stop();
+        });
+      }
+      if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
+      if (await saveJournalEntry()) setJournalModalVisible(false);
+    } catch (error) {
+      Alert.alert("Journal Still Open", error instanceof Error ? error.message : "Please try again.");
+    } finally {
+      setIsClosingJournal(false);
+    }
+  };
+
+  const scheduleAutoSave = () => {
+    if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
+    autoSaveTimer.current = setTimeout(() => { void saveJournalEntry(); }, 1000);
   };
 
   const handleJournalTextChange = (text: string) => {
+    journalDraft.current = { ...journalDraft.current, content: text };
+    journalDirty.current = true;
     setJournalContent(text);
-    
-    if (autoSaveTimer.current) {
-      clearTimeout(autoSaveTimer.current);
-    }
-    
-    autoSaveTimer.current = setTimeout(() => {
-      console.log("Auto-saving journal entry...");
-      saveJournalEntry();
-    }, 30000);
+    scheduleAutoSave();
   };
 
-  const saveJournalEntry = async () => {
-    if (!journalContent.trim() && !journalPhoto && !audioUri) return;
-    
-    try {
-      setIsSaving(true);
-      console.log("Saving journal entry...");
-      
-      const today = new Date().toISOString().split("T")[0];
-      
-      if (currentJournalId) {
-        await updateJournalEntry(currentJournalId, {
-          content: journalContent,
-          photoUri: journalPhoto || undefined,
-          audioUri: audioUri || undefined,
-        });
-      } else {
-        const entryId = `journal_${Date.now()}`;
-        await createJournalEntry({
-          id: entryId,
-          content: journalContent,
-          photoUri: journalPhoto || undefined,
-          audioUri: audioUri || undefined,
-          date: today,
-        });
-        setCurrentJournalId(entryId);
+  const changeJournalAttachment = (field: "photoUri" | "audioUri", uri: string | null) => {
+    journalDraft.current = { ...journalDraft.current, [field]: uri || "" };
+    journalDirty.current = true;
+    if (field === "photoUri") setJournalPhoto(uri);
+    else setAudioUri(uri);
+    scheduleAutoSave();
+  };
+
+  const saveJournalEntry = (): Promise<boolean> => {
+    // Each task reads the latest draft and the ID created by the previous task.
+    const task = saveQueue.current.then(async () => {
+      if (!journalDirty.current) return true;
+      const draft = { ...journalDraft.current };
+      if (!journalIdRef.current && !draft.content.trim() && !draft.photoUri && !draft.audioUri) return true;
+      if (mounted.current) setIsSaving(true);
+      try {
+        if (journalIdRef.current) {
+          await updateJournalEntry(journalIdRef.current, draft);
+        } else {
+          const id = `journal_${Date.now()}`;
+          await createJournalEntry({ id, ...draft, date: localDateKey(new Date()) });
+          journalIdRef.current = id;
+          if (mounted.current) setCurrentJournalId(id);
+        }
+        journalDirty.current = JSON.stringify(draft) !== JSON.stringify(journalDraft.current);
+        if (mounted.current) setSaveError(null);
+        return true;
+      } catch (error) {
+        console.error("Error saving journal entry:", error);
+        if (mounted.current) setSaveError("Your entry could not be saved. Keep this screen open and tap Done to retry.");
+        return false;
+      } finally {
+        if (mounted.current) setIsSaving(false);
       }
-      
-      console.log("Journal entry saved");
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      
-      playChime();
-    } catch (error) {
-      console.error("Error saving journal entry:", error);
-    } finally {
-      setIsSaving(false);
-    }
+    });
+    saveQueue.current = task;
+    return task;
   };
 
   const pickImage = async () => {
@@ -479,10 +495,11 @@ export default function HomeScreen() {
       });
 
       if (!result.canceled && result.assets[0]) {
-        setJournalPhoto(result.assets[0].uri);
+        const photoUri = await persistPickedImage(result.assets[0].uri);
+        changeJournalAttachment("photoUri", photoUri);
         console.log("Photo added to journal entry");
         
-        setTimeout(() => saveJournalEntry(), 500);
+        await saveJournalEntry();
       }
     } catch (error) {
       console.error("Error picking image:", error);
@@ -491,18 +508,41 @@ export default function HomeScreen() {
   };
 
   const startRecording = async () => {
+    if (speechStarting.current || speechActive.current || isClosingJournal) return;
+    speechStarting.current = true;
     try {
-      console.log("User tapped record button - audio recording disabled in this build");
-      Alert.alert("Audio Recording", "Audio recording is temporarily disabled. This feature will be available in a future update.");
+      if (!ExpoSpeechRecognitionModule.isRecognitionAvailable()) {
+        Alert.alert("Voice-to-Text Unavailable", "Speech recognition is not available on this device.");
+        return;
+      }
+      const permission = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
+      if (!permission.granted) {
+        Alert.alert("Permission Required", "Allow Microphone and Speech Recognition access to dictate your journal entry.");
+        return;
+      }
+      if (!mounted.current) return;
+      speechActive.current = true;
+      speechInterim.current = "";
+      setIsRecording(true);
+      ExpoSpeechRecognitionModule.start({
+        lang: "en-US",
+        interimResults: true,
+        continuous: false,
+        addsPunctuation: true,
+        iosTaskHint: "dictation",
+      });
     } catch (error) {
-      console.error("Error with audio recording:", error);
+      speechActive.current = false;
+      setIsRecording(false);
+      Alert.alert("Voice-to-Text Unavailable", "Unable to start dictation. Please try again or type your entry.");
+    } finally {
+      speechStarting.current = false;
     }
   };
 
   const stopRecording = async () => {
     try {
-      console.log("Stop recording called");
-      setIsRecording(false);
+      ExpoSpeechRecognitionModule.stop();
     } catch (error) {
       console.error("Error stopping recording:", error);
     }
@@ -531,7 +571,7 @@ export default function HomeScreen() {
   if (loading) {
     return (
       <LinearGradient
-        colors={["#4F46E5", "#87CEEB"]}
+        colors={[colors.gradientStart, colors.gradientEnd]}
         style={styles.gradient}
         start={{ x: 0, y: 0 }}
         end={{ x: 0, y: 1 }}
@@ -560,7 +600,7 @@ export default function HomeScreen() {
   return (
     <>
       <LinearGradient
-        colors={["#4F46E5", "#87CEEB"]}
+        colors={[colors.gradientStart, colors.gradientEnd]}
         style={styles.gradient}
         start={{ x: 0, y: 0 }}
         end={{ x: 0, y: 1 }}
@@ -574,7 +614,7 @@ export default function HomeScreen() {
             <Text style={styles.dateText}>{today}</Text>
             <View style={styles.limitBadge}>
               <Text style={styles.limitBadgeText}>
-                🚀 PREVIEW MODE: Pro features unlocked
+                {isPremium ? "Premium" : "Free plan"}
               </Text>
             </View>
           </View>
@@ -723,7 +763,7 @@ export default function HomeScreen() {
                     ios_icon_name="waveform"
                     android_material_icon_name="graphic-eq"
                     size={16}
-                    color="#4F46E5"
+                    color={colors.primary}
                   />
                   <Text style={styles.journalAudioText}>Audio memo attached</Text>
                 </View>
@@ -749,18 +789,12 @@ export default function HomeScreen() {
                     ios_icon_name="chevron.down"
                     android_material_icon_name="keyboard-arrow-down"
                     size={28}
-                    color="#1F2937"
+                    color={colors.text}
                   />
                 </TouchableOpacity>
                 
-                <TextInput
-                  style={styles.journalModalTitleInput}
-                  placeholder="Title (optional)"
-                  placeholderTextColor="#9CA3AF"
-                  value={journalTitle}
-                  onChangeText={setJournalTitle}
-                />
-                
+                <Text style={styles.journalModalTitleInput}>Your journal</Text>
+
                 <TouchableOpacity
                   onPress={toggleJournalFavorite}
                   style={styles.iconButton}
@@ -769,7 +803,7 @@ export default function HomeScreen() {
                     ios_icon_name={journalIsFavorite ? "star.fill" : "star"}
                     android_material_icon_name={journalIsFavorite ? "star" : "star-border"}
                     size={24}
-                    color={journalIsFavorite ? "#FFD700" : "#9CA3AF"}
+                    color={journalIsFavorite ? "#FFD700" : colors.iconSilver}
                   />
                 </TouchableOpacity>
               </View>
@@ -789,8 +823,9 @@ export default function HomeScreen() {
                 <TextInput
                   style={styles.journalModalInput}
                   placeholder="Write your thoughts..."
-                  placeholderTextColor="#9CA3AF"
+                  placeholderTextColor={colors.iconSilver}
                   multiline
+                  editable={!isClosingJournal}
                   value={journalContent}
                   onChangeText={handleJournalTextChange}
                   autoFocus
@@ -800,14 +835,14 @@ export default function HomeScreen() {
                   <View style={styles.journalModalPhotoPreview}>
                     <Image source={{ uri: journalPhoto }} style={styles.journalModalPhoto} />
                     <TouchableOpacity
-                      onPress={() => setJournalPhoto(null)}
+                      onPress={() => changeJournalAttachment("photoUri", null)}
                       style={styles.journalModalRemoveButton}
                     >
                       <IconSymbol
                         ios_icon_name="xmark.circle.fill"
                         android_material_icon_name="cancel"
                         size={24}
-                        color="#EF4444"
+                        color={colors.error}
                       />
                     </TouchableOpacity>
                   </View>
@@ -819,18 +854,18 @@ export default function HomeScreen() {
                       ios_icon_name="waveform"
                       android_material_icon_name="graphic-eq"
                       size={20}
-                      color="#4F46E5"
+                      color={colors.primary}
                     />
                     <Text style={styles.journalModalAudioText}>Audio memo attached</Text>
                     <TouchableOpacity
-                      onPress={() => setAudioUri(null)}
+                      onPress={() => changeJournalAttachment("audioUri", null)}
                       style={styles.journalModalRemoveButton}
                     >
                       <IconSymbol
                         ios_icon_name="xmark.circle.fill"
                         android_material_icon_name="cancel"
                         size={20}
-                        color="#EF4444"
+                        color={colors.error}
                       />
                     </TouchableOpacity>
                   </View>
@@ -843,7 +878,7 @@ export default function HomeScreen() {
                     ios_icon_name="camera"
                     android_material_icon_name="camera-alt"
                     size={24}
-                    color="#4F46E5"
+                    color={colors.primary}
                   />
                 </TouchableOpacity>
 
@@ -858,7 +893,7 @@ export default function HomeScreen() {
                     ios_icon_name={isRecording ? "stop.circle" : "mic"}
                     android_material_icon_name={isRecording ? "stop" : "mic"}
                     size={24}
-                    color={isRecording ? "#EF4444" : "#4F46E5"}
+                    color={isRecording ? colors.error : colors.primary}
                   />
                 </TouchableOpacity>
 
@@ -866,13 +901,14 @@ export default function HomeScreen() {
                   onPress={closeJournalModal}
                   style={styles.journalModalDoneButton}
                 >
-                  <Text style={styles.journalModalDoneText}>Done</Text>
+                  <Text style={styles.journalModalDoneText}>{isClosingJournal ? "Finishing…" : "Done"}</Text>
                 </TouchableOpacity>
               </View>
 
+              {saveError && <Text accessibilityRole="alert" style={{ color: colors.error, padding: 16 }}>{saveError}</Text>}
               {isSaving && (
                 <View style={styles.journalModalSaving}>
-                  <ActivityIndicator size="small" color="#4F46E5" />
+                  <ActivityIndicator size="small" color={colors.primary} />
                   <Text style={styles.journalModalSavingText}>Auto-saving...</Text>
                 </View>
               )}
@@ -965,7 +1001,7 @@ const styles = StyleSheet.create({
   affirmationText: {
     fontSize: 18,
     fontWeight: "500",
-    color: "#1F2937",
+    color: colors.text,
     lineHeight: 28,
     marginBottom: 20,
     textAlign: "left",
@@ -976,7 +1012,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   generateButton: {
-    backgroundColor: "#E0E7FF",
+    backgroundColor: brandColors.softIndigo,
     borderRadius: 20,
     paddingVertical: 12,
     paddingHorizontal: 32,
@@ -984,7 +1020,7 @@ const styles = StyleSheet.create({
   generateButtonText: {
     fontSize: 16,
     fontWeight: "600",
-    color: "#4F46E5",
+    color: colors.primary,
   },
   habitsHeader: {
     flexDirection: "row",
@@ -1036,16 +1072,16 @@ const styles = StyleSheet.create({
   habitTitle: {
     fontSize: 16,
     fontWeight: "500",
-    color: "#1F2937",
+    color: colors.text,
     marginRight: 6,
   },
   habitTitleCompleted: {
-    color: "#6B7280",
+    color: colors.textSecondary,
   },
   habitReminderTime: {
     fontSize: 12,
     fontWeight: "400",
-    color: "#9CA3AF",
+    color: colors.iconSilver,
   },
   journalHeader: {
     flexDirection: "row",
@@ -1070,7 +1106,7 @@ const styles = StyleSheet.create({
   },
   journalPreview: {
     fontSize: 16,
-    color: "#6B7280",
+    color: colors.textSecondary,
     lineHeight: 24,
   },
   journalPhotoPreview: {
@@ -1093,7 +1129,7 @@ const styles = StyleSheet.create({
   journalAudioText: {
     flex: 1,
     fontSize: 14,
-    color: "#6B7280",
+    color: colors.textSecondary,
   },
   journalModalContainer: {
     flex: 1,
@@ -1110,7 +1146,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingBottom: 16,
     borderBottomWidth: 1,
-    borderBottomColor: "#E5E7EB",
+    borderBottomColor: colors.border,
   },
   journalModalClose: {
     padding: 4,
@@ -1119,19 +1155,19 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 18,
     fontWeight: "700",
-    color: "#1F2937",
+    color: colors.text,
     marginHorizontal: 12,
   },
   journalModalDateStamp: {
     paddingHorizontal: 20,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: "#E5E7EB",
+    borderBottomColor: colors.border,
   },
   journalModalDateText: {
     fontSize: 14,
     fontWeight: "600",
-    color: "#6B7280",
+    color: colors.textSecondary,
   },
   journalModalContent: {
     flex: 1,
@@ -1141,7 +1177,7 @@ const styles = StyleSheet.create({
   journalModalInput: {
     flex: 1,
     fontSize: 18,
-    color: "#1F2937",
+    color: colors.text,
     lineHeight: 28,
     textAlignVertical: "top",
   },
@@ -1173,7 +1209,7 @@ const styles = StyleSheet.create({
   journalModalAudioText: {
     flex: 1,
     fontSize: 14,
-    color: "#6B7280",
+    color: colors.textSecondary,
   },
   journalModalActions: {
     flexDirection: "row",
@@ -1183,7 +1219,7 @@ const styles = StyleSheet.create({
     paddingVertical: 20,
     paddingBottom: Platform.OS === "android" ? 20 : 40,
     borderTopWidth: 1,
-    borderTopColor: "#E5E7EB",
+    borderTopColor: colors.border,
   },
   journalModalActionButton: {
     width: 56,
@@ -1201,7 +1237,7 @@ const styles = StyleSheet.create({
     marginLeft: 16,
     height: 56,
     borderRadius: 28,
-    backgroundColor: "#4F46E5",
+    backgroundColor: colors.primary,
     justifyContent: "center",
     alignItems: "center",
   },
@@ -1224,7 +1260,7 @@ const styles = StyleSheet.create({
   },
   journalModalSavingText: {
     fontSize: 14,
-    color: "#6B7280",
+    color: colors.textSecondary,
     fontWeight: "600",
   },
 });

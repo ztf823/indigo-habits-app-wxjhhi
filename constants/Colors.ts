@@ -1,5 +1,5 @@
-const tintColorLight = "#0a7ea4";
-const tintColorDark = "#fff";
+const tintColorLight = "#2637D9";
+const tintColorDark = "#35D9F3";
 
 export const zincColors = {
   50: "#fafafa",
@@ -15,7 +15,7 @@ export const zincColors = {
   950: "#09090b",
 };
 
-export const appleBlue = "#007AFF";
+export const appleBlue = "#149BFF";
 export const appleRed = "#FF3B30";
 
 export const borderColor = "#A1A1AA80";
@@ -31,7 +31,7 @@ export const Colors = {
   },
   dark: {
     text: "#ECEDEE",
-    background: "#151718",
+    background: "#0B0B5C",
     tint: tintColorDark,
     icon: "#9BA1A6",
     tabIconDefault: "#9BA1A6",

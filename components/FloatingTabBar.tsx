@@ -14,14 +14,16 @@ import {
 import { Href } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import React, { useEffect, useRef } from 'react';
-import { colors } from '@/styles/commonStyles';
+import { brandColors, colors, darkColors } from '@/styles/commonStyles';
 import { BlurView } from 'expo-blur';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 
 export interface TabBarItem {
+  name?: string;
   route: Href;
   label: string;
   ios_icon_name: string;
-  android_material_icon_name: string;
+  android_material_icon_name: keyof typeof MaterialIcons.glyphMap;
 }
 
 interface FloatingTabBarProps {
@@ -43,6 +45,7 @@ export default function FloatingTabBar({
 }: FloatingTabBarProps) {
   const router = useRouter();
   const theme = useTheme();
+  const palette = theme.dark ? darkColors : colors;
   const tabWidth = containerWidth / tabs.length;
   const indicatorPosition = useRef(new Animated.Value(0)).current;
 
@@ -70,12 +73,14 @@ export default function FloatingTabBar({
     >
       <BlurView
         intensity={80}
-        tint="light"
+        tint={theme.dark ? "dark" : "light"}
         style={[
           styles.container,
           {
             width: containerWidth,
             borderRadius,
+            backgroundColor: theme.dark ? "rgba(7, 7, 61, 0.92)" : "rgba(255, 255, 255, 0.95)",
+            borderColor: theme.dark ? "rgba(53, 217, 243, 0.30)" : "rgba(38, 55, 217, 0.12)",
           },
         ]}
       >
@@ -86,6 +91,7 @@ export default function FloatingTabBar({
               width: tabWidth,
               borderRadius: borderRadius - 4,
               transform: [{ translateX: indicatorPosition }],
+              backgroundColor: theme.dark ? "rgba(53, 217, 243, 0.18)" : brandColors.softIndigo,
             },
           ]}
         />
@@ -101,13 +107,13 @@ export default function FloatingTabBar({
               ios_icon_name={tab.ios_icon_name}
               android_material_icon_name={tab.android_material_icon_name}
               size={24}
-              color={currentIndex === index ? '#6366F1' : '#6B7280'}
+              color={currentIndex === index ? palette.primary : palette.textSecondary}
             />
             <Text
               style={[
                 styles.label,
                 {
-                  color: currentIndex === index ? '#6366F1' : '#6B7280',
+                  color: currentIndex === index ? palette.primary : palette.textSecondary,
                 },
               ]}
             >
@@ -132,7 +138,7 @@ const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    borderWidth: 1,
     overflow: 'hidden',
     ...Platform.select({
       ios: {
@@ -152,7 +158,6 @@ const styles = StyleSheet.create({
   indicator: {
     position: 'absolute',
     height: '80%',
-    backgroundColor: '#EEF2FF',
     top: '10%',
     left: 0,
   },

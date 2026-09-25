@@ -6,6 +6,7 @@ const fs = require('fs');
 const config = getDefaultConfig(__dirname);
 
 config.resolver.unstable_enablePackageExports = true;
+config.resolver.assetExts = [...config.resolver.assetExts, 'wasm'];
 
 // Use turborepo to restore the cache when possible
 config.cacheStores = [

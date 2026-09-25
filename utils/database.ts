@@ -1,141 +1,41 @@
-
-/**
- * Local SQLite Database for Indigo Habits
- * 
- * All data is stored locally on the device using SQLite.
- * No backend server required.
- */
-
-import { Platform } from 'react-native';
+/** Local durable SQLite storage. Initialization errors must reach the UI. */
+import type { SQLiteDatabase } from 'expo-sqlite';
+import { DEFAULT_AFFIRMATIONS } from './affirmations';
+import { localDateKey } from './dates';
 
 const DB_NAME = 'indigo_habits.db';
-
-let db: any = null;
-let dbInitialized = false;
-let dbInitFailed = false;
+let db: SQLiteDatabase | null = null;
 let dbInitPromise: Promise<void> | null = null;
 
-/**
- * Returns true if the database is ready for use.
- * Use this for observability — log it, don't silently skip.
- */
-export const isDatabaseReady = (): boolean => dbInitialized && db !== null;
-
-/**
- * Wait for the database to be ready. Resolves immediately if already initialized.
- * Rejects if initialization failed and retry is not possible.
- */
+export const isDatabaseReady = (): boolean => db !== null;
 export const waitForDatabase = (): Promise<void> => {
-  if (dbInitialized && db !== null) return Promise.resolve();
-  if (dbInitPromise) return dbInitPromise;
-  return Promise.reject(new Error('[Database] Not initialized and no init in progress'));
+  if (db) return Promise.resolve();
+  return dbInitPromise ?? Promise.reject(new Error('Local storage is not initialized.'));
 };
 
-// Mock database for web platform
-const createMockDb = () => {
-  const storage: any = {};
-  
-  return {
-    execAsync: async () => {
-      console.log('[Database] Mock execAsync called (web platform)');
-    },
-    runAsync: async (query: string, params?: any[]) => {
-      console.log('[Database] Mock runAsync called (web platform):', query);
-      return { changes: 0, lastInsertRowId: 0 };
-    },
-    getFirstAsync: async (query: string, params?: any[]) => {
-      console.log('[Database] Mock getFirstAsync called (web platform):', query);
-      
-      // Handle profile query
-      if (query.includes('profile')) {
-        return storage.profile || { id: 'default', name: 'User', email: '', isPremium: 0 };
-      }
-      
-      return null;
-    },
-    getAllAsync: async (query: string, params?: any[]) => {
-      console.log('[Database] Mock getAllAsync called (web platform):', query);
-      
-      // Handle different queries
-      if (query.includes('affirmations')) {
-        return storage.affirmations || [];
-      }
-      if (query.includes('habits')) {
-        return storage.habits || [];
-      }
-      if (query.includes('journal_entries')) {
-        return storage.journalEntries || [];
-      }
-      if (query.includes('habit_completions')) {
-        return storage.habitCompletions || [];
-      }
-      
-      return [];
-    },
-  };
+const requireDb = (caller: string): SQLiteDatabase => {
+  if (!db) throw new Error(`Local storage is unavailable (${caller}). Please restart or retry.`);
+  return db;
 };
 
-/**
- * Internal: get the DB instance with full observability.
- * Logs a warning with caller context if DB is not ready.
- * Returns null — callers must check. Never throws.
- */
-const requireDb = (caller: string): any => {
-  if (db !== null) return db;
-  if (dbInitFailed) {
-    console.error(`[Database] ${caller}: DB init previously failed — call initDatabase() to retry`);
-  } else {
-    console.warn(`[Database] ${caller}: called before initialization completed`);
-  }
-  return null;
-};
-
-/**
- * Initialize the database and create tables.
- * Tracks init state and supports retry via retryDatabaseInit().
- */
 export const initDatabase = async (): Promise<void> => {
-  // If already initialized successfully, no-op
-  if (dbInitialized && db !== null) return;
-
-  // If an init is already in progress, wait for it
+  if (db) return;
   if (dbInitPromise) return dbInitPromise;
-
   dbInitPromise = (async () => {
+    let connection: SQLiteDatabase | null = null;
     try {
-      console.log('[Database] Initializing SQLite database...');
-      dbInitFailed = false;
-
-      if (Platform.OS === 'web') {
-        console.log('[Database] Web platform — using mock database');
-        db = createMockDb();
-        dbInitialized = true;
-        console.log('[Database] Mock database ready');
-        return;
-      }
-
-      let SQLite: any;
-      try {
-        SQLite = await import('expo-sqlite');
-      } catch (importErr) {
-        console.warn('[Database] expo-sqlite import failed:', importErr);
-        dbInitFailed = true;
-        dbInitPromise = null;
-        return;
-      }
-
-      try {
-        db = await SQLite.openDatabaseAsync(DB_NAME);
-      } catch (openErr) {
-        console.warn('[Database] openDatabaseAsync failed:', openErr);
-        dbInitFailed = true;
-        db = null;
-        dbInitPromise = null;
-        return;
-      }
-
-      try {
-        await db.execAsync(`
+      const SQLite = await import('expo-sqlite');
+      connection = await SQLite.openDatabaseAsync(DB_NAME);
+      // A missing table distinguishes first installation from an existing user
+      // who has deliberately removed all their habits.
+      const existingHabits = await connection.getFirstAsync(
+        "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'habits'"
+      );
+      const existingAffirmations = await connection.getFirstAsync(
+        "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'affirmations'"
+      );
+      await connection.execAsync('PRAGMA foreign_keys = ON;');
+        await connection.execAsync(`
           PRAGMA journal_mode = WAL;
           
           -- Affirmations table
@@ -200,35 +100,52 @@ export const initDatabase = async (): Promise<void> => {
           CREATE INDEX IF NOT EXISTS idx_affirmations_order ON affirmations(orderIndex);
           CREATE INDEX IF NOT EXISTS idx_habits_order ON habits(orderIndex);
         `);
-      } catch (schemaErr) {
-        console.warn('[Database] schema setup failed:', schemaErr);
-        dbInitFailed = true;
-        dbInitPromise = null;
-        return;
-      }
 
-      dbInitialized = true;
-      console.log('[Database] SQLite database ready');
+      await connection.execAsync('CREATE TABLE IF NOT EXISTS app_metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL);');
+      await connection.withTransactionAsync(async () => {
+        const seeded = await connection!.getFirstAsync("SELECT value FROM app_metadata WHERE key = 'initial_habits'");
+        if (!seeded && !existingHabits) {
+          const defaults = [
+            ['Morning meditation', '#10B981'],
+            ['Exercise', '#3B82F6'],
+            ['Read 10 pages', '#F59E0B'],
+          ];
+          for (let i = 0; i < defaults.length; i++) {
+            await connection!.runAsync(
+              'INSERT OR IGNORE INTO habits (id, title, color, isRepeating, orderIndex) VALUES (?, ?, ?, 1, ?)',
+              [`starter_habit_${i}`, defaults[i][0], defaults[i][1], i]
+            );
+          }
+        }
+        await connection!.runAsync("INSERT OR IGNORE INTO app_metadata (key, value) VALUES ('initial_habits', '1')");
+        const affirmationsSeeded = await connection!.getFirstAsync("SELECT value FROM app_metadata WHERE key = 'initial_affirmations'");
+        if (!affirmationsSeeded && !existingAffirmations) {
+          for (let i = 0; i < 5; i++) {
+            await connection!.runAsync(
+              'INSERT OR IGNORE INTO affirmations (id, text, isCustom, isRepeating, orderIndex) VALUES (?, ?, 0, 1, ?)',
+              [`starter_affirmation_${i}`, DEFAULT_AFFIRMATIONS[i], i]
+            );
+          }
+        }
+        await connection!.runAsync("INSERT OR IGNORE INTO app_metadata (key, value) VALUES ('initial_affirmations', '1')");
+        await connection!.runAsync("INSERT OR IGNORE INTO profile (id, name, email, isPremium) VALUES ('default', 'User', '', 0)");
+      });
+      db = connection;
     } catch (error) {
-      dbInitFailed = true;
-      dbInitPromise = null; // allow retry on next call
-      console.error('[Database] Initialization failed:', error);
-      // Do NOT re-throw — app continues, callers get warned via requireDb()
+      if (connection) await connection.closeAsync().catch(() => {});
+      throw error;
     }
   })();
-
-  return dbInitPromise;
+  try {
+    await dbInitPromise;
+  } finally {
+    dbInitPromise = null;
+  }
 };
 
-/**
- * Retry database initialization after a failure.
- * Safe to call multiple times — no-ops if already initialized.
- */
 export const retryDatabaseInit = async (): Promise<boolean> => {
-  if (dbInitialized && db !== null) return true;
-  dbInitPromise = null; // clear failed promise so initDatabase re-runs
   await initDatabase();
-  return dbInitialized && db !== null;
+  return isDatabaseReady();
 };
 
 // ============================================================================
@@ -237,13 +154,11 @@ export const retryDatabaseInit = async (): Promise<boolean> => {
 
 export const getAllAffirmations = async () => {
   const database = requireDb('getAllAffirmations');
-  if (!database) return [];
   return await database.getAllAsync('SELECT * FROM affirmations ORDER BY orderIndex ASC, createdAt DESC');
 };
 
 export const getAffirmationById = async (id: string) => {
   const database = requireDb('getAffirmationById');
-  if (!database) return null;
   return await database.getFirstAsync('SELECT * FROM affirmations WHERE id = ?', [id]);
 };
 
@@ -256,7 +171,6 @@ export const createAffirmation = async (affirmation: {
   orderIndex?: number;
 }) => {
   const database = requireDb('createAffirmation');
-  if (!database) return affirmation;
   await database.runAsync(
     'INSERT INTO affirmations (id, text, isCustom, isFavorite, isRepeating, orderIndex) VALUES (?, ?, ?, ?, ?, ?)',
     [
@@ -278,7 +192,6 @@ export const updateAffirmation = async (id: string, updates: {
   orderIndex?: number;
 }) => {
   const database = requireDb('updateAffirmation');
-  if (!database) return;
   const fields: string[] = [];
   const values: any[] = [];
   
@@ -310,7 +223,6 @@ export const updateAffirmation = async (id: string, updates: {
 
 export const deleteAffirmation = async (id: string) => {
   const database = requireDb('deleteAffirmation');
-  if (!database) return;
   await database.runAsync('DELETE FROM affirmations WHERE id = ?', [id]);
 };
 
@@ -320,13 +232,11 @@ export const deleteAffirmation = async (id: string) => {
 
 export const getAllHabits = async () => {
   const database = requireDb('getAllHabits');
-  if (!database) return [];
   return await database.getAllAsync('SELECT * FROM habits WHERE isActive = 1 ORDER BY orderIndex ASC, createdAt DESC');
 };
 
 export const getHabitById = async (id: string) => {
   const database = requireDb('getHabitById');
-  if (!database) return null;
   return await database.getFirstAsync('SELECT * FROM habits WHERE id = ?', [id]);
 };
 
@@ -339,7 +249,6 @@ export const createHabit = async (habit: {
   orderIndex?: number;
 }) => {
   const database = requireDb('createHabit');
-  if (!database) return habit;
   await database.runAsync(
     'INSERT INTO habits (id, title, color, isRepeating, isFavorite, orderIndex) VALUES (?, ?, ?, ?, ?, ?)',
     [
@@ -362,7 +271,6 @@ export const updateHabit = async (id: string, updates: {
   orderIndex?: number;
 }) => {
   const database = requireDb('updateHabit');
-  if (!database) return;
   const fields: string[] = [];
   const values: any[] = [];
   
@@ -398,7 +306,6 @@ export const updateHabit = async (id: string, updates: {
 
 export const deleteHabit = async (id: string) => {
   const database = requireDb('deleteHabit');
-  if (!database) return;
   await database.runAsync('UPDATE habits SET isActive = 0 WHERE id = ?', [id]);
 };
 
@@ -408,7 +315,6 @@ export const deleteHabit = async (id: string) => {
 
 export const getHabitCompletion = async (habitId: string, date: string) => {
   const database = requireDb('getHabitCompletion');
-  if (!database) return null;
   return await database.getFirstAsync(
     'SELECT * FROM habit_completions WHERE habitId = ? AND date = ?',
     [habitId, date]
@@ -417,7 +323,6 @@ export const getHabitCompletion = async (habitId: string, date: string) => {
 
 export const setHabitCompletion = async (habitId: string, date: string, completed: boolean) => {
   const database = requireDb('setHabitCompletion');
-  if (!database) return;
   const id = `${habitId}_${date}`;
   
   await database.runAsync(
@@ -430,7 +335,6 @@ export const setHabitCompletion = async (habitId: string, date: string, complete
 
 export const getHabitCompletionsForDate = async (date: string) => {
   const database = requireDb('getHabitCompletionsForDate');
-  if (!database) return [];
   return await database.getAllAsync(
     'SELECT * FROM habit_completions WHERE date = ?',
     [date]
@@ -439,7 +343,6 @@ export const getHabitCompletionsForDate = async (date: string) => {
 
 export const getHabitCompletionsForRange = async (startDate: string, endDate: string) => {
   const database = requireDb('getHabitCompletionsForRange');
-  if (!database) return [];
   return await database.getAllAsync(
     'SELECT * FROM habit_completions WHERE date >= ? AND date <= ? ORDER BY date ASC',
     [startDate, endDate]
@@ -452,19 +355,16 @@ export const getHabitCompletionsForRange = async (startDate: string, endDate: st
 
 export const getAllJournalEntries = async () => {
   const database = requireDb('getAllJournalEntries');
-  if (!database) return [];
   return await database.getAllAsync('SELECT * FROM journal_entries ORDER BY date DESC, createdAt DESC');
 };
 
 export const getJournalEntryById = async (id: string) => {
   const database = requireDb('getJournalEntryById');
-  if (!database) return null;
   return await database.getFirstAsync('SELECT * FROM journal_entries WHERE id = ?', [id]);
 };
 
 export const getJournalEntriesForDate = async (date: string) => {
   const database = requireDb('getJournalEntriesForDate');
-  if (!database) return [];
   return await database.getAllAsync('SELECT * FROM journal_entries WHERE date = ?', [date]);
 };
 
@@ -477,7 +377,6 @@ export const createJournalEntry = async (entry: {
   date: string;
 }) => {
   const database = requireDb('createJournalEntry');
-  if (!database) return entry;
   await database.runAsync(
     'INSERT INTO journal_entries (id, content, photoUri, audioUri, affirmationText, date, isFavorite) VALUES (?, ?, ?, ?, ?, ?, ?)',
     [entry.id, entry.content, entry.photoUri || null, entry.audioUri || null, entry.affirmationText || null, entry.date, 0]
@@ -493,7 +392,6 @@ export const updateJournalEntry = async (id: string, updates: {
   isFavorite?: boolean;
 }) => {
   const database = requireDb('updateJournalEntry');
-  if (!database) return;
   const fields: string[] = [];
   const values: any[] = [];
   
@@ -529,7 +427,6 @@ export const updateJournalEntry = async (id: string, updates: {
 
 export const deleteJournalEntry = async (id: string) => {
   const database = requireDb('deleteJournalEntry');
-  if (!database) return;
   await database.runAsync('DELETE FROM journal_entries WHERE id = ?', [id]);
 };
 
@@ -539,16 +436,15 @@ export const deleteJournalEntry = async (id: string) => {
 
 export const getProfile = async () => {
   const database = requireDb('getProfile');
-  if (!database) return null;
-  let profile = await database.getFirstAsync('SELECT * FROM profile WHERE id = ?', ['default']);
+  let profile = await database.getFirstAsync<{ id: string; name: string; email: string; photoUri: string | null; isPremium: number }>('SELECT * FROM profile WHERE id = ?', ['default']);
   
   if (!profile) {
     // Create default profile
     await database.runAsync(
-      'INSERT INTO profile (id, name, email, isPremium) VALUES (?, ?, ?, ?)',
+      'INSERT OR IGNORE INTO profile (id, name, email, isPremium) VALUES (?, ?, ?, ?)',
       ['default', 'User', '', 0]
     );
-    profile = await database.getFirstAsync('SELECT * FROM profile WHERE id = ?', ['default']);
+    profile = await database.getFirstAsync<{ id: string; name: string; email: string; photoUri: string | null; isPremium: number }>('SELECT * FROM profile WHERE id = ?', ['default']);
   }
   
   return profile;
@@ -558,10 +454,11 @@ export const updateProfile = async (updates: {
   name?: string;
   email?: string;
   photoUri?: string;
+  profilePicture?: string;
   isPremium?: boolean;
 }) => {
   const database = requireDb('updateProfile');
-  if (!database) return;
+  await database.runAsync("INSERT OR IGNORE INTO profile (id, name, email, isPremium) VALUES ('default', 'User', '', 0)");
   const fields: string[] = [];
   const values: any[] = [];
   
@@ -573,9 +470,10 @@ export const updateProfile = async (updates: {
     fields.push('email = ?');
     values.push(updates.email);
   }
-  if (updates.photoUri !== undefined) {
+  const profilePhoto = updates.photoUri ?? updates.profilePicture;
+  if (profilePhoto !== undefined) {
     fields.push('photoUri = ?');
-    values.push(updates.photoUri || null);
+    values.push(profilePhoto || null);
   }
   if (updates.isPremium !== undefined) {
     fields.push('isPremium = ?');
@@ -599,7 +497,6 @@ export const updateProfile = async (updates: {
 
 export const getStreakData = async () => {
   const database = requireDb('getStreakData');
-  if (!database) return { currentStreak: 0, longestStreak: 0, totalCompletions: 0 };
   
   // Get all completions ordered by date
   const completions = await database.getAllAsync(`
@@ -611,37 +508,35 @@ export const getStreakData = async () => {
     ORDER BY date DESC
   `);
   
+  // Convert local calendar labels to day ordinals, avoiding UTC-date drift and
+  // 23/25-hour daylight-saving days when checking adjacency.
+  const dayOrdinal = (date: string): number => {
+    const [year, month, day] = date.split('-').map(Number);
+    return Date.UTC(year, month - 1, day) / 86400000;
+  };
+  const today = dayOrdinal(localDateKey());
+  const days = (completions as { date: string; completed: number }[])
+    .map(row => ({ day: dayOrdinal(row.date), completed: row.completed }))
+    .filter(row => Number.isFinite(row.day) && row.day <= today);
   let currentStreak = 0;
   let longestStreak = 0;
-  let tempStreak = 0;
+  let run = 0;
+  let previousDay: number | undefined;
   let totalCompletions = 0;
-  
-  const today = new Date().toISOString().split('T')[0];
-  let checkDate = new Date(today);
-  
-  // Calculate current streak
-  for (const completion of completions as any[]) {
-    const completionDate = completion.date;
-    const expectedDate = checkDate.toISOString().split('T')[0];
-    
-    if (completionDate === expectedDate) {
+  for (const row of days) {
+    totalCompletions += row.completed;
+    run = previousDay !== undefined && previousDay - row.day === 1 ? run + 1 : 1;
+    longestStreak = Math.max(longestStreak, run);
+    previousDay = row.day;
+  }
+  // Yesterday's streak remains active until the user has had today to finish.
+  if (days.length && today - days[0].day <= 1) {
+    currentStreak = 1;
+    for (let i = 1; i < days.length && days[i - 1].day - days[i].day === 1; i++) {
       currentStreak++;
-      checkDate.setDate(checkDate.getDate() - 1);
-    } else {
-      break;
     }
   }
-  
-  // Calculate longest streak and total completions
-  for (const completion of completions as any[]) {
-    totalCompletions += completion.completed;
-    tempStreak++;
-    
-    if (tempStreak > longestStreak) {
-      longestStreak = tempStreak;
-    }
-  }
-  
+
   return {
     currentStreak,
     longestStreak,
@@ -651,7 +546,6 @@ export const getStreakData = async () => {
 
 export const getCalendarData = async (startDate: string, endDate: string) => {
   const database = requireDb('getCalendarData');
-  if (!database) return [];
   
   const data = await database.getAllAsync(`
     SELECT 
@@ -672,11 +566,10 @@ export const getCalendarData = async (startDate: string, endDate: string) => {
  */
 export const clearAllData = async () => {
   const database = requireDb('clearAllData');
-  if (!database) return;
   await database.execAsync(`
     DELETE FROM affirmations;
-    DELETE FROM habits;
     DELETE FROM habit_completions;
+    DELETE FROM habits;
     DELETE FROM journal_entries;
     DELETE FROM profile;
   `);

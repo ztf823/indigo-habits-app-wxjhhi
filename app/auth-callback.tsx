@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { View, Text, ActivityIndicator, StyleSheet } from "react-native";
 import { Platform } from "react-native";
+import { brandColors } from "@/styles/commonStyles";
 
 type Status = "processing" | "success" | "error";
 
@@ -45,7 +46,7 @@ export default function AuthCallbackScreen() {
 
   return (
     <View style={styles.container}>
-      {status === "processing" && <ActivityIndicator size="large" color="#007AFF" />}
+      {status === "processing" && <ActivityIndicator size="large" color={brandColors.indigo} />}
       {status === "success" && <Text style={styles.successIcon}>✓</Text>}
       {status === "error" && <Text style={styles.errorIcon}>✗</Text>}
       <Text style={styles.message}>{message}</Text>

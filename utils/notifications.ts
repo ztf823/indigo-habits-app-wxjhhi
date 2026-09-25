@@ -1,426 +1,130 @@
-
-/**
- * Notification utilities for Indigo Habits
- * Handles local notifications with custom Tibetan bowl chime sound
- */
-
+/** Local reminders use the device's default notification sound. */
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// Storage keys
 const DAILY_HABITS_REMINDER_KEY = 'dailyHabitsReminder';
 const JOURNAL_REMINDER_KEY = 'journalReminder';
 const HABIT_REMINDERS_KEY = 'habitReminders';
-
-// Notification IDs
 const DAILY_HABITS_NOTIFICATION_ID = 'daily-habits-reminder';
 const JOURNAL_NOTIFICATION_ID = 'journal-reminder';
+const CHANNEL_ID = 'habits-reminders';
 
-export interface ReminderSettings {
-  enabled: boolean;
-  time: string; // HH:MM format
-}
+export interface ReminderSettings { enabled: boolean; time: string; }
+export interface HabitReminder { habitId: string; time: string; }
 
-export interface HabitReminder {
-  habitId: string;
-  time: string; // HH:MM format
-}
-
-/**
- * Initialize notifications and set up the handler
- */
-export const initializeNotifications = async () => {
-  try {
-    console.log('[Notifications] Initializing notification system...');
-
-    // Each setup call is individually guarded so a failure in one doesn't
-    // prevent the rest from running and no exception escapes to the native bridge
-    try {
-      Notifications.setNotificationHandler({
-        handleNotification: async () => ({
-          shouldShowAlert: true,
-          shouldPlaySound: true,
-          shouldSetBadge: false,
-        }),
-      });
-    } catch (e) {
-      console.warn('[Notifications] setNotificationHandler failed:', e);
-    }
-
-    try {
-      Notifications.addNotificationReceivedListener((notification) => {
-        console.log('[Notifications] Notification received');
-      });
-    } catch (e) {
-      console.warn('[Notifications] addNotificationReceivedListener failed:', e);
-    }
-
-    try {
-      Notifications.addNotificationResponseReceivedListener((response) => {
-        console.log('[Notifications] User tapped notification');
-      });
-    } catch (e) {
-      console.warn('[Notifications] addNotificationResponseReceivedListener failed:', e);
-    }
-
-    // Request permissions
-    const { status: existingStatus } = await Notifications.getPermissionsAsync();
-    let finalStatus = existingStatus;
-    
-    if (existingStatus !== 'granted') {
-      const { status } = await Notifications.requestPermissionsAsync();
-      finalStatus = status;
-    }
-    
-    if (finalStatus !== 'granted') {
-      console.log('[Notifications] Permission not granted');
-      return false;
-    }
-
-    // Set up notification channel for Android
+let initialized = false;
+/** Set up foreground delivery without requesting permission on app launch. */
+export const initializeNotifications = async (): Promise<boolean> => {
+  if (Platform.OS === 'web') return false;
+  if (!initialized) {
+    Notifications.setNotificationHandler({
+      handleNotification: async () => ({
+        shouldShowBanner: true, shouldShowList: true,
+        shouldPlaySound: true, shouldSetBadge: false,
+      }),
+    });
     if (Platform.OS === 'android') {
-      await Notifications.setNotificationChannelAsync('habits-reminders', {
-        name: 'Habits Reminders',
-        importance: Notifications.AndroidImportance.HIGH,
-        sound: 'default',
-        vibrationPattern: [0, 250, 250, 250],
-        lightColor: '#4F46E5',
+      await Notifications.setNotificationChannelAsync(CHANNEL_ID, {
+        name: 'Habit reminders', importance: Notifications.AndroidImportance.HIGH,
+        sound: 'default', vibrationPattern: [0, 250, 250, 250], lightColor: '#2637D9',
       });
     }
+    initialized = true;
+  }
+  return true;
+};
 
-    console.log('[Notifications] Notification system initialized successfully');
-    return true;
-  } catch (error) {
-    console.warn('[Notifications] Error initializing notifications (non-fatal):', error);
-    return false;
+const ensurePermission = async () => {
+  if (!await initializeNotifications()) throw new Error('Reminders are available in the iOS and Android app.');
+  let permission = await Notifications.getPermissionsAsync();
+  if (!permission.granted && permission.canAskAgain) {
+    permission = await Notifications.requestPermissionsAsync();
+  }
+  const provisional = permission.ios?.status === Notifications.IosAuthorizationStatus.PROVISIONAL;
+  if (!permission.granted && !provisional) {
+    throw new Error('Allow notifications for Indigo Habits in your device Settings, then try again.');
   }
 };
 
-/**
- * Play Tibetan bowl chime sound
- * 🚀 PREVIEW MODE: Uses the same chime as habit completion
- */
-export const playTibetanChime = async () => {
-  try {
-    console.log('[Notifications] 🚀 PREVIEW MODE: Playing soft Tibetan bowl chime...');
-    
-    // In production, this would play an actual audio file
-    // For now, we just log it
-    console.log('[Notifications] 🚀 PREVIEW MODE: Tibetan bowl chime played successfully');
-  } catch (error) {
-    console.error('[Notifications] Error playing chime:', error);
-  }
+const parseTime = (time: string) => {
+  if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(time)) throw new Error('Choose a valid reminder time.');
+  const [hour, minute] = time.split(':').map(Number);
+  return { hour, minute };
 };
 
-/**
- * Schedule daily habits reminder
- */
-export const scheduleDailyHabitsReminder = async (time: string) => {
-  try {
-    console.log('[Notifications] Scheduling daily habits reminder for', time);
-    
-    // Cancel existing notification
-    try {
-      await Notifications.cancelScheduledNotificationAsync(DAILY_HABITS_NOTIFICATION_ID);
-    } catch (cancelError) {
-      console.warn('[Notifications] Could not cancel daily habits notification (may not exist):', cancelError);
-    }
-    
-    // Parse time (HH:MM format)
-    const [hours, minutes] = time.split(':').map(Number);
-    
-    // Schedule new notification
-    try {
-      await Notifications.scheduleNotificationAsync({
-        identifier: DAILY_HABITS_NOTIFICATION_ID,
-        content: {
-          title: 'Time for your daily habits! 🌟',
-          body: 'Complete your habits to build your streak',
-          sound: 'default',
-          data: { type: 'daily-habits' },
-        },
-        trigger: {
-          type: Notifications.SchedulableTriggerInputTypes.CALENDAR,
-          hour: hours,
-          minute: minutes,
-          repeats: true,
-        },
-      });
-      console.log('[Notifications] Daily habits reminder scheduled successfully');
-    } catch (scheduleError) {
-      console.warn('[Notifications] Could not schedule daily habits notification:', scheduleError);
-    }
-  } catch (error) {
-    console.warn('[Notifications] Error in scheduleDailyHabitsReminder:', error);
-  }
+const schedule = async (identifier: string, time: string, title: string, body: string, data: Record<string, string>) => {
+  const { hour, minute } = parseTime(time);
+  await ensurePermission();
+  // A stable identifier replaces this reminder without duplicating daily alerts.
+  // Do not cancel first: a failed replacement should leave the previous reminder intact.
+  await Notifications.scheduleNotificationAsync({
+    identifier, content: { title, body, sound: 'default', data },
+    trigger: { type: Notifications.SchedulableTriggerInputTypes.DAILY, hour, minute, channelId: CHANNEL_ID },
+  });
 };
 
-/**
- * Cancel daily habits reminder
- */
-export const cancelDailyHabitsReminder = async () => {
-  try {
-    await Notifications.cancelScheduledNotificationAsync(DAILY_HABITS_NOTIFICATION_ID);
-    console.log('[Notifications] Daily habits reminder cancelled');
-  } catch (error) {
-    console.error('[Notifications] Error cancelling daily habits reminder:', error);
-  }
-};
+export const scheduleDailyHabitsReminder = (time: string) => schedule(
+  DAILY_HABITS_NOTIFICATION_ID, time, 'Time for your daily habits! 🌟',
+  'Complete your habits to build your streak', { type: 'daily-habits' },
+);
+export const cancelDailyHabitsReminder = () => Notifications.cancelScheduledNotificationAsync(DAILY_HABITS_NOTIFICATION_ID);
+export const scheduleJournalReminder = (time: string) => schedule(
+  JOURNAL_NOTIFICATION_ID, time, 'Time to journal 📝',
+  'Reflect on your day and capture your thoughts', { type: 'journal' },
+);
+export const cancelJournalReminder = () => Notifications.cancelScheduledNotificationAsync(JOURNAL_NOTIFICATION_ID);
+export const scheduleHabitReminder = (habitId: string, habitTitle: string, time: string) => schedule(
+  `habit-${habitId}`, time, `Time for: ${habitTitle} ⏰`,
+  'Complete this habit to maintain your streak', { type: 'habit', habitId },
+);
+export const cancelHabitReminder = (habitId: string) => Notifications.cancelScheduledNotificationAsync(`habit-${habitId}`);
 
-/**
- * Schedule journal reminder
- */
-export const scheduleJournalReminder = async (time: string) => {
-  try {
-    console.log('[Notifications] Scheduling journal reminder for', time);
-    
-    // Cancel existing notification
-    try {
-      await Notifications.cancelScheduledNotificationAsync(JOURNAL_NOTIFICATION_ID);
-    } catch (cancelError) {
-      console.warn('[Notifications] Could not cancel journal notification (may not exist):', cancelError);
-    }
-    
-    // Parse time (HH:MM format)
-    const [hours, minutes] = time.split(':').map(Number);
-    
-    // Schedule new notification
-    try {
-      await Notifications.scheduleNotificationAsync({
-        identifier: JOURNAL_NOTIFICATION_ID,
-        content: {
-          title: 'Time to journal 📝',
-          body: 'Reflect on your day and capture your thoughts',
-          sound: 'default',
-          data: { type: 'journal' },
-        },
-        trigger: {
-          type: Notifications.SchedulableTriggerInputTypes.CALENDAR,
-          hour: hours,
-          minute: minutes,
-          repeats: true,
-        },
-      });
-      console.log('[Notifications] Journal reminder scheduled successfully');
-    } catch (scheduleError) {
-      console.warn('[Notifications] Could not schedule journal notification:', scheduleError);
-    }
-  } catch (error) {
-    console.warn('[Notifications] Error in scheduleJournalReminder:', error);
-  }
+const readSettings = async (key: string, fallbackTime: string): Promise<ReminderSettings> => {
+  const raw = await AsyncStorage.getItem(key);
+  if (!raw) return { enabled: false, time: fallbackTime };
+  const settings = JSON.parse(raw);
+  if (typeof settings.enabled !== 'boolean' || typeof settings.time !== 'string') throw new Error('Reminder settings could not be read.');
+  parseTime(settings.time);
+  return settings;
 };
+export const getDailyHabitsReminderSettings = () => readSettings(DAILY_HABITS_REMINDER_KEY, '09:00');
+export const getJournalReminderSettings = () => readSettings(JOURNAL_REMINDER_KEY, '20:00');
 
-/**
- * Cancel journal reminder
- */
-export const cancelJournalReminder = async () => {
-  try {
-    await Notifications.cancelScheduledNotificationAsync(JOURNAL_NOTIFICATION_ID);
-    console.log('[Notifications] Journal reminder cancelled');
-  } catch (error) {
-    console.error('[Notifications] Error cancelling journal reminder:', error);
-  }
-};
-
-/**
- * Schedule individual habit reminder
- */
-export const scheduleHabitReminder = async (habitId: string, habitTitle: string, time: string) => {
-  try {
-    console.log('[Notifications] Scheduling habit reminder for', habitTitle, 'at', time);
-    
-    const notificationId = `habit-${habitId}`;
-    
-    // Cancel existing notification for this habit
-    try {
-      await Notifications.cancelScheduledNotificationAsync(notificationId);
-    } catch (cancelError) {
-      console.warn('[Notifications] Could not cancel habit notification (may not exist):', cancelError);
-    }
-    
-    // Parse time (HH:MM format)
-    const [hours, minutes] = time.split(':').map(Number);
-    
-    // Schedule new notification
-    try {
-      await Notifications.scheduleNotificationAsync({
-        identifier: notificationId,
-        content: {
-          title: `Time for: ${habitTitle} ⏰`,
-          body: 'Complete this habit to maintain your streak',
-          sound: 'default',
-          data: { type: 'habit', habitId },
-        },
-        trigger: {
-          type: Notifications.SchedulableTriggerInputTypes.CALENDAR,
-          hour: hours,
-          minute: minutes,
-          repeats: true,
-        },
-      });
-      console.log('[Notifications] Habit reminder scheduled successfully');
-    } catch (scheduleError) {
-      console.warn('[Notifications] Could not schedule habit notification:', scheduleError);
-    }
-  } catch (error) {
-    console.warn('[Notifications] Error in scheduleHabitReminder:', error);
-  }
-};
-
-/**
- * Cancel individual habit reminder
- */
-export const cancelHabitReminder = async (habitId: string) => {
-  try {
-    const notificationId = `habit-${habitId}`;
-    await Notifications.cancelScheduledNotificationAsync(notificationId);
-    console.log('[Notifications] Habit reminder cancelled for', habitId);
-  } catch (error) {
-    console.error('[Notifications] Error cancelling habit reminder:', error);
-  }
-};
-
-/**
- * Get daily habits reminder settings
- */
-export const getDailyHabitsReminderSettings = async (): Promise<ReminderSettings> => {
-  try {
-    const settings = await AsyncStorage.getItem(DAILY_HABITS_REMINDER_KEY);
-    if (settings) {
-      return JSON.parse(settings);
-    }
-    return { enabled: false, time: '09:00' };
-  } catch (error) {
-    console.error('[Notifications] Error getting daily habits reminder settings:', error);
-    return { enabled: false, time: '09:00' };
-  }
-};
-
-/**
- * Save daily habits reminder settings
- */
 export const saveDailyHabitsReminderSettings = async (settings: ReminderSettings) => {
-  try {
-    await AsyncStorage.setItem(DAILY_HABITS_REMINDER_KEY, JSON.stringify(settings));
-    
-    if (settings.enabled) {
-      await scheduleDailyHabitsReminder(settings.time);
-    } else {
-      await cancelDailyHabitsReminder();
-    }
-    
-    console.log('[Notifications] Daily habits reminder settings saved');
-  } catch (error) {
-    console.error('[Notifications] Error saving daily habits reminder settings:', error);
-    throw error;
-  }
+  parseTime(settings.time);
+  if (settings.enabled) await scheduleDailyHabitsReminder(settings.time);
+  else await cancelDailyHabitsReminder();
+  await AsyncStorage.setItem(DAILY_HABITS_REMINDER_KEY, JSON.stringify(settings));
 };
-
-/**
- * Get journal reminder settings
- */
-export const getJournalReminderSettings = async (): Promise<ReminderSettings> => {
-  try {
-    const settings = await AsyncStorage.getItem(JOURNAL_REMINDER_KEY);
-    if (settings) {
-      return JSON.parse(settings);
-    }
-    return { enabled: false, time: '20:00' };
-  } catch (error) {
-    console.error('[Notifications] Error getting journal reminder settings:', error);
-    return { enabled: false, time: '20:00' };
-  }
-};
-
-/**
- * Save journal reminder settings
- */
 export const saveJournalReminderSettings = async (settings: ReminderSettings) => {
-  try {
-    await AsyncStorage.setItem(JOURNAL_REMINDER_KEY, JSON.stringify(settings));
-    
-    if (settings.enabled) {
-      await scheduleJournalReminder(settings.time);
-    } else {
-      await cancelJournalReminder();
-    }
-    
-    console.log('[Notifications] Journal reminder settings saved');
-  } catch (error) {
-    console.error('[Notifications] Error saving journal reminder settings:', error);
-    throw error;
-  }
+  parseTime(settings.time);
+  if (settings.enabled) await scheduleJournalReminder(settings.time);
+  else await cancelJournalReminder();
+  await AsyncStorage.setItem(JOURNAL_REMINDER_KEY, JSON.stringify(settings));
 };
-
-/**
- * Get all habit reminders
- */
 export const getHabitReminders = async (): Promise<HabitReminder[]> => {
-  try {
-    const reminders = await AsyncStorage.getItem(HABIT_REMINDERS_KEY);
-    if (reminders) {
-      return JSON.parse(reminders);
-    }
-    return [];
-  } catch (error) {
-    console.error('[Notifications] Error getting habit reminders:', error);
-    return [];
+  const raw = await AsyncStorage.getItem(HABIT_REMINDERS_KEY);
+  if (!raw) return [];
+  const reminders = JSON.parse(raw);
+  if (!Array.isArray(reminders)) throw new Error('Habit reminders could not be read.');
+  for (const reminder of reminders) {
+    if (typeof reminder.habitId !== 'string' || typeof reminder.time !== 'string') throw new Error('Habit reminder could not be read.');
+    parseTime(reminder.time);
   }
+  return reminders;
 };
-
-/**
- * Save habit reminder
- */
 export const saveHabitReminder = async (habitId: string, time: string, habitTitle: string) => {
-  try {
-    const reminders = await getHabitReminders();
-    const existingIndex = reminders.findIndex(r => r.habitId === habitId);
-    
-    if (existingIndex >= 0) {
-      reminders[existingIndex].time = time;
-    } else {
-      reminders.push({ habitId, time });
-    }
-    
-    await AsyncStorage.setItem(HABIT_REMINDERS_KEY, JSON.stringify(reminders));
-    await scheduleHabitReminder(habitId, habitTitle, time);
-    
-    console.log('[Notifications] Habit reminder saved');
-  } catch (error) {
-    console.error('[Notifications] Error saving habit reminder:', error);
-    throw error;
-  }
+  const reminders = await getHabitReminders();
+  const next = [...reminders.filter(r => r.habitId !== habitId), { habitId, time }];
+  await scheduleHabitReminder(habitId, habitTitle, time);
+  await AsyncStorage.setItem(HABIT_REMINDERS_KEY, JSON.stringify(next));
 };
-
-/**
- * Remove habit reminder
- */
 export const removeHabitReminder = async (habitId: string) => {
-  try {
-    const reminders = await getHabitReminders();
-    const filtered = reminders.filter(r => r.habitId !== habitId);
-    
-    await AsyncStorage.setItem(HABIT_REMINDERS_KEY, JSON.stringify(filtered));
-    await cancelHabitReminder(habitId);
-    
-    console.log('[Notifications] Habit reminder removed');
-  } catch (error) {
-    console.error('[Notifications] Error removing habit reminder:', error);
-    throw error;
-  }
+  const reminders = await getHabitReminders();
+  await cancelHabitReminder(habitId);
+  await AsyncStorage.setItem(HABIT_REMINDERS_KEY, JSON.stringify(reminders.filter(r => r.habitId !== habitId)));
 };
-
-/**
- * Get habit reminder time
- */
 export const getHabitReminderTime = async (habitId: string): Promise<string | null> => {
-  try {
-    const reminders = await getHabitReminders();
-    const reminder = reminders.find(r => r.habitId === habitId);
-    return reminder ? reminder.time : null;
-  } catch (error) {
-    console.error('[Notifications] Error getting habit reminder time:', error);
-    return null;
-  }
+  return (await getHabitReminders()).find(r => r.habitId === habitId)?.time ?? null;
 };

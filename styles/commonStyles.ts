@@ -1,9 +1,20 @@
 
 import { StyleSheet, ViewStyle, TextStyle } from 'react-native';
 
+// Brand colors are reserved for Indigo Habits surfaces and action controls.
+// Keep success, warning, and destructive feedback colors semantic.
+export const brandColors = {
+  navy: '#0B0B5C',
+  indigo: '#2637D9',
+  electricBlue: '#149BFF',
+  flame: '#35D9F3',
+  softIndigo: '#E8ECFF',
+  midnight: '#07073D',
+};
+
 export const colors = {
-  primary: '#4F46E5',        // Indigo
-  secondary: '#7DD3FC',      // Sky blue
+  primary: '#2637D9',        // Blue flame indigo
+  secondary: '#35D9F3',      // Flame cyan
   accent: '#10B981',         // Green for completed habits
   accentGlow: '#10B98140',   // Soft green glow (25% opacity)
   error: '#EF4444',          // Red for missed habits
@@ -13,25 +24,25 @@ export const colors = {
   textSecondary: '#6B7280',  // Secondary gray text
   iconSilver: '#9CA3AF',     // Silver icons
   border: '#E5E7EB',         // Light border
-  gradientStart: '#4F46E5',  // Indigo gradient start
-  gradientEnd: '#7DD3FC',    // Sky blue gradient end
+  gradientStart: '#0B0B5C',  // Deep flame indigo
+  gradientEnd: '#149BFF',    // Electric blue
 };
 
 // Dark mode colors - indigo-dark base with silver icons and soft glows
 export const darkColors = {
-  primary: '#6366F1',        // Lighter indigo for dark mode
-  secondary: '#7DD3FC',      // Sky blue
+  primary: '#35D9F3',        // Flame cyan for dark mode
+  secondary: '#149BFF',      // Electric blue
   accent: '#10B981',         // Green for completed habits
   accentGlow: '#10B98160',   // Soft green glow (38% opacity for dark mode)
   error: '#EF4444',          // Red for missed habits
-  background: '#1E1B4B',     // Indigo-dark base
-  card: '#2D2A5E',           // Slightly lighter indigo for cards
+  background: '#0B0B5C',     // Deep flame indigo base
+  card: '#151778',           // Slightly lighter indigo card
   text: '#E5E7EB',           // Light gray text (readable on dark)
   textSecondary: '#9CA3AF',  // Silver text
   iconSilver: '#C0C0C0',     // Silver icons
-  border: '#3D3A6E',         // Darker border
-  gradientStart: '#1E1B4B',  // Dark indigo gradient start
-  gradientEnd: '#312E81',    // Slightly lighter indigo gradient end
+  border: '#2637D9',         // Blue flame border
+  gradientStart: '#0B0B5C',  // Deep flame indigo
+  gradientEnd: '#2637D9',    // Flame indigo
 };
 
 export function getColors(isDark: boolean) {

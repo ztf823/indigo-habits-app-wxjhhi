@@ -9,10 +9,17 @@ import * as Haptics from "expo-haptics";
 import { LinearGradient } from "expo-linear-gradient";
 import React, { useState, useEffect, useCallback } from "react";
 import * as ImagePicker from "expo-image-picker";
-import { getOfferings, purchasePackage, restorePurchases, getCustomerInfo } from "@/utils/revenueCat";
+import { getOfferings, purchasePackage, restorePurchases, getCustomerInfo, selectMonthlyPackage } from "@/utils/revenueCat";
 import { RemindersOverlay } from "@/components/RemindersOverlay";
-import { initializeNotifications } from "@/utils/notifications";
 import { exportJournalsToPdf, getExportPreview } from "@/utils/pdfExport";
+import { persistPickedImage } from "@/utils/media";
+
+type LocalProfile = {
+  name?: string;
+  email?: string;
+  profilePicture?: string;
+  isPremium?: number;
+};
 
 const styles = StyleSheet.create({
   container: {
@@ -207,15 +214,27 @@ export default function ProfileScreen() {
   const [loading, setLoading] = useState(true);
   const [isPremium, setIsPremium] = useState(false);
   const [showRemindersOverlay, setShowRemindersOverlay] = useState(false);
+  const [subscriptionPrice, setSubscriptionPrice] = useState<string | null>(null);
+  const [isPurchasing, setIsPurchasing] = useState(false);
   const { isDark, toggleTheme } = useTheme();
   const colors = getColors(isDark);
 
   const loadProfileData = useCallback(async () => {
     try {
       setLoading(true);
-      const profileData = await getProfile();
+      const profileData = await getProfile() as LocalProfile | null;
       setProfile(profileData);
       setIsPremium(profileData?.isPremium === 1);
+
+      const entitlement = await getCustomerInfo();
+      if (entitlement.status !== 'unavailable') {
+        const hasPremium = entitlement.isPro;
+        if ((profileData?.isPremium === 1) !== hasPremium) {
+          await updateProfile({ isPremium: hasPremium });
+          setProfile((current: LocalProfile | null) => current ? { ...current, isPremium: hasPremium ? 1 : 0 } : current);
+        }
+        setIsPremium(hasPremium);
+      }
     } catch (error) {
       console.error('Failed to load profile:', error);
     } finally {
@@ -226,6 +245,16 @@ export default function ProfileScreen() {
   useEffect(() => {
     loadProfileData();
   }, [loadProfileData]);
+
+  const loadSubscriptionPrice = useCallback(async () => {
+    const offering = await getOfferings();
+    const monthlyPackage = offering ? selectMonthlyPackage(offering) : null;
+    setSubscriptionPrice(monthlyPackage?.product.priceString ?? null);
+  }, []);
+
+  useEffect(() => {
+    loadSubscriptionPrice();
+  }, [loadSubscriptionPrice]);
 
   const handlePickImage = async () => {
     try {
@@ -239,7 +268,7 @@ export default function ProfileScreen() {
       });
 
       if (!result.canceled && result.assets[0]) {
-        await saveProfilePicture(result.assets[0].uri);
+        await saveProfilePicture(await persistPickedImage(result.assets[0].uri));
       }
     } catch (error) {
       console.error('Failed to pick image:', error);
@@ -268,25 +297,31 @@ export default function ProfileScreen() {
 
   const handleUnlockPremium = async () => {
     try {
+      setIsPurchasing(true);
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      console.log('Unlock premium tapped');
-      
-      const offerings = await getOfferings();
-      if (offerings && offerings.current) {
-        const packageToPurchase = offerings.current.availablePackages[0];
-        if (packageToPurchase) {
-          const purchaseResult = await purchasePackage(packageToPurchase);
-          if (purchaseResult) {
-            await updateProfile({ isPremium: true });
-            await loadProfileData();
-            await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-            Alert.alert('Success', 'Premium unlocked! Enjoy unlimited habits and affirmations.');
-          }
-        }
+      const offering = await getOfferings();
+      const packageToPurchase = offering ? selectMonthlyPackage(offering) : null;
+      if (!packageToPurchase) {
+        Alert.alert('Subscription Unavailable', 'Subscription options could not be loaded. Please try again later.');
+        return;
+      }
+
+      setSubscriptionPrice(packageToPurchase.product.priceString);
+      const purchaseResult = await purchasePackage(packageToPurchase);
+      if (purchaseResult.success && purchaseResult.isPro) {
+        await updateProfile({ isPremium: true });
+        setIsPremium(true);
+        setProfile((current: LocalProfile | null) => current ? { ...current, isPremium: 1 } : current);
+        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        Alert.alert('Welcome to Premium', 'Your Premium subscription is active.');
+      } else if (!purchaseResult.cancelled) {
+        Alert.alert('Purchase Failed', purchaseResult.error);
       }
     } catch (error) {
       console.error('Failed to unlock premium:', error);
       Alert.alert('Error', 'Failed to unlock premium. Please try again.');
+    } finally {
+      setIsPurchasing(false);
     }
   };
 
@@ -296,15 +331,17 @@ export default function ProfileScreen() {
       console.log('Restore purchases tapped');
       
       const result = await restorePurchases();
-      const hasPremium = result?.isPro === true;
-      
-      if (hasPremium) {
+      if (!result.success) {
+        Alert.alert('Restore Failed', result.error);
+      } else if (result.isPro) {
         await updateProfile({ isPremium: true });
-        await loadProfileData();
+        setIsPremium(true);
         await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         Alert.alert('Success', 'Premium restored successfully!');
       } else {
-        Alert.alert('No Purchases Found', 'No previous purchases were found to restore.');
+        await updateProfile({ isPremium: false });
+        setIsPremium(false);
+        Alert.alert('No Active Subscription', 'No active Premium subscription was found for this Apple ID.');
       }
     } catch (error) {
       console.error('Failed to restore purchases:', error);
@@ -362,17 +399,7 @@ export default function ProfileScreen() {
 
   const handleNotifications = async () => {
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    console.log('Notifications tapped');
-    
-    const hasPermission = await initializeNotifications();
-    if (hasPermission) {
-      setShowRemindersOverlay(true);
-    } else {
-      Alert.alert(
-        'Notifications Disabled',
-        'Please enable notifications in your device settings to use reminders.'
-      );
-    }
+    setShowRemindersOverlay(true);
   };
 
 
@@ -402,7 +429,7 @@ export default function ProfileScreen() {
   const userName = profile?.name || 'User';
   const userEmail = profile?.email || 'Keep building your habits';
   const profilePicture = profile?.profilePicture;
-  const priceText = "$4.99/month";
+  const subscriptionCta = subscriptionPrice ? `Subscribe for ${subscriptionPrice}` : 'View subscription options';
 
   return (
     <>
@@ -433,7 +460,7 @@ export default function ProfileScreen() {
                   <Text style={[styles.premiumBadgeText, { color: colors.text }]}>Unlock Premium</Text>
                 </View>
                 <Text style={[styles.premiumDescription, { color: colors.textSecondary }]}>
-                  Get unlimited affirmations and habits for just {priceText}
+                  Unlock Premium features. The App Store confirms the current price before purchase.
                 </Text>
                 <View style={styles.premiumFeatures}>
                   <View style={styles.premiumFeature}>
@@ -443,7 +470,7 @@ export default function ProfileScreen() {
                       size={20}
                       color="#10B981"
                     />
-                    <Text style={[styles.premiumFeatureText, { color: colors.text }]}>Unlimited daily affirmations</Text>
+                    <Text style={[styles.premiumFeatureText, { color: colors.text }]}>More daily affirmations</Text>
                   </View>
                   <View style={styles.premiumFeature}>
                     <IconSymbol
@@ -452,7 +479,7 @@ export default function ProfileScreen() {
                       size={20}
                       color="#10B981"
                     />
-                    <Text style={[styles.premiumFeatureText, { color: colors.text }]}>Unlimited daily habits</Text>
+                    <Text style={[styles.premiumFeatureText, { color: colors.text }]}>Up to 10 daily habits</Text>
                   </View>
                   <View style={styles.premiumFeature}>
                     <IconSymbol
@@ -470,11 +497,11 @@ export default function ProfileScreen() {
                       size={20}
                       color="#10B981"
                     />
-                    <Text style={[styles.premiumFeatureText, { color: colors.text }]}>All future features included</Text>
+                    <Text style={[styles.premiumFeatureText, { color: colors.text }]}>Premium feature access</Text>
                   </View>
                 </View>
-                <TouchableOpacity style={styles.premiumButton} onPress={handleUnlockPremium}>
-                  <Text style={styles.premiumButtonText}>Subscribe for {priceText}</Text>
+                <TouchableOpacity style={styles.premiumButton} onPress={handleUnlockPremium} disabled={isPurchasing}>
+                  {isPurchasing ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.premiumButtonText}>{subscriptionCta}</Text>}
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.restoreButton} onPress={handleRestorePurchases}>
                   <Text style={styles.restoreButtonText}>Restore Purchases</Text>
