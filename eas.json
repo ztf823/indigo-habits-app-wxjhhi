@@ -32,7 +32,8 @@
       "env": {
         "COREPACK_ENABLE_STRICT": "0"
       },
-      "pnpm": "10.14.0"
+      "pnpm": "11.19.0",
+      "node": "22.23.1"
     }
   },
   "submit": {
