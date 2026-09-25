@@ -1,16 +1,10 @@
 const { getDefaultConfig } = require('expo/metro-config');
-const { FileStore } = require('metro-cache');
 const path = require('path');
 const fs = require('fs');
 
 const config = getDefaultConfig(__dirname);
 
 config.resolver.unstable_enablePackageExports = true;
-
-// Use turborepo to restore the cache when possible
-config.cacheStores = [
-    new FileStore({ root: path.join(__dirname, 'node_modules', '.cache', 'metro') }),
-  ];
 
 // Custom server middleware to receive console.log messages from the app
 const LOG_FILE_PATH = path.join(__dirname, '.natively', 'app_console.log');
@@ -116,7 +110,7 @@ config.server.enhanceMiddleware = (middleware) => {
           const ct = typeof headers === 'object' ? (headers['Content-Type'] || headers['content-type']) : null;
           if (ct) interceptedContentType = ct;
         }
-        // Don't send headers yet if this is a JSON error — we'll rewrite it
+        // Don't send headers yet if this is a JSON error â we'll rewrite it
         if (status >= 400 && interceptedContentType && interceptedContentType.includes('application/json')) {
           return res;
         }
@@ -247,7 +241,7 @@ config.server.enhanceMiddleware = (middleware) => {
   console.error('[Metro] ' + ${escapedMessage});
 
   // Auto-reload when the compile error is fixed.
-  // Poll the bundle URL — when it returns 200, the error is resolved.
+  // Poll the bundle URL â when it returns 200, the error is resolved.
   var bundleUrl = window.location.origin + '/index.ts.bundle?platform=web&dev=true';
   var pollTimer = setInterval(function() {
     fetch(bundleUrl, { method: 'HEAD' })
