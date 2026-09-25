@@ -26,6 +26,8 @@
     "production": {
       "autoIncrement": true,
       "distribution": "store",
+      "node": "22.23.1",
+      "pnpm": "11.19.0",
       "ios": {
         "buildConfiguration": "Release"
       },
