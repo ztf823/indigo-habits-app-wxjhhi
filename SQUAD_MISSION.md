@@ -1,6 +1,6 @@
 # Indigo Habits repair mission
 
-Updated 2026-09-25. Target version: 1.0.58.
+Updated 2026-09-25. Target version: 1.0.58 (iOS build 61).
 
 ## Objective and authorization
 Repair the existing Indigo Habits app, preserve subscriptions and OS voice-to-text, use the blue-flame identity throughout, and verify before App Store review. User authorized Squad to proceed. No paid AI services and no duplicate apps/products.
@@ -26,7 +26,7 @@ Repair the existing Indigo Habits app, preserve subscriptions and OS voice-to-te
 - TypeScript and ESLint pass.
 - Retained database/streak and journal-save regression tests pass (node --test scripts/tests/*.cjs).
 - iOS JavaScript/Hermes export passes.
-- iOS native project generation passes; generated App Store icon is opaque RGB 1024x1024. Speech/microphone/photo permissions present; unused camera permission absent.
+- iOS native project generation passes with the repaired opaque 1024x1024 blue-flame icon. Speech/microphone/photo permissions present; unused camera permission absent.
 - A native project generation/export is not a signed native compilation or device test.
 
 ## Release gates still open
@@ -39,10 +39,10 @@ Repair the existing Indigo Habits app, preserve subscriptions and OS voice-to-te
 
 Do not claim the app is fully repaired or release-ready until these gates are verified. No App Store review submission or public release has been performed in this repair pass.
 
-## Handoff blocker — 2026-09-25
-- Repair commit b77dcafead0c816f694fbb05c906a9e71c41e1f1 is local; no remote branch was created.
-- Git push failed because terminal GitHub credentials are unavailable.
-- Connected GitHub app read access succeeds, but create_blob is rejected with HTTP403 `Resource not accessible by integration`. Repository user permission reports push/admin, but the integration does not have effective contents-write access.
-- Expo production build form prepared for codex/indigo-repair-1.0.58, but never confirmed because the repaired branch cannot be uploaded. No build of stale main was started.
-- Final combined iOS and web exports pass; final TypeScript, lint, and retained regression tests pass.
-- Next action: restore GitHub integration Contents write access for this existing repository (or authenticate an authorized git transport), push the repaired branch, compare remote tree to local tree b351ea6d9b869d70c2e0d7f8449a71fb3f0097bd, and start iOS build from its exact commit.
+## Build and release status — 2026-09-25
+- GitHub write access is working. The repair is on `codex/indigo-repair-1.0.58`; latest asset/build-number correction commit: `af1c3074d51ea5c2eb07a6117dc6ed2d71d4e20d`.
+- Build fixes: production EAS now pins Node 22.23.1 and pnpm 11.19.0. This avoids the pnpm 12 binary bootstrap failure and the Node 20 `node:sqlite` failure; pnpm 10 was rejected because it cannot read the existing multi-document lockfile.
+- Source iOS build number is 61. EAS remote auto-increment is enabled. A failed prebuild did consume build 60; the next cloud build must report 1.0.58 (61).
+- EAS build `c56b1f5a-df2f-449d-a8fc-d98bc98e80a8` reached native prebuild as 1.0.58 (60), then failed because the GitHub copy of the icon PNG had a CRC error. The source asset is now an opaque 1024x1024 PNG with validated CRC; local iOS prebuild passes.
+- Latest source checks pass: frozen offline install, TypeScript, ESLint, two regression tests, and local iOS prebuild. iOS/web JavaScript exports passed before the final icon re-encoding and must be rerun.
+- Next action: rerun iOS/web exports, start a cloud build from the exact latest branch commit, confirm 1.0.58 (61), and verify signed build completion. Keep App Store submission off.
