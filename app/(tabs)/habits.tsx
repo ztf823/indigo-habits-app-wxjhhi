@@ -198,7 +198,7 @@ export default function HabitsScreen() {
         id: `habit_${Date.now()}`,
         title: habitTitle.trim(),
         color: habitColor,
-        isRepeating: false, // New habits start with Daily Repeat OFF
+        isRepeating: true, // New habits appear on Home immediately and repeat daily by default
         orderIndex: habits.length,
       };
 
@@ -509,11 +509,17 @@ export default function HabitsScreen() {
     return `${hours}:${minutes}`;
   };
 
-  const formatTimeDisplay = (date: Date): string => {
-    return date.toLocaleTimeString('en-US', { 
-      hour: 'numeric', 
+  const formatTimeDisplay = (date: Date | string): string => {
+    if (typeof date === 'string') {
+      const [hours, minutes] = date.split(':').map(Number);
+      if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return date;
+      const period = hours >= 12 ? 'PM' : 'AM';
+      return `${hours % 12 || 12}:${minutes.toString().padStart(2, '0')} ${period}`;
+    }
+    return date.toLocaleTimeString('en-US', {
+      hour: 'numeric',
       minute: '2-digit',
-      hour12: true 
+      hour12: true,
     });
   };
 
@@ -669,8 +675,21 @@ export default function HabitsScreen() {
                         </View>
                       </View>
                       
-                      {/* Daily/Repeat Toggle */}
+                      {/* Reminder time and Daily/Repeat Toggle */}
                       <View style={styles.habitBottom}>
+                        {habitReminders[habit.id] && (
+                          <View style={styles.reminderTimeRow}>
+                            <IconSymbol
+                              ios_icon_name="alarm.fill"
+                              android_material_icon_name="alarm"
+                              size={16}
+                              color="#047857"
+                            />
+                            <Text style={styles.reminderTimeText}>
+                              Reminder set for {formatTimeDisplay(habitReminders[habit.id])}
+                            </Text>
+                          </View>
+                        )}
                         <TouchableOpacity
                           style={[
                             styles.repeatToggle,
@@ -1131,6 +1150,16 @@ const styles = StyleSheet.create({
   },
   habitBottom: {
     gap: 8,
+  },
+  reminderTimeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  reminderTimeText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#047857",
   },
   iconButton: {
     padding: 8,
