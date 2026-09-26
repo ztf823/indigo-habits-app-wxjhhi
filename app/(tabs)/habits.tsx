@@ -64,9 +64,6 @@ const COLORS = [
   "#EF4444", // Red
 ];
 
-// 🚀 PREVIEW MODE: Removed display limits
-const FREE_HOME_DISPLAY_LIMIT = 999999; // Effectively unlimited
-
 // Default habits matching home screen
 const DEFAULT_HABITS = [
   { title: "Morning meditation", color: "#10B981" },
@@ -82,8 +79,7 @@ export default function HabitsScreen() {
   const [affirmations, setAffirmations] = useState<Affirmation[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  // 🚀 PREVIEW MODE: Always set premium to true
-  const [isPremium, setIsPremium] = useState(true);
+  const [isPremium, setIsPremium] = useState(false);
 
   // Habit modal state
   const [habitModalVisible, setHabitModalVisible] = useState(false);
@@ -104,9 +100,8 @@ export default function HabitsScreen() {
 
   const loadPremiumStatus = useCallback(async () => {
     try {
-      // 🚀 PREVIEW MODE: Always set premium to true
-      setIsPremium(true);
-      console.log('🚀 PREVIEW MODE: Premium status forced to true for testing');
+      const profile = await getProfile();
+      setIsPremium((profile as any)?.isPremium === 1);
     } catch (error) {
       console.error("Error loading premium status:", error);
     }
@@ -195,7 +190,6 @@ export default function HabitsScreen() {
       return;
     }
 
-    // 🚀 PREVIEW MODE: No limits - create unlimited habits
     try {
       console.log("User adding new habit:", habitTitle);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -292,8 +286,7 @@ export default function HabitsScreen() {
 
       const newRepeating = habit.isRepeating === 1 ? 0 : 1;
       
-      // 🚀 PREVIEW MODE: No limits - allow unlimited repeating habits
-      console.log("🚀 PREVIEW MODE: Toggling habit daily repeat (no limits):", habitId);
+      console.log("Toggling habit daily repeat:", habitId);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
       setHabits((prev) =>
@@ -315,7 +308,6 @@ export default function HabitsScreen() {
       return;
     }
 
-    // 🚀 PREVIEW MODE: No limits - create unlimited affirmations
     try {
       console.log("User adding custom affirmation");
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -349,8 +341,7 @@ export default function HabitsScreen() {
 
       const newRepeating = affirmation.isRepeating === 1 ? 0 : 1;
       
-      // 🚀 PREVIEW MODE: No limits - allow unlimited repeating affirmations
-      console.log("🚀 PREVIEW MODE: Toggling affirmation daily repeat (no limits):", affirmationId);
+      console.log("Toggling affirmation daily repeat:", affirmationId);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
       setAffirmations((prev) =>
@@ -417,7 +408,7 @@ export default function HabitsScreen() {
 
   const openReminderModal = async (habit: Habit) => {
     try {
-      console.log("🚀 PREVIEW MODE: User tapped clock icon for habit:", habit.title);
+      console.log("User tapped reminder for habit:", habit.title);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       
       setSelectedHabitForReminder(habit);
@@ -446,7 +437,7 @@ export default function HabitsScreen() {
     if (!selectedHabitForReminder) return;
     
     try {
-      console.log("🚀 PREVIEW MODE: Saving habit reminder for:", selectedHabitForReminder.title);
+      console.log("Saving habit reminder for:", selectedHabitForReminder.title);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       
       const timeString = formatTimeToString(reminderTime);
@@ -476,7 +467,7 @@ export default function HabitsScreen() {
     if (!selectedHabitForReminder) return;
     
     try {
-      console.log("🚀 PREVIEW MODE: Removing habit reminder for:", selectedHabitForReminder.title);
+      console.log("Removing habit reminder for:", selectedHabitForReminder.title);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       
       await removeHabitReminder(selectedHabitForReminder.id);
@@ -558,11 +549,10 @@ export default function HabitsScreen() {
           <Text style={styles.headerTitle}>
             {activeTab === "habits" ? "Manage Habits" : "Manage Affirmations"}
           </Text>
-          {/* 🚀 PREVIEW MODE: Show unlimited status */}
           <Text style={styles.headerSubtitle}>
             {activeTab === "habits" 
-              ? `${habits.length} total • ${repeatingHabits} on home screen (unlimited)`
-              : `${affirmations.length} total • ${repeatingAffirmations} on home screen (unlimited)`
+              ? `${habits.length} total • ${repeatingHabits} on home screen`
+              : `${affirmations.length} total • ${repeatingAffirmations} on home screen`
             }
           </Text>
         </View>
@@ -640,7 +630,6 @@ export default function HabitsScreen() {
                           <Text style={styles.habitTitle}>{habit.title}</Text>
                         </View>
                         <View style={styles.habitActions}>
-                          {/* 🚀 PREVIEW MODE: Clock icon for individual habit reminders */}
                           <TouchableOpacity
                             onPress={() => openReminderModal(habit)}
                             style={[
@@ -922,7 +911,7 @@ export default function HabitsScreen() {
         </View>
       </Modal>
 
-      {/* Habit Reminder Modal - 🚀 PREVIEW MODE */}
+      {/* Habit Reminder Modal */}
       <Modal
         visible={reminderModalVisible}
         animationType="slide"
@@ -941,7 +930,6 @@ export default function HabitsScreen() {
           </View>
 
           <View style={styles.modalContent}>
-            {/* 🚀 PREVIEW MODE Badge */}
             <View style={styles.previewBadge}>
               <IconSymbol
                 ios_icon_name="crown.fill"
@@ -950,7 +938,7 @@ export default function HabitsScreen() {
                 color="#FFD700"
               />
               <Text style={styles.previewBadgeText}>
-                🚀 PREVIEW MODE: Pro feature unlocked
+                {isPremium ? "Premium reminder feature" : "Premium feature"}
               </Text>
             </View>
 

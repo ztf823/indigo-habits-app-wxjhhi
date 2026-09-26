@@ -19,10 +19,6 @@ import {
 } from "react-native";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
-import {
-  ExpoSpeechRecognitionModule,
-  useSpeechRecognitionEvent,
-} from "expo-speech-recognition";
 import { IconSymbol } from "@/components/IconSymbol";
 import {
   getAllAffirmations,
@@ -75,7 +71,30 @@ interface JournalEntry {
   isFavorite?: number;
 }
 
-const FREE_HOME_DISPLAY_LIMIT = 999999;
+type SpeechRecognitionModule = typeof import("expo-speech-recognition").ExpoSpeechRecognitionModule;
+
+function JournalSpeechEvents({
+  onStart,
+  onEnd,
+  onResult,
+  onError,
+}: {
+  onStart: () => void;
+  onEnd: () => void;
+  onResult: (event: any) => void;
+  onError: (event: any) => void;
+}) {
+  // Load speech recognition only while the journal composer is open. It is a
+  // native module and should not participate in the cold-start path.
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { useSpeechRecognitionEvent } = require("expo-speech-recognition") as typeof import("expo-speech-recognition");
+  useSpeechRecognitionEvent("start", onStart);
+  useSpeechRecognitionEvent("end", onEnd);
+  useSpeechRecognitionEvent("result", onResult);
+  useSpeechRecognitionEvent("error", onError);
+  return null;
+}
+
 const FREE_AFFIRMATION_LIMIT = 5;
 
 const DEFAULT_HABITS = [
@@ -86,19 +105,11 @@ const DEFAULT_HABITS = [
   { title: "Practice gratitude", color: "#8B5CF6" },
 ];
 
-const SAMPLE_REMINDER_TIMES: { [key: string]: string } = {
-  "Morning meditation": "06:30",
-  "Exercise": "07:00",
-  "Read 10 pages": "20:00",
-  "Drink 8 glasses of water": "09:00",
-  "Practice gratitude": "21:00",
-};
-
 export default function HomeScreen() {
   const [affirmations, setAffirmations] = useState<Affirmation[]>([]);
   const [habits, setHabits] = useState<Habit[]>([]);
   const [loading, setLoading] = useState(true);
-  const [isPremium, setIsPremium] = useState(true);
+  const [isPremium, setIsPremium] = useState(false);
 
   const [journalModalVisible, setJournalModalVisible] = useState(false);
   const [journalContent, setJournalContent] = useState("");
@@ -113,21 +124,21 @@ export default function HomeScreen() {
 
   // Keep dictation local to the journal composer. The transcript is inserted as
   // it arrives, so users can see and edit their words before saving.
-  useSpeechRecognitionEvent("start", () => setIsRecording(true));
-  useSpeechRecognitionEvent("end", () => setIsRecording(false));
-  useSpeechRecognitionEvent("result", (event) => {
+  const onSpeechStart = useCallback(() => setIsRecording(true), []);
+  const onSpeechEnd = useCallback(() => setIsRecording(false), []);
+  const onSpeechResult = useCallback((event: any) => {
     const transcript = event.results[0]?.transcript?.trim();
     if (!transcript) return;
     setJournalContent(`${dictationBaseRef.current}${transcript}`);
-  });
-  useSpeechRecognitionEvent("error", (event) => {
+  }, []);
+  const onSpeechError = useCallback((event: any) => {
     setIsRecording(false);
     if (event.error !== "aborted" && event.error !== "no-speech") {
       Alert.alert("Dictation unavailable", event.message || "Please try again.");
     }
-  });
+  }, []);
 
-  const autoSaveTimer = useRef<NodeJS.Timeout | null>(null);
+  const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const affirmationsSectionRef = useRef<View>(null);
   const [affirmationsLayout, setAffirmationsLayout] = useState<{
     y: number;
@@ -136,8 +147,10 @@ export default function HomeScreen() {
 
   const loadPremiumStatus = useCallback(async () => {
     try {
-      setIsPremium(true);
-      console.log('🚀 PREVIEW MODE: Premium status forced to true for testing');
+      // Use the last verified entitlement locally at launch. RevenueCat refresh
+      // happens when Profile opens so StoreKit is not called in the cold-start path.
+      const profile = await getProfile();
+      setIsPremium((profile as any)?.isPremium === 1);
     } catch (error) {
       console.error("Error loading premium status:", error);
     }
@@ -149,8 +162,8 @@ export default function HomeScreen() {
       
       let repeatingAffirmations = dbAffirmations.filter(a => a.isRepeating === 1);
       
-      if (repeatingAffirmations.length < FREE_HOME_DISPLAY_LIMIT) {
-        const needed = Math.min(5, FREE_HOME_DISPLAY_LIMIT - repeatingAffirmations.length);
+      if (repeatingAffirmations.length < FREE_AFFIRMATION_LIMIT) {
+        const needed = Math.min(5, FREE_AFFIRMATION_LIMIT - repeatingAffirmations.length);
         console.log(`Creating ${needed} default affirmations...`);
         
         for (let i = 0; i < needed; i++) {
@@ -168,14 +181,15 @@ export default function HomeScreen() {
         }
       }
       
-      const displayAffirmations = repeatingAffirmations;
+      const displayAffirmations = isPremium
+        ? repeatingAffirmations
+        : repeatingAffirmations.slice(0, FREE_AFFIRMATION_LIMIT);
       
       setAffirmations(displayAffirmations);
-      console.log(`🚀 PREVIEW MODE: Loaded ${displayAffirmations.length} affirmations (unlimited)`);
     } catch (error) {
       console.error("Error loading affirmations:", error);
     }
-  }, []);
+  }, [isPremium]);
 
   const loadHabits = useCallback(async () => {
     try {
@@ -214,12 +228,7 @@ export default function HomeScreen() {
 
       const habitsWithReminders = await Promise.all(
         habitsWithCompletion.map(async (habit) => {
-          let reminderTime = await getHabitReminderTime(habit.id);
-          
-          if (!reminderTime && SAMPLE_REMINDER_TIMES[habit.title]) {
-            reminderTime = SAMPLE_REMINDER_TIMES[habit.title];
-            console.log(`🚀 PREVIEW MODE: Using sample time ${reminderTime} for habit "${habit.title}"`);
-          }
+          const reminderTime = await getHabitReminderTime(habit.id);
           
           return {
             ...habit,
@@ -231,7 +240,6 @@ export default function HomeScreen() {
       const displayHabits = habitsWithReminders;
 
       setHabits(displayHabits);
-      console.log(`🚀 PREVIEW MODE: Loaded ${displayHabits.length} habits (unlimited) with reminder times`);
     } catch (error) {
       console.error("Error loading habits:", error);
     }
@@ -288,7 +296,7 @@ export default function HomeScreen() {
       };
       loadAll();
     }
-  }, [loading]);
+  }, [loading, loadAffirmations, loadHabits, loadTodayJournal]);
 
   useEffect(() => {
     loadData();
@@ -513,6 +521,10 @@ export default function HomeScreen() {
 
   const startRecording = async () => {
     try {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const { ExpoSpeechRecognitionModule } = require("expo-speech-recognition") as {
+        ExpoSpeechRecognitionModule: SpeechRecognitionModule;
+      };
       if (!ExpoSpeechRecognitionModule.isRecognitionAvailable()) {
         Alert.alert(
           "Dictation unavailable",
@@ -549,6 +561,10 @@ export default function HomeScreen() {
 
   const stopRecording = async () => {
     try {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const { ExpoSpeechRecognitionModule } = require("expo-speech-recognition") as {
+        ExpoSpeechRecognitionModule: SpeechRecognitionModule;
+      };
       ExpoSpeechRecognitionModule.stop();
     } catch (error) {
       console.error("Error stopping dictation:", error);
@@ -607,6 +623,14 @@ export default function HomeScreen() {
 
   return (
     <>
+      {journalModalVisible && (
+        <JournalSpeechEvents
+          onStart={onSpeechStart}
+          onEnd={onSpeechEnd}
+          onResult={onSpeechResult}
+          onError={onSpeechError}
+        />
+      )}
       <LinearGradient
         colors={["#4F46E5", "#87CEEB"]}
         style={styles.gradient}
@@ -622,7 +646,7 @@ export default function HomeScreen() {
             <Text style={styles.dateText}>{today}</Text>
             <View style={styles.limitBadge}>
               <Text style={styles.limitBadgeText}>
-                🚀 PREVIEW MODE: Pro features unlocked
+                {isPremium ? "Premium is active" : "Free plan"}
               </Text>
             </View>
           </View>

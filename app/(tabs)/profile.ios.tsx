@@ -65,7 +65,7 @@ export default function ProfileScreen() {
         
         // Update database if RevenueCat status differs
         const currentPremium = (profile as any)?.isPremium === 1;
-        if (isPro !== currentPremium) {
+        if (isPro !== null && isPro !== currentPremium) {
           await updateProfile({ isPremium: isPro });
           setHasPremium(isPro);
           console.log("[Profile] Updated premium status from RevenueCat");

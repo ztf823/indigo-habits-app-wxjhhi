@@ -18,18 +18,16 @@ export const PREMIUM_MONTHLY_PRODUCT_ID = 'premium_monthly'; // $4.99/month
 // Module-level guard: track whether RevenueCat ever initialized successfully.
 let rcReady = false;
 let rcModule: typeof Purchases | null = null;
-
-// RevenueCat 8.x aborts inside StoreKit when configured on iOS 26.
-// Never invoke its native bridge on that OS version; JavaScript try/catch cannot
-// recover from a native SIGABRT.
-function isUnsupportedIOSRevenueCatRuntime(): boolean {
-  if (Platform.OS !== 'ios') return false;
-  const major = Number.parseInt(String(Platform.Version).split('.')[0] ?? '0', 10);
-  return Number.isFinite(major) && major >= 26;
-}
+let rcInitialization: Promise<void> | null = null;
 
 async function ensureRevenueCatReady(): Promise<boolean> {
-  if (!rcReady) await initializeRevenueCat();
+  if (rcReady) return true;
+  if (!rcInitialization) {
+    rcInitialization = initializeRevenueCat().finally(() => {
+      rcInitialization = null;
+    });
+  }
+  await rcInitialization;
   return rcReady;
 }
 
@@ -58,11 +56,6 @@ export async function initializeRevenueCat(): Promise<void> {
       console.log('[RevenueCat] Web platform detected - skipping');
       return;
     }
-    if (isUnsupportedIOSRevenueCatRuntime()) {
-      console.warn('[RevenueCat] Disabled on iOS 26 to prevent a StoreKit launch crash');
-      return;
-    }
-
     const Purchases = await loadPurchases();
     if (!Purchases) {
       console.warn('[RevenueCat] Module unavailable, app will run without RevenueCat');
@@ -94,7 +87,9 @@ export async function initializeRevenueCat(): Promise<void> {
  */
 export async function getCustomerInfo() {
   try {
-    if (!rcReady || !rcModule) return { isPro: false, customerInfo: null };
+    if (!(await ensureRevenueCatReady()) || !rcModule) {
+      return { isPro: null, customerInfo: null };
+    }
     console.log('[RevenueCat] Fetching customer info...');
     const customerInfo = await rcModule.getCustomerInfo();
     
@@ -109,7 +104,7 @@ export async function getCustomerInfo() {
   } catch (error) {
     console.error('[RevenueCat] Error fetching customer info:', error);
     return {
-      isPro: false,
+      isPro: null,
       customerInfo: null,
     };
   }
@@ -224,13 +219,13 @@ export async function restorePurchases() {
 /**
  * Check if user has active pro subscription
  */
-export async function checkProStatus(): Promise<boolean> {
+export async function checkProStatus(): Promise<boolean | null> {
   try {
     const { isPro } = await getCustomerInfo();
     return isPro;
   } catch (error) {
     console.error('[RevenueCat] Error checking pro status:', error);
-    return false;
+    return null;
   }
 }
 

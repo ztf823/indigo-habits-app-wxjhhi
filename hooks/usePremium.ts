@@ -28,10 +28,13 @@ export function usePremium() {
       try {
         const revenueCatStatus = await checkProStatus();
         console.log('[usePremium] RevenueCat premium status:', revenueCatStatus);
-        
-        // Update local storage to match RevenueCat
-        await AsyncStorage.setItem(PREMIUM_KEY, revenueCatStatus.toString());
-        setIsPro(revenueCatStatus);
+        if (revenueCatStatus !== null) {
+          await AsyncStorage.setItem(PREMIUM_KEY, revenueCatStatus.toString());
+          setIsPro(revenueCatStatus);
+        } else {
+          const stored = await AsyncStorage.getItem(PREMIUM_KEY);
+          setIsPro(stored === 'true');
+        }
       } catch (error) {
         console.error('[usePremium] Error checking RevenueCat status:', error);
         

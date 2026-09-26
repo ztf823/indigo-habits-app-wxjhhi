@@ -45,8 +45,7 @@ export function RemindersOverlay({ visible, onClose, isPremium }: RemindersOverl
   
   const [loading, setLoading] = useState(true);
 
-  // 🚀 PREVIEW MODE: Always treat as premium
-  const effectiveIsPremium = true;
+  const effectiveIsPremium = isPremium;
 
   useEffect(() => {
     if (visible) {
@@ -57,7 +56,7 @@ export function RemindersOverlay({ visible, onClose, isPremium }: RemindersOverl
   const loadSettings = async () => {
     try {
       setLoading(true);
-      console.log('[RemindersOverlay] 🚀 PREVIEW MODE: Loading reminder settings (all features unlocked)...');
+      console.log('[RemindersOverlay] Loading reminder settings...');
       
       // Load daily habits reminder
       const dailyHabitsSettings = await getDailyHabitsReminderSettings();
@@ -67,7 +66,6 @@ export function RemindersOverlay({ visible, onClose, isPremium }: RemindersOverl
       dhDate.setHours(dhHours, dhMinutes, 0, 0);
       setDailyHabitsTime(dhDate);
       
-      // 🚀 PREVIEW MODE: Always load journal reminder (premium feature)
       const journalSettings = await getJournalReminderSettings();
       setJournalEnabled(journalSettings.enabled);
       const [jHours, jMinutes] = journalSettings.time.split(':').map(Number);
@@ -115,7 +113,6 @@ export function RemindersOverlay({ visible, onClose, isPremium }: RemindersOverl
       console.log('[RemindersOverlay] Daily habits time changed:', selectedDate);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       
-      // 🚀 PREVIEW MODE: No time restrictions (premium feature)
       setDailyHabitsTime(selectedDate);
       
       if (dailyHabitsEnabled) {
@@ -132,7 +129,7 @@ export function RemindersOverlay({ visible, onClose, isPremium }: RemindersOverl
 
   const handleJournalToggle = async (value: boolean) => {
     try {
-      console.log('[RemindersOverlay] 🚀 PREVIEW MODE: Toggling journal reminder (premium feature):', value);
+      console.log('[RemindersOverlay] Toggling journal reminder:', value);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       
       setJournalEnabled(value);
@@ -226,19 +223,6 @@ export function RemindersOverlay({ visible, onClose, isPremium }: RemindersOverl
           </View>
 
           <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-            {/* 🚀 PREVIEW MODE Banner */}
-            <View style={[styles.infoBanner, { backgroundColor: 'rgba(255, 215, 0, 0.2)', borderColor: '#FFD700', borderWidth: 1 }]}>
-              <IconSymbol
-                ios_icon_name="crown.fill"
-                android_material_icon_name="workspace-premium"
-                size={20}
-                color="#FFD700"
-              />
-              <Text style={[styles.infoBannerText, { color: colors.text, fontWeight: '600' }]}>
-                🚀 PREVIEW MODE: All premium reminder features unlocked
-              </Text>
-            </View>
-
             {/* Info Banner */}
             <View style={[styles.infoBanner, { backgroundColor: isDark ? `${colors.primary}20` : '#EEF2FF' }]}>
               <IconSymbol
@@ -252,9 +236,8 @@ export function RemindersOverlay({ visible, onClose, isPremium }: RemindersOverl
               </Text>
             </View>
 
-            {/* 🚀 PREVIEW MODE: Hide Daily Habits Reminder for Pro users */}
-            {!effectiveIsPremium && (
-              <View style={[styles.reminderSection, { backgroundColor: isDark ? colors.border : '#F9FAFB' }]}>
+            {/* Daily habit reminder remains available on every plan. */}
+            <View style={[styles.reminderSection, { backgroundColor: isDark ? colors.border : '#F9FAFB' }]}>
                 <View style={styles.reminderHeader}>
                   <View style={styles.reminderTitleRow}>
                     <IconSymbol
@@ -292,7 +275,7 @@ export function RemindersOverlay({ visible, onClose, isPremium }: RemindersOverl
                     </TouchableOpacity>
                     
                     <Text style={[styles.restrictionText, { color: colors.textSecondary }]}>
-                      ✓ Unlimited scheduling (Premium)
+                      {effectiveIsPremium ? "Premium scheduling active" : "Daily reminder is available"}
                     </Text>
                   </React.Fragment>
                 )}
@@ -300,10 +283,9 @@ export function RemindersOverlay({ visible, onClose, isPremium }: RemindersOverl
                 <Text style={[styles.reminderDescription, { color: colors.textSecondary }]}>
                   One reminder covers all your habits. One chime only.
                 </Text>
-              </View>
-            )}
+            </View>
 
-            {/* Journal Reminder - 🚀 PREVIEW MODE: Always show as available */}
+            {/* Journal Reminder */}
             <View style={[styles.reminderSection, { backgroundColor: isDark ? colors.border : '#F9FAFB' }]}>
               <View style={styles.reminderHeader}>
                 <View style={styles.reminderTitleRow}>
@@ -354,7 +336,7 @@ export function RemindersOverlay({ visible, onClose, isPremium }: RemindersOverl
               </Text>
             </View>
 
-            {/* Individual Habit Reminders Info - 🚀 PREVIEW MODE: Always show */}
+            {/* Individual Habit Reminders Info */}
             <View style={[styles.infoSection, { backgroundColor: isDark ? `${colors.primary}20` : '#EEF2FF' }]}>
               <IconSymbol
                 ios_icon_name="lightbulb.fill"

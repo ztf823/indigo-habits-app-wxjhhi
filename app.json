@@ -7,7 +7,7 @@
     "orientation": "portrait",
     "icon": "./assets/images/blue-flame-icon.png",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": false,
+    "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.indigohabits.journal2026",

@@ -29,7 +29,7 @@ export default function ListItem({ listId }: { listId: string }) {
         }}
       >
         <Animated.View style={[styles.rightAction, { transform: [{ translateX }] }]}>
-          <IconSymbol name="trash.fill" size={24} color="white" />
+          <IconSymbol ios_icon_name="trash.fill" android_material_icon_name="delete" size={24} color="white" />
         </Animated.View>
       </Pressable>
     );

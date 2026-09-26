@@ -23,7 +23,7 @@ export function IconSymbol({
   style,
 }: {
   ios_icon_name?: string | undefined;
-  android_material_icon_name: keyof typeof MaterialIcons.glyphMap;
+  android_material_icon_name: string;
   size?: number;
   color: string | OpaqueColorValue;
   style?: StyleProp<ViewStyle>;
@@ -33,7 +33,7 @@ export function IconSymbol({
     <MaterialIcons
       color={color}
       size={size}
-      name={android_material_icon_name}
+      name={android_material_icon_name as keyof typeof MaterialIcons.glyphMap}
       style={style as StyleProp<TextStyle>}
     />
   );

@@ -248,7 +248,7 @@ export default function ProfileScreen() {
 
   const saveProfilePicture = async (imageUri: string) => {
     try {
-      await updateProfile({ profilePicture: imageUri });
+      await updateProfile({ photoUri: imageUri });
       await loadProfileData();
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (error) {
@@ -272,17 +272,21 @@ export default function ProfileScreen() {
       console.log('Unlock premium tapped');
       
       const offerings = await getOfferings();
-      if (offerings && offerings.current) {
-        const packageToPurchase = offerings.current.availablePackages[0];
+      if (offerings && offerings.availablePackages.length > 0) {
+        const packageToPurchase = offerings.availablePackages[0];
         if (packageToPurchase) {
           const purchaseResult = await purchasePackage(packageToPurchase);
-          if (purchaseResult) {
+          if (purchaseResult.success && purchaseResult.isPro) {
             await updateProfile({ isPremium: true });
             await loadProfileData();
             await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
             Alert.alert('Success', 'Premium unlocked! Enjoy unlimited habits and affirmations.');
+          } else if (!purchaseResult.cancelled) {
+            Alert.alert('Purchase Failed', purchaseResult.error || 'Unable to complete purchase. Please try again.');
           }
         }
+      } else {
+        Alert.alert('No Packages Available', 'Subscription packages are not available right now. Please try again later.');
       }
     } catch (error) {
       console.error('Failed to unlock premium:', error);
@@ -296,7 +300,7 @@ export default function ProfileScreen() {
       console.log('Restore purchases tapped');
       
       const result = await restorePurchases();
-      const hasPremium = result?.isPro === true;
+      const hasPremium = result?.success === true && result.isPro === true;
       
       if (hasPremium) {
         await updateProfile({ isPremium: true });

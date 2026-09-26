@@ -107,7 +107,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const response = await authClient.signUp.email({
         email,
         password,
-        name,
+        name: name?.trim() || email.split("@")[0],
       });
       console.log("[Auth] Email sign up successful");
       await fetchUser();
