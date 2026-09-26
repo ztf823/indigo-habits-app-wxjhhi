@@ -1,7 +1,11 @@
 name: Build iOS production
 
 on:
-  workflow_dispatch: {}
+  push:
+    branches:
+      - main
+    paths:
+      - .eas/build-72.once
 
 jobs:
   build_ios:
