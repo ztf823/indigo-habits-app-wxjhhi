@@ -19,6 +19,20 @@ export const PREMIUM_MONTHLY_PRODUCT_ID = 'premium_monthly'; // $4.99/month
 let rcReady = false;
 let rcModule: typeof Purchases | null = null;
 
+// RevenueCat 8.x aborts inside StoreKit when configured on iOS 26.
+// Never invoke its native bridge on that OS version; JavaScript try/catch cannot
+// recover from a native SIGABRT.
+function isUnsupportedIOSRevenueCatRuntime(): boolean {
+  if (Platform.OS !== 'ios') return false;
+  const major = Number.parseInt(String(Platform.Version).split('.')[0] ?? '0', 10);
+  return Number.isFinite(major) && major >= 26;
+}
+
+async function ensureRevenueCatReady(): Promise<boolean> {
+  if (!rcReady) await initializeRevenueCat();
+  return rcReady;
+}
+
 async function loadPurchases(): Promise<typeof Purchases | null> {
   if (rcModule) return rcModule;
   try {
@@ -42,6 +56,10 @@ export async function initializeRevenueCat(): Promise<void> {
   try {
     if (Platform.OS === 'web') {
       console.log('[RevenueCat] Web platform detected - skipping');
+      return;
+    }
+    if (isUnsupportedIOSRevenueCatRuntime()) {
+      console.warn('[RevenueCat] Disabled on iOS 26 to prevent a StoreKit launch crash');
       return;
     }
 
@@ -102,7 +120,7 @@ export async function getCustomerInfo() {
  */
 export async function getOfferings(): Promise<PurchasesOffering | null> {
   try {
-    if (!rcReady || !rcModule) return null;
+    if (!(await ensureRevenueCatReady()) || !rcModule) return null;
     console.log('[RevenueCat] Fetching available offerings...');
     const offerings = await rcModule.getOfferings();
     
@@ -139,8 +157,8 @@ export async function purchasePackage(packageToPurchase: any) {
     console.log('[RevenueCat] Product ID:', packageToPurchase.product.identifier);
     console.log('[RevenueCat] Price:', packageToPurchase.product.priceString);
     
-    if (!rcReady || !rcModule) {
-      return { success: false, cancelled: false, error: 'RevenueCat unavailable' };
+    if (!(await ensureRevenueCatReady()) || !rcModule) {
+      return { success: false, cancelled: false, error: 'Subscriptions are temporarily unavailable on this iOS version' };
     }
     const { customerInfo } = await rcModule.purchasePackage(packageToPurchase);
     
@@ -180,8 +198,8 @@ export async function restorePurchases() {
   try {
     console.log('[RevenueCat] Restoring purchases...');
     
-    if (!rcReady || !rcModule) {
-      return { success: false, isPro: false, error: 'RevenueCat unavailable' };
+    if (!(await ensureRevenueCatReady()) || !rcModule) {
+      return { success: false, isPro: false, error: 'Subscriptions are temporarily unavailable on this iOS version' };
     }
     const customerInfo = await rcModule.restorePurchases();
     
