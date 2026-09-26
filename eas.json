@@ -29,7 +29,8 @@
       "node": "22.23.1",
       "pnpm": "11.19.0",
       "ios": {
-        "buildConfiguration": "Release"
+        "buildConfiguration": "Release",
+        "image": "latest"
       },
       "env": {
         "COREPACK_ENABLE_STRICT": "0"
