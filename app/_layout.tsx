@@ -15,7 +15,6 @@ import {
   ThemeProvider as NavigationThemeProvider,
 } from "@react-navigation/native";
 import { initDatabase, isDatabaseReady, retryDatabaseInit } from "@/utils/database";
-import { initializeRevenueCat } from "@/utils/revenueCat";
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
@@ -73,14 +72,6 @@ export default function RootLayout() {
     }
   }, [loaded, fontError]);
 
-  // Fire RevenueCat init AFTER the app has rendered — never block launch on it
-  useEffect(() => {
-    if (loaded && isReady) {
-      initializeRevenueCat().catch((e) =>
-        console.warn("[App] RevenueCat background init error:", e)
-      );
-    }
-  }, [loaded, isReady]);
 
   useEffect(() => {
     if (loaded && isReady) {
