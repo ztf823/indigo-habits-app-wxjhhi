@@ -1,8 +1,6 @@
-
 import React, { useEffect, useRef } from "react";
-import { View, Text, StyleSheet, Animated, Dimensions, Image } from "react-native";
+import { StyleSheet, Animated, Dimensions, Image } from "react-native";
 import { useRouter } from "expo-router";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 
@@ -14,44 +12,12 @@ export default function SplashScreen() {
   const textOpacity = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    console.log("[Splash] Splash screen mounted");
+    Animated.spring(logoScale, { toValue: 1, tension: 50, friction: 7, useNativeDriver: true }).start();
+    Animated.timing(textOpacity, { toValue: 1, duration: 800, delay: 300, useNativeDriver: true }).start();
+    Animated.timing(shinePosition, { toValue: SCREEN_WIDTH * 2, duration: 2000, delay: 500, useNativeDriver: true }).start();
 
-    // Mark splash as seen
-    AsyncStorage.setItem("hasSeenSplash", "true").catch(console.error);
-
-    // Animate logo scale up
-    Animated.spring(logoScale, {
-      toValue: 1,
-      tension: 50,
-      friction: 7,
-      useNativeDriver: true,
-    }).start();
-
-    // Fade in text after logo
-    Animated.timing(textOpacity, {
-      toValue: 1,
-      duration: 800,
-      delay: 300,
-      useNativeDriver: true,
-    }).start();
-
-    // Start shine animation - sweeps left to right across entire screen
-    Animated.timing(shinePosition, {
-      toValue: SCREEN_WIDTH * 2,
-      duration: 2000,
-      delay: 500,
-      useNativeDriver: true,
-    }).start();
-
-    // After 2.5 seconds, fade out and navigate
     const timer = setTimeout(() => {
-      console.log("[Splash] Fading out splash screen");
-      Animated.timing(fadeAnim, {
-        toValue: 0,
-        duration: 500,
-        useNativeDriver: true,
-      }).start(() => {
-        console.log("[Splash] Navigating to home screen");
+      Animated.timing(fadeAnim, { toValue: 0, duration: 500, useNativeDriver: true }).start(() => {
         router.replace("/(tabs)/(home)/");
       });
     }, 2500);
@@ -61,76 +27,21 @@ export default function SplashScreen() {
 
   return (
     <Animated.View style={[styles.container, { opacity: fadeAnim }]}>
-      {/* Logo with animation - 40% of screen height */}
-      <Animated.View 
-        style={[
-          styles.logoContainer,
-          {
-            transform: [{ scale: logoScale }],
-          },
-        ]}
-      >
-        <Image
-          source={require("@/assets/images/f61de770-7b2e-4a90-b8f2-478836e42e2a.png")}
-          style={styles.logo}
-          resizeMode="contain"
-        />
+      <Animated.View style={[styles.logoContainer, { transform: [{ scale: logoScale }] }]}>
+        <Image source={require("@/assets/images/blue-flame-icon.png")} style={styles.logo} resizeMode="contain" />
       </Animated.View>
-
-      {/* Tagline - solid black, bold, comfortable spacing */}
-      <Animated.Text 
-        style={[
-          styles.tagline,
-          { opacity: textOpacity },
-        ]}
-      >
+      <Animated.Text style={[styles.tagline, { opacity: textOpacity }]}>
         The path to transforming your life.
       </Animated.Text>
-
-      {/* Thin silver shine sweep - sweeps left to right across entire screen */}
-      <Animated.View
-        style={[
-          styles.shine,
-          {
-            transform: [{ translateX: shinePosition }],
-          },
-        ]}
-      />
+      <Animated.View style={[styles.shine, { transform: [{ translateX: shinePosition }] }]} />
     </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#FFFFFF", // Solid white background
-    justifyContent: "center",
-    alignItems: "center",
-    position: "relative",
-    overflow: "hidden",
-  },
-  logoContainer: {
-    marginBottom: 40, // Comfortable spacing between logo and text
-  },
-  logo: {
-    width: SCREEN_HEIGHT * 0.4, // 40% of screen height
-    height: SCREEN_HEIGHT * 0.4, // 40% of screen height
-  },
-  tagline: {
-    fontSize: 20,
-    fontWeight: "bold", // Bold text
-    color: "#000000", // Solid black
-    textAlign: "center",
-    paddingHorizontal: 40,
-    letterSpacing: 0.5,
-  },
-  shine: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    width: 80, // Thin silver shine
-    height: "100%", // Covers entire screen height
-    backgroundColor: "rgba(192, 192, 192, 0.25)", // Thin silver shine
-    transform: [{ skewX: "-20deg" }],
-  },
+  container: { flex: 1, backgroundColor: "#080D2B", justifyContent: "center", alignItems: "center", position: "relative", overflow: "hidden" },
+  logoContainer: { marginBottom: 40 },
+  logo: { width: SCREEN_HEIGHT * 0.4, height: SCREEN_HEIGHT * 0.4 },
+  tagline: { fontSize: 20, fontWeight: "bold", color: "#EAF7FF", textAlign: "center", paddingHorizontal: 40, letterSpacing: 0.5 },
+  shine: { position: "absolute", top: 0, left: 0, width: 80, height: "100%", backgroundColor: "rgba(54, 215, 255, 0.16)", transform: [{ skewX: "-20deg" }] },
 });

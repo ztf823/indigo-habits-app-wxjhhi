@@ -5,18 +5,18 @@
     "scheme": "indigohabits",
     "version": "1.0.56",
     "orientation": "portrait",
-    "icon": "./assets/images/app-icon-no-alpha.png",
+    "icon": "./assets/images/blue-flame-icon.png",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
-      "image": "./assets/images/6d55fc54-d63d-4404-853f-c341ea5517d1.png",
+      "image": "./assets/images/blue-flame-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#4F46E5"
+      "backgroundColor": "#080D5C"
     },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.indigohabits.journal2026",
-      "buildNumber": "66",
+      "buildNumber": "67",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NSPhotoLibraryUsageDescription": "Indigo Habits needs access to your photos to add images to your journal entries.",
@@ -30,69 +30,34 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/6d55fc54-d63d-4404-853f-c341ea5517d1.png",
-        "backgroundColor": "#4F46E5"
+        "foregroundImage": "./assets/images/blue-flame-icon.png",
+        "backgroundColor": "#080D5C"
       },
       "edgeToEdgeEnabled": true,
       "package": "com.indigohabits.journal2026",
       "versionCode": 1,
-      "permissions": [
-        "CAMERA",
-        "READ_EXTERNAL_STORAGE",
-        "WRITE_EXTERNAL_STORAGE",
-        "READ_MEDIA_IMAGES",
-        "RECEIVE_BOOT_COMPLETED",
-        "SCHEDULE_EXACT_ALARM",
-        "POST_NOTIFICATIONS",
-        "RECORD_AUDIO"
-      ]
+      "permissions": ["CAMERA","READ_EXTERNAL_STORAGE","WRITE_EXTERNAL_STORAGE","READ_MEDIA_IMAGES","RECEIVE_BOOT_COMPLETED","SCHEDULE_EXACT_ALARM","POST_NOTIFICATIONS","RECORD_AUDIO"]
     },
     "web": {
-      "favicon": "./assets/images/6d55fc54-d63d-4404-853f-c341ea5517d1.png",
+      "favicon": "./assets/images/blue-flame-icon.png",
       "bundler": "metro"
     },
     "plugins": [
       "expo-router",
       "expo-web-browser",
-      [
-        "expo-image-picker",
-        {
-          "photosPermission": "Indigo Habits needs access to your photos to add images to your journal entries.",
-          "cameraPermission": "Indigo Habits needs access to your camera to take photos for your journal entries."
-        }
-      ],
-      [
-        "expo-notifications",
-        {
-          "icon": "./assets/images/6d55fc54-d63d-4404-853f-c341ea5517d1.png",
-          "color": "#4F46E5",
-          "defaultChannel": "habits-reminders",
-          "sounds": []
-        }
-      ],
-      [
-        "expo-speech-recognition",
-        {
-          "microphonePermission": "Allow Indigo Habits to use your microphone for journal dictation.",
-          "speechRecognitionPermission": "Allow Indigo Habits to turn your spoken journal entries into text."
-        }
-      ]
+      ["expo-image-picker",{"photosPermission":"Indigo Habits needs access to your photos to add images to your journal entries.","cameraPermission":"Indigo Habits needs access to your camera to take photos for your journal entries."}],
+      ["expo-notifications",{"icon":"./assets/images/blue-flame-icon.png","color":"#0B5FFF","defaultChannel":"habits-reminders","sounds":[]}],
+      ["expo-speech-recognition",{"microphonePermission":"Allow Indigo Habits to use your microphone for journal dictation.","speechRecognitionPermission":"Allow Indigo Habits to turn your spoken journal entries into text."}]
     ],
-    "experiments": {
-      "typedRoutes": true
+    "experiments":{"typedRoutes":true},
+    "extra":{
+      "router":{"origin":false},
+      "eas":{"projectId":"c9f381e8-423f-4420-b5c5-d3e6b08dd99d"},
+      "revenueCatApple":"appl_KVaWqlpxQpKqoMgILPRLHowDNxe",
+      "revenueCatGoogle":"goog_eNogZNZZAtzunNmzzDNXxYafmpy",
+      "backendUrl":"https://wtj7b5zqhh4h7kvtqmkdaefv9jzgd8n5.app.specular.dev"
     },
-    "extra": {
-      "router": {
-        "origin": false
-      },
-      "eas": {
-        "projectId": "c9f381e8-423f-4420-b5c5-d3e6b08dd99d"
-      },
-      "revenueCatApple": "appl_KVaWqlpxQpKqoMgILPRLHowDNxe",
-      "revenueCatGoogle": "goog_eNogZNZZAtzunNmzzDNXxYafmpy",
-      "backendUrl": "https://wtj7b5zqhh4h7kvtqmkdaefv9jzgd8n5.app.specular.dev"
-    },
-    "description": "Indigo Habits is a beautiful habit tracker and journal app that helps you build positive habits and reflect on your daily progress with affirmations, streaks, and mindful journaling.",
-    "primaryColor": "#4F46E5"
+    "description":"Indigo Habits is a beautiful habit tracker and journal app that helps you build positive habits and reflect on your daily progress with affirmations, streaks, and mindful journaling.",
+    "primaryColor":"#0B5FFF"
   }
 }

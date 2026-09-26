@@ -1,37 +1,35 @@
-
-import { StyleSheet, ViewStyle, TextStyle } from 'react-native';
+import { StyleSheet } from 'react-native';
 
 export const colors = {
-  primary: '#4F46E5',        // Indigo
-  secondary: '#7DD3FC',      // Sky blue
-  accent: '#10B981',         // Green for completed habits
-  accentGlow: '#10B98140',   // Soft green glow (25% opacity)
-  error: '#EF4444',          // Red for missed habits
-  background: '#FFFFFF',     // Pure white
-  card: '#FFFFFF',           // Pure white cards
-  text: '#1F2937',           // Dark gray text
-  textSecondary: '#6B7280',  // Secondary gray text
-  iconSilver: '#9CA3AF',     // Silver icons
-  border: '#E5E7EB',         // Light border
-  gradientStart: '#4F46E5',  // Indigo gradient start
-  gradientEnd: '#7DD3FC',    // Sky blue gradient end
+  primary: '#0B5FFF',
+  secondary: '#36D7FF',
+  accent: '#10B981',
+  accentGlow: '#10B98140',
+  error: '#EF4444',
+  background: '#FFFFFF',
+  card: '#FFFFFF',
+  text: '#1F2937',
+  textSecondary: '#6B7280',
+  iconSilver: '#9CA3AF',
+  border: '#E5E7EB',
+  gradientStart: '#0B5FFF',
+  gradientEnd: '#36D7FF',
 };
 
-// Dark mode colors - indigo-dark base with silver icons and soft glows
 export const darkColors = {
-  primary: '#6366F1',        // Lighter indigo for dark mode
-  secondary: '#7DD3FC',      // Sky blue
-  accent: '#10B981',         // Green for completed habits
-  accentGlow: '#10B98160',   // Soft green glow (38% opacity for dark mode)
-  error: '#EF4444',          // Red for missed habits
-  background: '#1E1B4B',     // Indigo-dark base
-  card: '#2D2A5E',           // Slightly lighter indigo for cards
-  text: '#E5E7EB',           // Light gray text (readable on dark)
-  textSecondary: '#9CA3AF',  // Silver text
-  iconSilver: '#C0C0C0',     // Silver icons
-  border: '#3D3A6E',         // Darker border
-  gradientStart: '#1E1B4B',  // Dark indigo gradient start
-  gradientEnd: '#312E81',    // Slightly lighter indigo gradient end
+  primary: '#38BDF8',
+  secondary: '#67E8F9',
+  accent: '#10B981',
+  accentGlow: '#10B98160',
+  error: '#EF4444',
+  background: '#080D2B',
+  card: '#111A46',
+  text: '#E5E7EB',
+  textSecondary: '#9CA3AF',
+  iconSilver: '#C0C0C0',
+  border: '#24336B',
+  gradientStart: '#080D2B',
+  gradientEnd: '#102B73',
 };
 
 export function getColors(isDark: boolean) {
@@ -39,80 +37,18 @@ export function getColors(isDark: boolean) {
 }
 
 export const buttonStyles = StyleSheet.create({
-  instructionsButton: {
-    backgroundColor: colors.primary,
-    alignSelf: 'center',
-    width: '100%',
-  },
-  backButton: {
-    backgroundColor: colors.card,
-    alignSelf: 'center',
-    width: '100%',
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
+  instructionsButton: { backgroundColor: colors.primary, alignSelf: 'center', width: '100%' },
+  backButton: { backgroundColor: colors.card, alignSelf: 'center', width: '100%', borderWidth: 1, borderColor: colors.border },
 });
 
 export const commonStyles = StyleSheet.create({
-  wrapper: {
-    backgroundColor: colors.background,
-    width: '100%',
-    height: '100%',
-  },
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-    width: '100%',
-    height: '100%',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  content: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    maxWidth: 800,
-    width: '100%',
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: '800',
-    textAlign: 'center',
-    color: colors.text,
-    marginBottom: 10
-  },
-  text: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: colors.text,
-    marginBottom: 8,
-    lineHeight: 24,
-    textAlign: 'center',
-  },
-  section: {
-    width: '100%',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-  },
-  buttonContainer: {
-    width: '100%',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-  },
-  card: {
-    backgroundColor: colors.card,
-    borderColor: colors.border,
-    borderWidth: 1,
-    borderRadius: 16,
-    padding: 16,
-    marginVertical: 8,
-    width: '100%',
-    boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.08)',
-    elevation: 2,
-  },
-  icon: {
-    width: 60,
-    height: 60,
-    tintColor: colors.iconSilver,
-  },
+  wrapper: { backgroundColor: colors.background, width: '100%', height: '100%' },
+  container: { flex: 1, backgroundColor: colors.background, width: '100%', height: '100%', justifyContent: 'center', alignItems: 'center' },
+  content: { flex: 1, alignItems: 'center', justifyContent: 'center', maxWidth: 800, width: '100%' },
+  title: { fontSize: 24, fontWeight: '800', textAlign: 'center', color: colors.text, marginBottom: 10 },
+  text: { fontSize: 16, fontWeight: '500', color: colors.text, marginBottom: 8, lineHeight: 24, textAlign: 'center' },
+  section: { width: '100%', alignItems: 'center', paddingHorizontal: 20 },
+  buttonContainer: { width: '100%', alignItems: 'center', paddingHorizontal: 20 },
+  card: { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1, borderRadius: 16, padding: 16, marginVertical: 8, width: '100%', boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.08)', elevation: 2 },
+  icon: { width: 60, height: 60, tintColor: colors.iconSilver },
 });
