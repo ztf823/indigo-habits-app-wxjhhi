@@ -18,6 +18,7 @@ import {
   Dimensions,
 } from "react-native";
 import * as Haptics from "expo-haptics";
+import { useFocusEffect } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
 import { IconSymbol } from "@/components/IconSymbol";
 import {
@@ -283,20 +284,19 @@ export default function HomeScreen() {
     }
   }, [loadPremiumStatus]);
 
-  useEffect(() => {
-    if (!loading) {
+  useFocusEffect(
+    useCallback(() => {
+      if (loading) return;
       const loadAll = async () => {
         try {
-          await loadAffirmations();
-          await loadHabits();
-          await loadTodayJournal();
+          await Promise.all([loadAffirmations(), loadHabits(), loadTodayJournal()]);
         } catch (e) {
           console.warn('[HomeScreen] Data load error (non-fatal):', e);
         }
       };
       loadAll();
-    }
-  }, [loading, loadAffirmations, loadHabits, loadTodayJournal]);
+    }, [loading, loadAffirmations, loadHabits, loadTodayJournal])
+  );
 
   useEffect(() => {
     loadData();
@@ -651,6 +651,29 @@ export default function HomeScreen() {
             </View>
           </View>
 
+          <View style={styles.section}>
+            <View style={styles.journalHeader}>
+              <Text style={styles.sectionTitle}>Today&apos;s Journal</Text>
+              <Text style={styles.journalDate}>{new Date().toLocaleDateString()}</Text>
+            </View>
+            <TouchableOpacity style={styles.journalCard} onPress={openJournalModal} activeOpacity={0.7}>
+              <Text style={styles.journalPreview} numberOfLines={3}>
+                {journalContent || "Tap here to start writing..."}
+              </Text>
+              {journalPhoto && (
+                <View style={styles.journalPhotoPreview}>
+                  <Image source={{ uri: journalPhoto }} style={styles.journalPhotoThumbnail} />
+                </View>
+              )}
+              {audioUri && (
+                <View style={styles.journalAudioPreview}>
+                  <IconSymbol ios_icon_name="waveform" android_material_icon_name="graphic-eq" size={16} color="#4F46E5" />
+                  <Text style={styles.journalAudioText}>Audio memo attached</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+          </View>
+
           <View 
             style={styles.section}
             ref={affirmationsSectionRef}
@@ -745,7 +768,7 @@ export default function HomeScreen() {
                     >
                       {habit.title}
                     </Text>
-                    {isPremium && habit.reminderTime && (
+                    {habit.reminderTime && (
                       <Text style={styles.habitReminderTime}>
                         [{formatTimeDisplay(habit.reminderTime)}]
                       </Text>
@@ -768,40 +791,6 @@ export default function HomeScreen() {
             </View>
           </View>
 
-          <View style={styles.section}>
-            <View style={styles.journalHeader}>
-              <Text style={styles.sectionTitle}>Today&apos;s Journal</Text>
-              <Text style={styles.journalDate}>{new Date().toLocaleDateString()}</Text>
-            </View>
-
-            <TouchableOpacity 
-              style={styles.journalCard}
-              onPress={openJournalModal}
-              activeOpacity={0.7}
-            >
-              <Text style={styles.journalPreview} numberOfLines={3}>
-                {journalContent || "Tap here to start writing..."}
-              </Text>
-              
-              {journalPhoto && (
-                <View style={styles.journalPhotoPreview}>
-                  <Image source={{ uri: journalPhoto }} style={styles.journalPhotoThumbnail} />
-                </View>
-              )}
-              
-              {audioUri && (
-                <View style={styles.journalAudioPreview}>
-                  <IconSymbol
-                    ios_icon_name="waveform"
-                    android_material_icon_name="graphic-eq"
-                    size={16}
-                    color="#4F46E5"
-                  />
-                  <Text style={styles.journalAudioText}>Audio memo attached</Text>
-                </View>
-              )}
-            </TouchableOpacity>
-          </View>
         </ScrollView>
 
         <Modal
