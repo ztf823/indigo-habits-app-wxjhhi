@@ -16,7 +16,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.indigohabits.journal2026",
-      "buildNumber": "67",
+      "buildNumber": "68",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NSPhotoLibraryUsageDescription": "Indigo Habits needs access to your photos to add images to your journal entries.",
@@ -36,7 +36,16 @@
       "edgeToEdgeEnabled": true,
       "package": "com.indigohabits.journal2026",
       "versionCode": 1,
-      "permissions": ["CAMERA","READ_EXTERNAL_STORAGE","WRITE_EXTERNAL_STORAGE","READ_MEDIA_IMAGES","RECEIVE_BOOT_COMPLETED","SCHEDULE_EXACT_ALARM","POST_NOTIFICATIONS","RECORD_AUDIO"]
+      "permissions": [
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE",
+        "READ_MEDIA_IMAGES",
+        "RECEIVE_BOOT_COMPLETED",
+        "SCHEDULE_EXACT_ALARM",
+        "POST_NOTIFICATIONS",
+        "RECORD_AUDIO"
+      ]
     },
     "web": {
       "favicon": "./assets/images/blue-flame-icon.png",
@@ -45,19 +54,45 @@
     "plugins": [
       "expo-router",
       "expo-web-browser",
-      ["expo-image-picker",{"photosPermission":"Indigo Habits needs access to your photos to add images to your journal entries.","cameraPermission":"Indigo Habits needs access to your camera to take photos for your journal entries."}],
-      ["expo-notifications",{"icon":"./assets/images/blue-flame-icon.png","color":"#0B5FFF","defaultChannel":"habits-reminders","sounds":[]}],
-      ["expo-speech-recognition",{"microphonePermission":"Allow Indigo Habits to use your microphone for journal dictation.","speechRecognitionPermission":"Allow Indigo Habits to turn your spoken journal entries into text."}]
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Indigo Habits needs access to your photos to add images to your journal entries.",
+          "cameraPermission": "Indigo Habits needs access to your camera to take photos for your journal entries."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/blue-flame-icon.png",
+          "color": "#0B5FFF",
+          "defaultChannel": "habits-reminders",
+          "sounds": []
+        }
+      ],
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "Allow Indigo Habits to use your microphone for journal dictation.",
+          "speechRecognitionPermission": "Allow Indigo Habits to turn your spoken journal entries into text."
+        }
+      ]
     ],
-    "experiments":{"typedRoutes":true},
-    "extra":{
-      "router":{"origin":false},
-      "eas":{"projectId":"c9f381e8-423f-4420-b5c5-d3e6b08dd99d"},
-      "revenueCatApple":"appl_KVaWqlpxQpKqoMgILPRLHowDNxe",
-      "revenueCatGoogle":"goog_eNogZNZZAtzunNmzzDNXxYafmpy",
-      "backendUrl":"https://wtj7b5zqhh4h7kvtqmkdaefv9jzgd8n5.app.specular.dev"
+    "experiments": {
+      "typedRoutes": true
     },
-    "description":"Indigo Habits is a beautiful habit tracker and journal app that helps you build positive habits and reflect on your daily progress with affirmations, streaks, and mindful journaling.",
-    "primaryColor":"#0B5FFF"
+    "extra": {
+      "router": {
+        "origin": false
+      },
+      "eas": {
+        "projectId": "c9f381e8-423f-4420-b5c5-d3e6b08dd99d"
+      },
+      "revenueCatApple": "appl_KVaWqlpxQpKqoMgILPRLHowDNxe",
+      "revenueCatGoogle": "goog_eNogZNZZAtzunNmzzDNXxYafmpy",
+      "backendUrl": "https://wtj7b5zqhh4h7kvtqmkdaefv9jzgd8n5.app.specular.dev"
+    },
+    "description": "Indigo Habits is a beautiful habit tracker and journal app that helps you build positive habits and reflect on your daily progress with affirmations, streaks, and mindful journaling.",
+    "primaryColor": "#0B5FFF"
   }
 }
