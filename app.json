@@ -7,16 +7,11 @@
     "orientation": "portrait",
     "icon": "./assets/images/blue-flame-icon.png",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
-    "splash": {
-      "image": "./assets/images/blue-flame-icon.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#080D5C"
-    },
+    "newArchEnabled": false,
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.indigohabits.journal2026",
-      "buildNumber": "68",
+      "buildNumber": "69",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NSPhotoLibraryUsageDescription": "Indigo Habits needs access to your photos to add images to your journal entries.",
@@ -53,6 +48,15 @@
     },
     "plugins": [
       "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#080D5C",
+          "image": "./assets/images/blue-flame-icon.png",
+          "imageWidth": 144,
+          "resizeMode": "contain"
+        }
+      ],
       "expo-web-browser",
       [
         "expo-image-picker",
