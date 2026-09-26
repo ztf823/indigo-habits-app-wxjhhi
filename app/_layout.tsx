@@ -1,12 +1,9 @@
-
 import { Stack } from "expo-router";
 import { useFonts } from "expo-font";
 import { StatusBar } from "expo-status-bar";
 import { WidgetProvider } from "@/contexts/WidgetContext";
 import { ThemeProvider } from "@/contexts/ThemeContext";
-import * as SplashScreen from "expo-splash-screen";
-import React, { useEffect, useState, useCallback } from "react";
-import { SystemBars } from "react-native-edge-to-edge";
+import React, { useEffect, useState } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { useColorScheme } from "react-native";
 import {
@@ -16,68 +13,42 @@ import {
 } from "@react-navigation/native";
 import { initDatabase, isDatabaseReady, retryDatabaseInit } from "@/utils/database";
 
-// Prevent the splash screen from auto-hiding before asset loading is complete.
-SplashScreen.preventAutoHideAsync();
-
 export default function RootLayout() {
   const colorScheme = useColorScheme();
   const [isReady, setIsReady] = useState(false);
-
-  // Catch any unhandled promise rejections before they reach the native bridge
-  // and trigger RCTFatal on iOS 26 Beta
-  useEffect(() => {
-    const handler = (event: any) => {
-      console.warn('[App] Unhandled promise rejection caught:', event?.reason ?? event);
-      if (event?.preventDefault) event.preventDefault();
-    };
-    // @ts-expect-error global may not have addEventListener in all envs
-    if (typeof global !== 'undefined' && global.addEventListener) {
-      // @ts-expect-error global may not have addEventListener in all envs
-      global.addEventListener('unhandledrejection', handler);
-      // @ts-expect-error global may not have removeEventListener in all envs
-      return () => global.removeEventListener('unhandledrejection', handler);
-    }
-  }, []);
-
   const [loaded, fontError] = useFonts({
     SpaceMono: require("../assets/fonts/SpaceMono-Regular.ttf"),
   });
 
   useEffect(() => {
-    if (fontError) console.warn('[App] Font load error (continuing anyway):', fontError);
+    if (fontError) {
+      console.warn("[App] Font load error (continuing anyway):", fontError);
+    }
   }, [fontError]);
 
   useEffect(() => {
+    if (!loaded && !fontError) return;
+
+    let active = true;
     async function prepare() {
       try {
         await initDatabase();
         if (!isDatabaseReady()) {
-          // First attempt failed — try once more after a short delay
-          console.warn('[App] Database init failed, retrying in 500ms...');
-          await new Promise(resolve => setTimeout(resolve, 500));
+          await new Promise((resolve) => setTimeout(resolve, 500));
           await retryDatabaseInit();
         }
-        if (!isDatabaseReady()) {
-          console.error('[App] Database unavailable after retry — app will run in degraded mode');
-        }
       } catch (error) {
-        console.error('[App] Unexpected error during prepare:', error);
+        console.warn("[App] Database initialization failed; continuing:", error);
       } finally {
-        setIsReady(true);
+        if (active) setIsReady(true);
       }
     }
 
-    if (loaded || fontError) {
-      prepare();
-    }
+    void prepare();
+    return () => {
+      active = false;
+    };
   }, [loaded, fontError]);
-
-
-  useEffect(() => {
-    if (loaded && isReady) {
-      SplashScreen.hideAsync();
-    }
-  }, [loaded, isReady]);
 
   if ((!loaded && !fontError) || !isReady) {
     return null;
@@ -90,7 +61,6 @@ export default function RootLayout() {
           <NavigationThemeProvider
             value={colorScheme === "dark" ? DarkTheme : DefaultTheme}
           >
-            <SystemBars style="light" />
             <Stack
               screenOptions={{
                 headerShown: false,
