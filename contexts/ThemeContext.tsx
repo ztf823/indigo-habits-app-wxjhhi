@@ -1,6 +1,7 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { Appearance } from "react-native";
 
 type Theme = "light" | "dark";
 
@@ -20,6 +21,11 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     loadTheme();
   }, []);
+
+  // Make the saved in-app choice control native appearance across every route.
+  useEffect(() => {
+    Appearance.setColorScheme(theme);
+  }, [theme]);
 
   const loadTheme = async () => {
     try {

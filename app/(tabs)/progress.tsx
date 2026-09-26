@@ -4,6 +4,8 @@ import React, { useState, useEffect, useCallback } from "react";
 import { IconSymbol } from "@/components/IconSymbol";
 import { BadgeIcon } from "@/components/BadgeIcon";
 import { getStreakData } from "@/utils/database";
+import { useTheme } from "@/contexts/ThemeContext";
+import { getColors } from "@/styles/commonStyles";
 import {
   View,
   Text,
@@ -46,6 +48,8 @@ const BADGES: Badge[] = [
 ];
 
 export default function ProgressScreen() {
+  const { isDark } = useTheme();
+  const themeColors = getColors(isDark);
   const [streaks, setStreaks] = useState<StreakData>({
     currentStreak: 0,
     longestStreak: 0,
@@ -93,7 +97,7 @@ export default function ProgressScreen() {
 
   if (isLoading) {
     return (
-      <LinearGradient colors={["#4F46E5", "#7C3AED", "#87CEEB"]} style={styles.container}>
+      <LinearGradient colors={isDark ? [themeColors.gradientStart, themeColors.gradientEnd] : ["#4F46E5", "#7C3AED", "#87CEEB"]} style={styles.container}>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#FFF" />
           <Text style={styles.loadingText}>Loading progress...</Text>
@@ -107,7 +111,7 @@ export default function ProgressScreen() {
   const earnedBadges = badges.filter(b => b.earned);
 
   return (
-    <LinearGradient colors={["#4F46E5", "#7C3AED", "#87CEEB"]} style={styles.container}>
+    <LinearGradient colors={isDark ? [themeColors.gradientStart, themeColors.gradientEnd] : ["#4F46E5", "#7C3AED", "#87CEEB"]} style={styles.container}>
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         refreshControl={
@@ -121,43 +125,43 @@ export default function ProgressScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Streaks</Text>
           <View style={styles.streaksContainer}>
-            <View style={styles.streakCard}>
+            <View style={[styles.streakCard, { backgroundColor: themeColors.card }]}>
               <IconSymbol
                 ios_icon_name="flame.fill"
                 android_material_icon_name="local-fire-department"
                 size={32}
                 color="#F59E0B"
               />
-              <Text style={styles.streakNumber}>{streaks.currentStreak}</Text>
-              <Text style={styles.streakLabel}>Current Streak</Text>
+              <Text style={[styles.streakNumber, { color: themeColors.text }]}>{streaks.currentStreak}</Text>
+              <Text style={[styles.streakLabel, { color: themeColors.textSecondary }]}>Current Streak</Text>
             </View>
-            <View style={styles.streakCard}>
+            <View style={[styles.streakCard, { backgroundColor: themeColors.card }]}>
               <IconSymbol
                 ios_icon_name="star.fill"
                 android_material_icon_name="star"
                 size={32}
                 color="#FFD700"
               />
-              <Text style={styles.streakNumber}>{streaks.longestStreak}</Text>
-              <Text style={styles.streakLabel}>Longest Streak</Text>
+              <Text style={[styles.streakNumber, { color: themeColors.text }]}>{streaks.longestStreak}</Text>
+              <Text style={[styles.streakLabel, { color: themeColors.textSecondary }]}>Longest Streak</Text>
             </View>
-            <View style={styles.streakCard}>
+            <View style={[styles.streakCard, { backgroundColor: themeColors.card }]}>
               <IconSymbol
                 ios_icon_name="checkmark.circle.fill"
                 android_material_icon_name="check-circle"
                 size={32}
                 color="#10B981"
               />
-              <Text style={styles.streakNumber}>{streaks.totalCompletions}</Text>
-              <Text style={styles.streakLabel}>Total Completions</Text>
+              <Text style={[styles.streakNumber, { color: themeColors.text }]}>{streaks.totalCompletions}</Text>
+              <Text style={[styles.streakLabel, { color: themeColors.textSecondary }]}>Total Completions</Text>
             </View>
           </View>
         </View>
 
         {/* Next Badge Section */}
         {nextBadge && (
-          <View style={styles.nextBadgeCard}>
-            <Text style={styles.nextBadgeTitle}>Next Badge</Text>
+          <View style={[styles.nextBadgeCard, { backgroundColor: themeColors.card }]}>
+            <Text style={[styles.nextBadgeTitle, { color: themeColors.text }]}>Next Badge</Text>
             <View style={styles.nextBadgeContent}>
               <BadgeIcon
                 badgeName={nextBadge.name}
@@ -166,8 +170,8 @@ export default function ProgressScreen() {
                 glowColor={nextBadge.glowColor}
               />
               <View style={styles.nextBadgeInfo}>
-                <Text style={styles.nextBadgeName}>{nextBadge.name}</Text>
-                <Text style={styles.nextBadgeDescription}>
+                <Text style={[styles.nextBadgeName, { color: themeColors.text }]}>{nextBadge.name}</Text>
+                <Text style={[styles.nextBadgeDescription, { color: themeColors.textSecondary }]}>
                   {nextBadge.daysRequired - streaks.longestStreak} more days to unlock
                 </Text>
                 <View style={styles.progressBar}>
@@ -195,6 +199,7 @@ export default function ProgressScreen() {
                 key={badge.id}
                 style={[
                   styles.badgeCard,
+                  { backgroundColor: themeColors.card },
                   !badge.earned && styles.badgeCardLocked,
                   badge.earned && { borderColor: badge.glowColor, borderWidth: 2 },
                 ]}
@@ -208,6 +213,7 @@ export default function ProgressScreen() {
                 <Text
                   style={[
                     styles.badgeName,
+                    { color: themeColors.text },
                     !badge.earned && styles.badgeNameLocked,
                     badge.earned && { color: badge.glowColor },
                   ]}
@@ -217,6 +223,7 @@ export default function ProgressScreen() {
                 <Text
                   style={[
                     styles.badgeDescription,
+                    { color: themeColors.textSecondary },
                     !badge.earned && styles.badgeDescriptionLocked,
                   ]}
                 >
@@ -249,14 +256,14 @@ export default function ProgressScreen() {
         </View>
 
         {/* Motivational Message */}
-        <View style={styles.motivationCard}>
+        <View style={[styles.motivationCard, { backgroundColor: themeColors.card }]}>
           <IconSymbol
             ios_icon_name="heart.fill"
             android_material_icon_name="favorite"
             size={24}
             color="#EC4899"
           />
-          <Text style={styles.motivationText}>
+          <Text style={[styles.motivationText, { color: themeColors.text }]}>
             {streaks.currentStreak > 0
               ? `Amazing! You're on a ${streaks.currentStreak}-day streak. Keep it up!`
               : "Start your journey today! Complete your first habit to begin your streak."}

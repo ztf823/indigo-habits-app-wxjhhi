@@ -15,8 +15,8 @@ export default function TabLayout() {
 
   const tabs = useMemo(() => [
     {
-      name: '(home)',
-      route: '/(tabs)/(home)/' as any,
+      name: 'index',
+      route: '/(tabs)/' as any,
       label: 'Home',
       ios_icon_name: 'house.fill',
       android_material_icon_name: 'home',
@@ -52,10 +52,10 @@ export default function TabLayout() {
   ], []);
 
   const getCurrentIndex = useCallback(() => {
-    const currentPath = pathname.split('/').filter(Boolean).pop() || '(home)';
+    const currentPath = pathname.split('/').filter(Boolean).pop() || 'index';
     const index = tabs.findIndex(tab => 
       tab.name === currentPath || 
-      (tab.name === '(home)' && (currentPath === '' || currentPath === '(home)'))
+      (tab.name === 'index' && (currentPath === '' || currentPath === 'index'))
     );
     return index >= 0 ? index : 0;
   }, [pathname, tabs]);
@@ -142,7 +142,7 @@ export default function TabLayout() {
               animation: 'slide_from_right',
             }}
           >
-            <Stack.Screen name="(home)" />
+            <Stack.Screen name="index" />
             <Stack.Screen name="habits" />
             <Stack.Screen name="history" />
             <Stack.Screen name="progress" />

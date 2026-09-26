@@ -22,6 +22,8 @@ import {
   updateAffirmation,
   getHabitCompletionsForDate,
 } from "@/utils/database";
+import { useTheme } from "@/contexts/ThemeContext";
+import { getColors } from "@/styles/commonStyles";
 
 interface JournalEntry {
   id: string;
@@ -49,6 +51,8 @@ interface Habit {
 }
 
 export default function HistoryScreen() {
+  const { isDark } = useTheme();
+  const themeColors = getColors(isDark);
   const [activeTab, setActiveTab] = useState<"journal" | "affirmations" | "favorites">("journal");
   const [journalEntries, setJournalEntries] = useState<JournalEntry[]>([]);
   const [affirmations, setAffirmations] = useState<Affirmation[]>([]);
@@ -139,7 +143,7 @@ export default function HistoryScreen() {
 
   return (
     <LinearGradient
-      colors={["#4F46E5", "#87CEEB"]}
+      colors={isDark ? [themeColors.gradientStart, themeColors.gradientEnd] : ["#4F46E5", "#87CEEB"]}
       style={styles.container}
       start={{ x: 0, y: 0 }}
       end={{ x: 0, y: 1 }}
@@ -151,35 +155,35 @@ export default function HistoryScreen() {
       {/* Tab Selector */}
       <View style={styles.tabContainer}>
         <TouchableOpacity
-          style={[styles.tab, activeTab === "journal" && styles.activeTab]}
+          style={[styles.tab, activeTab === "journal" && styles.activeTab, activeTab === "journal" && { backgroundColor: themeColors.card }]}
           onPress={() => {
             console.log("[History] User switched to Journal tab");
             setActiveTab("journal");
           }}
         >
-          <Text style={[styles.tabText, activeTab === "journal" && styles.activeTabText]}>
+          <Text style={[styles.tabText, activeTab === "journal" && styles.activeTabText, activeTab === "journal" && { color: themeColors.primary }]}>
             Journal
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={[styles.tab, activeTab === "affirmations" && styles.activeTab]}
+          style={[styles.tab, activeTab === "affirmations" && styles.activeTab, activeTab === "affirmations" && { backgroundColor: themeColors.card }]}
           onPress={() => {
             console.log("[History] User switched to Affirmations tab");
             setActiveTab("affirmations");
           }}
         >
-          <Text style={[styles.tabText, activeTab === "affirmations" && styles.activeTabText]}>
+          <Text style={[styles.tabText, activeTab === "affirmations" && styles.activeTabText, activeTab === "affirmations" && { color: themeColors.primary }]}>
             Affirmations
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={[styles.tab, activeTab === "favorites" && styles.activeTab]}
+          style={[styles.tab, activeTab === "favorites" && styles.activeTab, activeTab === "favorites" && { backgroundColor: themeColors.card }]}
           onPress={() => {
             console.log("[History] User switched to Favorites tab");
             setActiveTab("favorites");
           }}
         >
-          <Text style={[styles.tabText, activeTab === "favorites" && styles.activeTabText]}>
+          <Text style={[styles.tabText, activeTab === "favorites" && styles.activeTabText, activeTab === "favorites" && { color: themeColors.primary }]}>
             Favorites
           </Text>
         </TouchableOpacity>
@@ -218,7 +222,7 @@ export default function HistoryScreen() {
                 journalEntries.map((entry) => (
                   <TouchableOpacity
                     key={entry.id}
-                    style={styles.entryCard}
+                    style={[styles.entryCard, { backgroundColor: themeColors.card }]}
                     onPress={() => {
                       console.log("[History] User tapped journal entry:", entry.id);
                       router.push(`/entry/${entry.id}` as any);
@@ -238,7 +242,7 @@ export default function HistoryScreen() {
                         />
                       )}
                     </View>
-                    <Text style={styles.entryContent} numberOfLines={3}>
+                    <Text style={[styles.entryContent, { color: themeColors.text }]} numberOfLines={3}>
                       {entry.content}
                     </Text>
                     <View style={styles.entryFooter}>
@@ -286,7 +290,7 @@ export default function HistoryScreen() {
                 </View>
               ) : (
                 affirmations.map((affirmation) => (
-                  <View key={affirmation.id} style={styles.affirmationCard}>
+                  <View key={affirmation.id} style={[styles.affirmationCard, { backgroundColor: themeColors.card }]}>
                     <View style={styles.affirmationHeader}>
                       <Text style={styles.affirmationDate}>{formatDate(affirmation.createdAt)}</Text>
                       <TouchableOpacity onPress={() => toggleFavorite(affirmation.id)}>
@@ -298,7 +302,7 @@ export default function HistoryScreen() {
                         />
                       </TouchableOpacity>
                     </View>
-                    <Text style={styles.affirmationText}>{affirmation.text}</Text>
+                    <Text style={[styles.affirmationText, { color: themeColors.text }]}>{affirmation.text}</Text>
                     {affirmation.isCustom === 1 && (
                       <View style={styles.customBadge}>
                         <Text style={styles.customBadgeText}>Custom</Text>
@@ -325,7 +329,7 @@ export default function HistoryScreen() {
                 </View>
               ) : (
                 favorites.map((affirmation) => (
-                  <View key={affirmation.id} style={styles.affirmationCard}>
+                  <View key={affirmation.id} style={[styles.affirmationCard, { backgroundColor: themeColors.card }]}>
                     <View style={styles.affirmationHeader}>
                       <Text style={styles.affirmationDate}>{formatDate(affirmation.createdAt)}</Text>
                       <TouchableOpacity onPress={() => toggleFavorite(affirmation.id)}>
@@ -337,7 +341,7 @@ export default function HistoryScreen() {
                         />
                       </TouchableOpacity>
                     </View>
-                    <Text style={styles.affirmationText}>{affirmation.text}</Text>
+                    <Text style={[styles.affirmationText, { color: themeColors.text }]}>{affirmation.text}</Text>
                     {affirmation.isCustom === 1 && (
                       <View style={styles.customBadge}>
                         <Text style={styles.customBadgeText}>Custom</Text>

@@ -3,7 +3,7 @@ import { StatusBar } from "expo-status-bar";
 import { WidgetProvider } from "@/contexts/WidgetContext";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import React, { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, Pressable, Text, useColorScheme, View } from "react-native";
+import { ActivityIndicator, Pressable, Text, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import {
   DarkTheme,
@@ -11,9 +11,9 @@ import {
   ThemeProvider as NavigationThemeProvider,
 } from "@react-navigation/native";
 import { initDatabase, isDatabaseReady, retryDatabaseInit } from "@/utils/database";
+import { useTheme } from "@/contexts/ThemeContext";
 
 export default function RootLayout() {
-  const colorScheme = useColorScheme();
   const [isReady, setIsReady] = useState(false);
   const [startupError, setStartupError] = useState<string | null>(null);
   const [isRetrying, setIsRetrying] = useState(false);
@@ -80,27 +80,33 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <ThemeProvider>
-        <WidgetProvider>
-          <NavigationThemeProvider
-            value={colorScheme === "dark" ? DarkTheme : DefaultTheme}
-          >
-            <Stack
-              screenOptions={{
-                headerShown: false,
-                animation: "none",
-              }}
-            >
-              <Stack.Screen name="welcome" />
-              <Stack.Screen name="(tabs)" />
-              <Stack.Screen name="modal" options={{ presentation: "modal" }} />
-              <Stack.Screen name="formsheet" options={{ presentation: "formSheet" }} />
-              <Stack.Screen name="transparent-modal" options={{ presentation: "transparentModal" }} />
-              <Stack.Screen name="entry/[id]" />
-            </Stack>
-            <StatusBar style="light" />
-          </NavigationThemeProvider>
-        </WidgetProvider>
+        <AppNavigator />
       </ThemeProvider>
     </GestureHandlerRootView>
+  );
+}
+
+function AppNavigator() {
+  const { isDark } = useTheme();
+  return (
+    <WidgetProvider>
+      <NavigationThemeProvider value={isDark ? DarkTheme : DefaultTheme}>
+        <Stack
+          screenOptions={{
+            headerShown: false,
+            animation: "none",
+            contentStyle: { backgroundColor: isDark ? "#080D2B" : "#FFFFFF" },
+          }}
+        >
+          <Stack.Screen name="welcome" />
+          <Stack.Screen name="(tabs)" />
+          <Stack.Screen name="modal" options={{ presentation: "modal" }} />
+          <Stack.Screen name="formsheet" options={{ presentation: "formSheet" }} />
+          <Stack.Screen name="transparent-modal" options={{ presentation: "transparentModal" }} />
+          <Stack.Screen name="entry/[id]" />
+        </Stack>
+        <StatusBar style={isDark ? "light" : "dark"} />
+      </NavigationThemeProvider>
+    </WidgetProvider>
   );
 }

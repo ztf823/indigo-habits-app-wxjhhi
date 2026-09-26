@@ -40,6 +40,8 @@ import {
 import { playChime } from "@/utils/sounds";
 
 import { getHabitReminderTime } from "@/utils/notifications";
+import { useTheme } from "@/contexts/ThemeContext";
+import { getColors } from "@/styles/commonStyles";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 const AFFIRMATION_CARD_WIDTH = 300;
@@ -107,6 +109,8 @@ const DEFAULT_HABITS = [
 ];
 
 export default function HomeScreen() {
+  const { isDark } = useTheme();
+  const themeColors = getColors(isDark);
   const [affirmations, setAffirmations] = useState<Affirmation[]>([]);
   const [habits, setHabits] = useState<Habit[]>([]);
   const [loading, setLoading] = useState(true);
@@ -595,7 +599,7 @@ export default function HomeScreen() {
   if (loading) {
     return (
       <LinearGradient
-        colors={["#4F46E5", "#87CEEB"]}
+        colors={isDark ? [themeColors.gradientStart, themeColors.gradientEnd] : ["#4F46E5", "#87CEEB"]}
         style={styles.gradient}
         start={{ x: 0, y: 0 }}
         end={{ x: 0, y: 1 }}
@@ -632,7 +636,7 @@ export default function HomeScreen() {
         />
       )}
       <LinearGradient
-        colors={["#4F46E5", "#87CEEB"]}
+        colors={isDark ? [themeColors.gradientStart, themeColors.gradientEnd] : ["#4F46E5", "#87CEEB"]}
         style={styles.gradient}
         start={{ x: 0, y: 0 }}
         end={{ x: 0, y: 1 }}
@@ -656,8 +660,8 @@ export default function HomeScreen() {
               <Text style={styles.sectionTitle}>Today&apos;s Journal</Text>
               <Text style={styles.journalDate}>{new Date().toLocaleDateString()}</Text>
             </View>
-            <TouchableOpacity style={styles.journalCard} onPress={openJournalModal} activeOpacity={0.7}>
-              <Text style={styles.journalPreview} numberOfLines={3}>
+            <TouchableOpacity style={[styles.journalCard, { backgroundColor: themeColors.card }]} onPress={openJournalModal} activeOpacity={0.7}>
+              <Text style={[styles.journalPreview, { color: themeColors.textSecondary }]} numberOfLines={3}>
                 {journalContent || "Tap here to start writing..."}
               </Text>
               {journalPhoto && (
@@ -697,6 +701,7 @@ export default function HomeScreen() {
                   key={affirmation.id} 
                   style={[
                     styles.affirmationCard,
+                    { backgroundColor: themeColors.card },
                     index === 0 && styles.affirmationCardFirst,
                   ]}
                 >
@@ -714,7 +719,7 @@ export default function HomeScreen() {
                     </TouchableOpacity>
                   </View>
 
-                  <Text style={styles.affirmationText}>{affirmation.text}</Text>
+                  <Text style={[styles.affirmationText, { color: themeColors.text }]}>{affirmation.text}</Text>
 
                   <View style={styles.affirmationActions}>
                     <TouchableOpacity
@@ -739,13 +744,13 @@ export default function HomeScreen() {
               </View>
             </View>
 
-            <View style={styles.habitsCard}>
+            <View style={[styles.habitsCard, { backgroundColor: themeColors.card }]}>
               {habits.map((habit) => (
                 <View key={habit.id} style={styles.habitItem}>
                   <TouchableOpacity
                     style={[
                       styles.habitCheckbox,
-                      { backgroundColor: habit.completed ? habit.color : "white", borderColor: habit.color },
+                      { backgroundColor: habit.completed ? habit.color : themeColors.card, borderColor: habit.color },
                     ]}
                     onPress={() => toggleHabit(habit.id)}
                   >
@@ -763,6 +768,7 @@ export default function HomeScreen() {
                     <Text
                       style={[
                         styles.habitTitle,
+                        { color: themeColors.text },
                         habit.completed && styles.habitTitleCompleted,
                       ]}
                     >
@@ -803,19 +809,19 @@ export default function HomeScreen() {
             style={styles.journalModalContainer}
             behavior={Platform.OS === "ios" ? "padding" : "height"}
           >
-            <View style={styles.journalModalWhiteBackground}>
-              <View style={styles.journalModalHeader}>
+            <View style={[styles.journalModalWhiteBackground, { backgroundColor: themeColors.card }]}>
+              <View style={[styles.journalModalHeader, { borderBottomColor: themeColors.border }]}>
                 <TouchableOpacity onPress={closeJournalModal} style={styles.journalModalClose}>
                   <IconSymbol
                     ios_icon_name="chevron.down"
                     android_material_icon_name="keyboard-arrow-down"
                     size={28}
-                    color="#1F2937"
+                    color={themeColors.text}
                   />
                 </TouchableOpacity>
                 
                 <TextInput
-                  style={styles.journalModalTitleInput}
+                  style={[styles.journalModalTitleInput, { color: themeColors.text }]}
                   placeholder="Title (optional)"
                   placeholderTextColor="#9CA3AF"
                   value={journalTitle}
@@ -835,8 +841,8 @@ export default function HomeScreen() {
                 </TouchableOpacity>
               </View>
 
-              <View style={styles.journalModalDateStamp}>
-                <Text style={styles.journalModalDateText}>
+              <View style={[styles.journalModalDateStamp, { borderBottomColor: themeColors.border }]}>
+                <Text style={[styles.journalModalDateText, { color: themeColors.textSecondary }]}>
                   {new Date().toLocaleDateString("en-US", {
                     weekday: "long",
                     month: "long",
@@ -848,7 +854,7 @@ export default function HomeScreen() {
 
               <View style={styles.journalModalContent}>
                 <TextInput
-                  style={styles.journalModalInput}
+                  style={[styles.journalModalInput, { color: themeColors.text }]}
                   placeholder="Write your thoughts..."
                   placeholderTextColor="#9CA3AF"
                   multiline
@@ -875,14 +881,14 @@ export default function HomeScreen() {
                 )}
 
                 {audioUri && (
-                  <View style={styles.journalModalAudioPreview}>
+                  <View style={[styles.journalModalAudioPreview, { backgroundColor: isDark ? themeColors.border : "#F3F4F6" }]}>
                     <IconSymbol
                       ios_icon_name="waveform"
                       android_material_icon_name="graphic-eq"
                       size={20}
                       color="#4F46E5"
                     />
-                    <Text style={styles.journalModalAudioText}>Audio memo attached</Text>
+                    <Text style={[styles.journalModalAudioText, { color: themeColors.textSecondary }]}>Audio memo attached</Text>
                     <TouchableOpacity
                       onPress={() => setAudioUri(null)}
                       style={styles.journalModalRemoveButton}

@@ -14,6 +14,8 @@ import {
   TouchableOpacity,
 } from "react-native";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
+import { useTheme } from "@/contexts/ThemeContext";
+import { getColors } from "@/styles/commonStyles";
 
 interface EntryDetail {
   id: string;
@@ -23,6 +25,8 @@ interface EntryDetail {
 }
 
 export default function EntryDetailScreen() {
+  const { isDark } = useTheme();
+  const themeColors = getColors(isDark);
   const { id } = useLocalSearchParams();
   const router = useRouter();
   const [entry, setEntry] = useState<EntryDetail | null>(null);
@@ -72,7 +76,7 @@ export default function EntryDetailScreen() {
   }
 
   return (
-    <LinearGradient colors={["#6366F1", "#87CEEB"]} style={styles.container}>
+    <LinearGradient colors={isDark ? [themeColors.gradientStart, themeColors.gradientEnd] : ["#6366F1", "#87CEEB"]} style={styles.container}>
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.header}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
@@ -88,14 +92,14 @@ export default function EntryDetailScreen() {
         </View>
 
         <ScrollView contentContainerStyle={styles.scrollContent}>
-          <View style={styles.card}>
+          <View style={[styles.card, { backgroundColor: themeColors.card }]}>
             <Text style={styles.date}>{formatDate(entry.createdAt)}</Text>
             
             {entry.photoUrl && (
               <Image source={{ uri: entry.photoUrl }} style={styles.photo} />
             )}
 
-            <Text style={styles.content}>{entry.content}</Text>
+            <Text style={[styles.content, { color: themeColors.text }]}>{entry.content}</Text>
           </View>
         </ScrollView>
       </SafeAreaView>

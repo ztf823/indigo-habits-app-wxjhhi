@@ -3,13 +3,15 @@ import { View, useWindowDimensions } from 'react-native';
 import { usePathname, useRouter } from 'expo-router';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { NativeTabs, Icon, Label } from 'expo-router/unstable-native-tabs';
+import { useTheme } from '@/contexts/ThemeContext';
 
 export default function TabLayout() {
+  const { isDark } = useTheme();
   const router = useRouter();
   const pathname = usePathname();
   const { height } = useWindowDimensions();
   const tabRoutes = useMemo(() => [
-    '/(tabs)/(home)/',
+    '/(tabs)/',
     '/(tabs)/habits',
     '/(tabs)/history',
     '/(tabs)/progress',
@@ -39,8 +41,8 @@ export default function TabLayout() {
   return (
     <GestureDetector gesture={pageSwipe}>
       <View style={{ flex: 1 }}>
-        <NativeTabs>
-          <NativeTabs.Trigger key="home" name="(home)">
+        <NativeTabs tintColor={isDark ? '#67E8F9' : '#0B5FFF'}>
+          <NativeTabs.Trigger name="index">
             <Icon sf="house.fill" />
             <Label>Home</Label>
           </NativeTabs.Trigger>

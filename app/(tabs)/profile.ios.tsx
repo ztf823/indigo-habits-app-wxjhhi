@@ -365,7 +365,7 @@ export default function ProfileScreen() {
                     setHasPremium(false);
                     
                     // Navigate back to home
-                    router.replace("/(tabs)/(home)/");
+                    router.replace("/(tabs)/");
                   },
                 },
               ]);

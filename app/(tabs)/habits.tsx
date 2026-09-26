@@ -35,6 +35,8 @@ import {
   removeHabitReminder,
   getHabitReminderTime,
 } from "@/utils/notifications";
+import { useTheme } from "@/contexts/ThemeContext";
+import { getColors } from "@/styles/commonStyles";
 
 interface Habit {
   id: string;
@@ -74,6 +76,8 @@ const DEFAULT_HABITS = [
 ];
 
 export default function HabitsScreen() {
+  const { isDark } = useTheme();
+  const themeColors = getColors(isDark);
   const [activeTab, setActiveTab] = useState<"habits" | "affirmations">("habits");
   const [habits, setHabits] = useState<Habit[]>([]);
   const [affirmations, setAffirmations] = useState<Affirmation[]>([]);
@@ -526,7 +530,7 @@ export default function HabitsScreen() {
   if (loading) {
     return (
       <LinearGradient
-        colors={["#6366F1", "#87CEEB"]}
+        colors={isDark ? [themeColors.gradientStart, themeColors.gradientEnd] : ["#6366F1", "#87CEEB"]}
         style={styles.gradient}
         start={{ x: 0, y: 0 }}
         end={{ x: 0, y: 1 }}
@@ -544,7 +548,7 @@ export default function HabitsScreen() {
 
   return (
     <LinearGradient
-      colors={["#6366F1", "#87CEEB"]}
+      colors={isDark ? [themeColors.gradientStart, themeColors.gradientEnd] : ["#6366F1", "#87CEEB"]}
       style={styles.gradient}
       start={{ x: 0, y: 0 }}
       end={{ x: 0, y: 1 }}
@@ -566,7 +570,7 @@ export default function HabitsScreen() {
         {/* Tabs */}
         <View style={styles.tabs}>
           <TouchableOpacity
-            style={[styles.tab, activeTab === "habits" && styles.activeTab]}
+            style={[styles.tab, activeTab === "habits" && styles.activeTab, activeTab === "habits" && { backgroundColor: themeColors.card }]}
             onPress={() => {
               console.log("User switched to Habits tab");
               setActiveTab("habits");
@@ -577,13 +581,14 @@ export default function HabitsScreen() {
               style={[
                 styles.tabText,
                 activeTab === "habits" && styles.activeTabText,
+                activeTab === "habits" && { color: themeColors.primary },
               ]}
             >
               Habits
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.tab, activeTab === "affirmations" && styles.activeTab]}
+            style={[styles.tab, activeTab === "affirmations" && styles.activeTab, activeTab === "affirmations" && { backgroundColor: themeColors.card }]}
             onPress={() => {
               console.log("User switched to Affirmations tab");
               setActiveTab("affirmations");
@@ -594,6 +599,7 @@ export default function HabitsScreen() {
               style={[
                 styles.tabText,
                 activeTab === "affirmations" && styles.activeTabText,
+                activeTab === "affirmations" && { color: themeColors.primary },
               ]}
             >
               Affirmations
@@ -627,13 +633,13 @@ export default function HabitsScreen() {
               ) : (
                 <>
                   {habits.map((habit) => (
-                    <View key={habit.id} style={styles.habitCard}>
+                    <View key={habit.id} style={[styles.habitCard, { backgroundColor: themeColors.card }]}>
                       <View style={styles.habitTop}>
                         <View style={styles.habitLeft}>
                           <View
                             style={[styles.habitDot, { backgroundColor: habit.color }]}
                           />
-                          <Text style={styles.habitTitle}>{habit.title}</Text>
+                          <Text style={[styles.habitTitle, { color: themeColors.text }]}>{habit.title}</Text>
                         </View>
                         <View style={styles.habitActions}>
                           <TouchableOpacity
@@ -685,7 +691,7 @@ export default function HabitsScreen() {
                               size={16}
                               color="#047857"
                             />
-                            <Text style={styles.reminderTimeText}>
+                            <Text style={[styles.reminderTimeText, { color: isDark ? "#6EE7B7" : "#047857" }]}>
                               Reminder set for {formatTimeDisplay(habitReminders[habit.id])}
                             </Text>
                           </View>
@@ -741,8 +747,8 @@ export default function HabitsScreen() {
               ) : (
                 <>
                   {affirmations.map((affirmation) => (
-                    <View key={affirmation.id} style={styles.affirmationCard}>
-                      <Text style={styles.affirmationText}>{affirmation.text}</Text>
+                    <View key={affirmation.id} style={[styles.affirmationCard, { backgroundColor: themeColors.card }]}>
+                      <Text style={[styles.affirmationText, { color: themeColors.text }]}>{affirmation.text}</Text>
                       
                       <View style={styles.affirmationMeta}>
                         <View style={styles.affirmationBadges}>
@@ -851,12 +857,12 @@ export default function HabitsScreen() {
         presentationStyle="pageSheet"
         onRequestClose={() => setHabitModalVisible(false)}
       >
-        <View style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
+        <View style={[styles.modalContainer, { backgroundColor: themeColors.card }]}>
+          <View style={[styles.modalHeader, { borderBottomColor: themeColors.border }]}>
             <TouchableOpacity onPress={() => setHabitModalVisible(false)}>
               <Text style={styles.modalCancel}>Cancel</Text>
             </TouchableOpacity>
-            <Text style={styles.modalTitle}>
+            <Text style={[styles.modalTitle, { color: themeColors.text }]}>
               {editingHabit ? "Edit Habit" : "New Habit"}
             </Text>
             <TouchableOpacity
@@ -867,16 +873,16 @@ export default function HabitsScreen() {
           </View>
 
           <View style={styles.modalContent}>
-            <Text style={styles.label}>Habit Name</Text>
+            <Text style={[styles.label, { color: themeColors.text }]}>Habit Name</Text>
             <TextInput
-              style={styles.input}
+              style={[styles.input, { backgroundColor: isDark ? themeColors.border : "#F3F4F6", color: themeColors.text }]}
               placeholder="e.g., Morning meditation"
               value={habitTitle}
               onChangeText={setHabitTitle}
               autoFocus
             />
 
-            <Text style={styles.label}>Color</Text>
+            <Text style={[styles.label, { color: themeColors.text }]}>Color</Text>
             <View style={styles.colorPicker}>
               {COLORS.map((color) => (
                 <TouchableOpacity
@@ -904,21 +910,21 @@ export default function HabitsScreen() {
         presentationStyle="pageSheet"
         onRequestClose={() => setAffirmationModalVisible(false)}
       >
-        <View style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
+        <View style={[styles.modalContainer, { backgroundColor: themeColors.card }]}>
+          <View style={[styles.modalHeader, { borderBottomColor: themeColors.border }]}>
             <TouchableOpacity onPress={() => setAffirmationModalVisible(false)}>
               <Text style={styles.modalCancel}>Cancel</Text>
             </TouchableOpacity>
-            <Text style={styles.modalTitle}>New Affirmation</Text>
+            <Text style={[styles.modalTitle, { color: themeColors.text }]}>New Affirmation</Text>
             <TouchableOpacity onPress={handleAddCustomAffirmation}>
               <Text style={styles.modalSave}>Save</Text>
             </TouchableOpacity>
           </View>
 
           <View style={styles.modalContent}>
-            <Text style={styles.label}>Affirmation Text</Text>
+            <Text style={[styles.label, { color: themeColors.text }]}>Affirmation Text</Text>
             <TextInput
-              style={[styles.input, styles.textArea]}
+              style={[styles.input, styles.textArea, { backgroundColor: isDark ? themeColors.border : "#F3F4F6", color: themeColors.text }]}
               placeholder="e.g., I am worthy of love and respect."
               value={affirmationText}
               onChangeText={setAffirmationText}
@@ -937,12 +943,12 @@ export default function HabitsScreen() {
         presentationStyle="pageSheet"
         onRequestClose={() => setReminderModalVisible(false)}
       >
-        <View style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
+        <View style={[styles.modalContainer, { backgroundColor: themeColors.card }]}>
+          <View style={[styles.modalHeader, { borderBottomColor: themeColors.border }]}>
             <TouchableOpacity onPress={() => setReminderModalVisible(false)}>
               <Text style={styles.modalCancel}>Cancel</Text>
             </TouchableOpacity>
-            <Text style={styles.modalTitle}>Set Reminder</Text>
+            <Text style={[styles.modalTitle, { color: themeColors.text }]}>Set Reminder</Text>
             <TouchableOpacity onPress={handleSaveReminder}>
               <Text style={styles.modalSave}>Save</Text>
             </TouchableOpacity>
@@ -963,22 +969,22 @@ export default function HabitsScreen() {
 
             {selectedHabitForReminder && (
               <React.Fragment>
-                <Text style={styles.label}>Habit</Text>
-                <View style={styles.habitPreview}>
+                <Text style={[styles.label, { color: themeColors.text }]}>Habit</Text>
+                <View style={[styles.habitPreview, { backgroundColor: isDark ? themeColors.border : "#F3F4F6" }]}>
                   <View
                     style={[
                       styles.habitDot,
                       { backgroundColor: selectedHabitForReminder.color },
                     ]}
                   />
-                  <Text style={styles.habitPreviewText}>
+                  <Text style={[styles.habitPreviewText, { color: themeColors.text }]}>
                     {selectedHabitForReminder.title}
                   </Text>
                 </View>
 
-                <Text style={styles.label}>Reminder Time</Text>
+                <Text style={[styles.label, { color: themeColors.text }]}>Reminder Time</Text>
                 <TouchableOpacity
-                  style={styles.timePickerButton}
+                  style={[styles.timePickerButton, { backgroundColor: isDark ? themeColors.border : "#F3F4F6" }]}
                   onPress={() => setShowTimePicker(true)}
                 >
                   <IconSymbol
@@ -987,7 +993,7 @@ export default function HabitsScreen() {
                     size={24}
                     color="#6366F1"
                   />
-                  <Text style={styles.timePickerText}>
+                  <Text style={[styles.timePickerText, { color: themeColors.text }]}>
                     {formatTimeDisplay(reminderTime)}
                   </Text>
                 </TouchableOpacity>
@@ -1002,7 +1008,7 @@ export default function HabitsScreen() {
                   />
                 )}
 
-                <Text style={styles.reminderNote}>
+                <Text style={[styles.reminderNote, { color: themeColors.textSecondary }]}>
                   🔔 You'll receive a soft Tibetan bowl chime at this time every day
                 </Text>
 

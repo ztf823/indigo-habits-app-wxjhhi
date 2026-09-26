@@ -22,11 +22,11 @@ export default function WelcomeScreen() {
       await AsyncStorage.setItem("hasSeenWelcome", "true");
       console.log("Welcome status saved, navigating to home");
       // Skip auth - go directly to home
-      router.replace("/(tabs)/(home)/");
+      router.replace("/(tabs)/");
     } catch (error) {
       console.error("Error saving welcome status:", error);
       // Navigate anyway even if storage fails
-      router.replace("/(tabs)/(home)/");
+      router.replace("/(tabs)/");
     }
   };
 
