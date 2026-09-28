@@ -1,0 +1,10 @@
+name: Submit build 74 to TestFlight
+on:
+  workflow_dispatch:
+jobs:
+  submit_build_74:
+    type: testflight
+    params:
+      build_id: 6df0c634-d299-4cd2-aba1-ebd61b4094fe
+      profile: production
+      changelog: "Fix journal entry loading, local date handling, and affirmation persistence."
