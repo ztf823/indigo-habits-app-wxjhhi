@@ -29,6 +29,13 @@ export default function TabLayout() {
       android_material_icon_name: 'check-circle',
     },
     {
+      name: 'calendar',
+      route: '/(tabs)/calendar' as any,
+      label: 'Calendar',
+      ios_icon_name: 'calendar',
+      android_material_icon_name: 'calendar-month',
+    },
+    {
       name: 'history',
       route: '/(tabs)/history' as any,
       label: 'History',
@@ -45,7 +52,7 @@ export default function TabLayout() {
     {
       name: 'profile',
       route: '/(tabs)/profile' as any,
-      label: 'Profile',
+      label: 'More',
       ios_icon_name: 'person.fill',
       android_material_icon_name: 'person',
     },
@@ -144,6 +151,7 @@ export default function TabLayout() {
           >
             <Stack.Screen name="index" />
             <Stack.Screen name="habits" />
+            <Stack.Screen name="calendar" />
             <Stack.Screen name="history" />
             <Stack.Screen name="progress" />
             <Stack.Screen name="profile" />

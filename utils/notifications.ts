@@ -195,7 +195,7 @@ export const scheduleJournalReminder = async (time: string) => {
           title: 'Time to journal 📝',
           body: 'Reflect on your day and capture your thoughts',
           sound: 'default',
-          data: { type: 'journal' },
+          data: { type: 'journal', route: '/reflection' },
         },
         trigger: {
           type: Notifications.SchedulableTriggerInputTypes.CALENDAR,
@@ -230,6 +230,10 @@ export const cancelJournalReminder = async () => {
  */
 export const scheduleHabitReminder = async (habitId: string, habitTitle: string, time: string) => {
   try {
+    await Notifications.setNotificationCategoryAsync('habit-reminder-actions', [
+      { identifier: 'complete', buttonTitle: 'Mark complete', options: { opensAppToForeground: false } },
+      { identifier: 'snooze', buttonTitle: 'Snooze 10 min', options: { opensAppToForeground: false } },
+    ]);
     console.log('[Notifications] Scheduling habit reminder for', habitTitle, 'at', time);
     
     const notificationId = `habit-${habitId}`;
@@ -250,9 +254,10 @@ export const scheduleHabitReminder = async (habitId: string, habitTitle: string,
         identifier: notificationId,
         content: {
           title: `Time for: ${habitTitle} ⏰`,
-          body: 'Complete this habit to maintain your streak',
+          body: `A small step today: ${habitTitle}. Tap to mark it done or snooze for 10 minutes.`,
           sound: 'default',
-          data: { type: 'habit', habitId },
+          data: { type: 'habit', habitId, route: '/(tabs)/calendar' },
+          categoryIdentifier: 'habit-reminder-actions',
         },
         trigger: {
           type: Notifications.SchedulableTriggerInputTypes.CALENDAR,

@@ -3,7 +3,7 @@
     "name": "Indigo Habits",
     "slug": "indigo-habits",
     "scheme": "indigohabits",
-    "version": "1.0.56",
+    "version": "1.0.57",
     "orientation": "portrait",
     "icon": "./assets/images/blue-flame-icon.png",
     "userInterfaceStyle": "automatic",
@@ -11,7 +11,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.indigohabits.journal2026",
-      "buildNumber": "75",
+      "buildNumber": "76",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NSPhotoLibraryUsageDescription": "Indigo Habits needs access to your photos to add images to your journal entries.",

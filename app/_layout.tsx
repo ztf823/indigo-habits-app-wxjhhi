@@ -12,6 +12,10 @@ import {
 } from "@react-navigation/native";
 import { initDatabase, isDatabaseReady, retryDatabaseInit } from "@/utils/database";
 import { useTheme } from "@/contexts/ThemeContext";
+import * as Notifications from "expo-notifications";
+import { useRouter } from "expo-router";
+import { setHabitCompletion } from "@/utils/database";
+import { getLocalDateKey, setPlannedItemCompleted } from "@/utils/planner";
 
 export default function RootLayout() {
   const [isReady, setIsReady] = useState(false);
@@ -88,6 +92,22 @@ export default function RootLayout() {
 
 function AppNavigator() {
   const { isDark } = useTheme();
+  const router = useRouter();
+  useEffect(() => {
+    const subscription = Notifications.addNotificationResponseReceivedListener(async (response) => {
+      const data = response.notification.request.content.data as { type?: string; habitId?: string; taskId?: string; route?: string };
+      const action = response.actionIdentifier;
+      if (action === "snooze") {
+        await Notifications.scheduleNotificationAsync({ content: response.notification.request.content, trigger: { seconds: 600 } });
+        return;
+      }
+      if (action === "complete" && data.habitId) await setHabitCompletion(data.habitId, getLocalDateKey(), true);
+      if (action === "complete" && data.taskId) await setPlannedItemCompleted(data.taskId, getLocalDateKey(), true);
+      if (data.type === "journal" || data.route === "/reflection") router.push("/reflection" as any);
+      else if (data.habitId || data.taskId || data.route) router.push("/(tabs)/calendar" as any);
+    });
+    return () => subscription.remove();
+  }, [router]);
   return (
     <WidgetProvider>
       <NavigationThemeProvider value={isDark ? DarkTheme : DefaultTheme}>
@@ -100,6 +120,7 @@ function AppNavigator() {
         >
           <Stack.Screen name="welcome" />
           <Stack.Screen name="(tabs)" />
+          <Stack.Screen name="reflection" />
           <Stack.Screen name="modal" options={{ presentation: "modal" }} />
           <Stack.Screen name="formsheet" options={{ presentation: "formSheet" }} />
           <Stack.Screen name="transparent-modal" options={{ presentation: "transparentModal" }} />
