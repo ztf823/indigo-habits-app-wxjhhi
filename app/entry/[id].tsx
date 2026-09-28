@@ -14,7 +14,7 @@ import {
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { useTheme } from "@/contexts/ThemeContext";
 import { getColors } from "@/styles/commonStyles";
-import { getJournalEntryById } from "@/utils/database";
+import { getJournalEntryById, isDatabaseReady } from "@/utils/database";
 
 interface EntryDetail {
   id: string;
@@ -48,6 +48,9 @@ export default function EntryDetailScreen() {
     setLoadFailed(false);
     try {
       const localEntry = await getJournalEntryById(entryId);
+      if (!localEntry && !isDatabaseReady()) {
+        throw new Error("Local journal database is unavailable");
+      }
       setEntry((localEntry as EntryDetail | null) ?? null);
     } catch (error) {
       console.error("[JournalEntry] Error loading local entry:", error);
@@ -154,7 +157,7 @@ export default function EntryDetailScreen() {
 
         <ScrollView contentContainerStyle={styles.scrollContent}>
           <View style={[styles.card, { backgroundColor: themeColors.card }]}>
-            <Text style={styles.date}>{formatDate(entry.createdAt || entry.date)}</Text>
+            <Text style={styles.date}>{formatDate(entry.date || entry.createdAt)}</Text>
             {entry.photoUri && (
               <Image source={{ uri: entry.photoUri }} style={styles.photo} />
             )}
