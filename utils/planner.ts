@@ -44,7 +44,7 @@ export type AffirmationSchedule = {
 
 const HABIT_SCHEDULES_KEY = "@indigo_habits/habit_schedules_v1";
 const PLANNED_ITEMS_KEY = "@indigo_habits/planned_items_v1";
-const AFFIRMATION_SCHEDULE_KEY = "@indigo_habits/affirmation_schedule_v1";
+const AFFIRMATION_SCHEDULE_KEY = "@indigo_habits/affirmation_schedules_v2";
 const AFFIRMATION_USAGE_KEY = "@indigo_habits/affirmation_usage_v1";
 const CURRENT_AFFIRMATION_KEY = "@indigo_habits/current_affirmation_v1";
 
@@ -107,6 +107,12 @@ export const saveHabitSchedule = async (habitId: string, schedule: HabitSchedule
   await AsyncStorage.setItem(HABIT_SCHEDULES_KEY, JSON.stringify(schedules));
 };
 
+export const removeHabitSchedule = async (habitId: string) => {
+  const schedules = await readHabitSchedules();
+  delete schedules[habitId];
+  await AsyncStorage.setItem(HABIT_SCHEDULES_KEY, JSON.stringify(schedules));
+};
+
 export const getPlannedItems = async (): Promise<PlannedItem[]> =>
   parseJson(await AsyncStorage.getItem(PLANNED_ITEMS_KEY), []);
 
@@ -137,20 +143,34 @@ export const deletePlannedItem = async (id: string) => {
   await AsyncStorage.setItem(PLANNED_ITEMS_KEY, JSON.stringify(items.filter(item => item.id !== id)));
 };
 
+export const getAffirmationSchedules = async (): Promise<AffirmationSchedule[]> =>
+  parseJson(await AsyncStorage.getItem(AFFIRMATION_SCHEDULE_KEY), []);
+
 export const getAffirmationSchedule = async (): Promise<AffirmationSchedule> =>
-  parseJson(await AsyncStorage.getItem(AFFIRMATION_SCHEDULE_KEY), {
+  (await getAffirmationSchedules())[0] || {
     enabled: false,
     affirmationId: "",
     days: ALL_DAYS,
     times: ["09:00"],
-  });
+  };
 
 export const saveAffirmationSchedule = async (schedule: AffirmationSchedule) => {
-  await AsyncStorage.setItem(AFFIRMATION_SCHEDULE_KEY, JSON.stringify({
+  const schedules = await getAffirmationSchedules();
+  const normalized = {
     ...schedule,
     days: [...new Set(schedule.days)].filter(day => day >= 0 && day <= 6).sort(),
     times: [...new Set(schedule.times)].filter(Boolean).sort(),
-  }));
+  };
+  const next = schedules.filter(item => item.affirmationId !== schedule.affirmationId);
+  if (normalized.enabled && normalized.affirmationId) next.push(normalized);
+  await AsyncStorage.setItem(AFFIRMATION_SCHEDULE_KEY, JSON.stringify(next));
+};
+
+export const removeAffirmationSchedule = async (affirmationId: string) => {
+  const schedules = await getAffirmationSchedules();
+  await AsyncStorage.setItem(AFFIRMATION_SCHEDULE_KEY, JSON.stringify(
+    schedules.filter(item => item.affirmationId !== affirmationId)
+  ));
 };
 
 export const getCurrentAffirmationId = () => AsyncStorage.getItem(CURRENT_AFFIRMATION_KEY);
@@ -170,12 +190,12 @@ export const recordAffirmationRefresh = async (date = getLocalDateKey()) => {
 
 export const getPlanForDate = async (date: string): Promise<PlanEntry[]> => {
   const weekday = getWeekdayForDateKey(date);
-  const [habits, completions, schedules, tasks, affirmationSchedule] = await Promise.all([
+  const [habits, completions, schedules, tasks, affirmationSchedules] = await Promise.all([
     getAllHabits() as Promise<any[]>,
     getHabitCompletionsForDate(date) as Promise<any[]>,
     readHabitSchedules(),
     getPlannedItemsForDate(date),
-    getAffirmationSchedule(),
+    getAffirmationSchedules(),
   ]);
 
   const completedHabitIds = new Set(
@@ -189,6 +209,7 @@ export const getPlanForDate = async (date: string): Promise<PlanEntry[]> => {
       paused: false,
     };
     if (schedule.paused || !schedule.days.includes(weekday)) return [];
+    if (habit.isRepeating !== 1 && !schedules[habit.id]) return [];
     return [{
       id: `habit:${habit.id}`,
       habitId: habit.id,
@@ -213,23 +234,23 @@ export const getPlanForDate = async (date: string): Promise<PlanEntry[]> => {
     reminderEnabled: task.reminderEnabled,
   }));
 
-  const affirmationRows = affirmationSchedule.enabled &&
-    affirmationSchedule.days.includes(weekday) &&
-    affirmationSchedule.affirmationId
-    ? await import("@/utils/database").then(module => module.getAffirmationById(affirmationSchedule.affirmationId))
-    : null;
-  const affirmationEntries: PlanEntry[] = affirmationRows
-    ? affirmationSchedule.times.map((time, index) => ({
-        id: `affirmation:${affirmationSchedule.affirmationId}:${time}:${index}`,
-        affirmationId: affirmationSchedule.affirmationId,
-        title: affirmationRows.text,
-        date,
-        time,
-        kind: "affirmation" as const,
-        completed: false,
-        reminderEnabled: true,
-      }))
-    : [];
+  const affirmationEntries: PlanEntry[] = [];
+  const database = await import("@/utils/database");
+  for (const schedule of affirmationSchedules) {
+    if (!schedule.enabled || !schedule.days.includes(weekday)) continue;
+    const affirmation = await database.getAffirmationById(schedule.affirmationId);
+    if (!affirmation) continue;
+    for (const [index, time] of schedule.times.entries()) affirmationEntries.push({
+      id: `affirmation:${schedule.affirmationId}:${time}:${index}`,
+      affirmationId: schedule.affirmationId,
+      title: affirmation.text,
+      date,
+      time,
+      kind: "affirmation",
+      completed: false,
+      reminderEnabled: true,
+    });
+  }
 
   return [...habitEntries, ...taskEntries, ...affirmationEntries].sort((a, b) =>
     a.time.localeCompare(b.time) || a.title.localeCompare(b.title)

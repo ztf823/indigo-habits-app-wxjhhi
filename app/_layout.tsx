@@ -95,16 +95,20 @@ function AppNavigator() {
   const router = useRouter();
   useEffect(() => {
     const subscription = Notifications.addNotificationResponseReceivedListener(async (response) => {
-      const data = response.notification.request.content.data as { type?: string; habitId?: string; taskId?: string; route?: string };
+      const data = response.notification.request.content.data as { type?: string; habitId?: string; taskId?: string; route?: string; date?: string };
       const action = response.actionIdentifier;
       if (action === "snooze") {
-        await Notifications.scheduleNotificationAsync({ content: response.notification.request.content, trigger: { seconds: 600 } });
+        const original = response.notification.request.content;
+        await Notifications.scheduleNotificationAsync({ content: { title: original.title ?? "Reminder", body: original.body ?? "", data: original.data ?? {}, sound: "default", categoryIdentifier: original.categoryIdentifier ?? undefined }, trigger: { type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL, seconds: 600, repeats: false } });
         return;
       }
-      if (action === "complete" && data.habitId) await setHabitCompletion(data.habitId, getLocalDateKey(), true);
-      if (action === "complete" && data.taskId) await setPlannedItemCompleted(data.taskId, getLocalDateKey(), true);
+      const date = typeof data.date === "string" ? data.date : getLocalDateKey();
+      if (action === "complete" && data.habitId) await setHabitCompletion(data.habitId, date, true);
+      if (action === "complete" && data.taskId) await setPlannedItemCompleted(data.taskId, date, true);
       if (data.type === "journal" || data.route === "/reflection") router.push("/reflection" as any);
-      else if (data.habitId || data.taskId || data.route) router.push("/(tabs)/calendar" as any);
+      else if (data.habitId || data.taskId) router.push({ pathname: "/(tabs)/calendar", params: { date, item: data.habitId || data.taskId } } as any);
+      else if (data.type === "affirmation") router.push("/(tabs)" as any);
+      else if (data.route) router.push(data.route as any);
     });
     return () => subscription.remove();
   }, [router]);

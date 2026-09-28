@@ -228,8 +228,10 @@ export const cancelJournalReminder = async () => {
 /**
  * Schedule individual habit reminder
  */
-export const scheduleHabitReminder = async (habitId: string, habitTitle: string, time: string) => {
+export const scheduleHabitReminder = async (habitId: string, habitTitle: string, time: string, days: number[] = [0,1,2,3,4,5,6]) => {
   try {
+    const permission = await Notifications.getPermissionsAsync();
+    if (permission.status !== 'granted' && (await Notifications.requestPermissionsAsync()).status !== 'granted') return false;
     await Notifications.setNotificationCategoryAsync('habit-reminder-actions', [
       { identifier: 'complete', buttonTitle: 'Mark complete', options: { opensAppToForeground: false } },
       { identifier: 'snooze', buttonTitle: 'Snooze 10 min', options: { opensAppToForeground: false } },
@@ -240,7 +242,8 @@ export const scheduleHabitReminder = async (habitId: string, habitTitle: string,
     
     // Cancel existing notification for this habit
     try {
-      await Notifications.cancelScheduledNotificationAsync(notificationId);
+      const existing = await Notifications.getAllScheduledNotificationsAsync();
+      await Promise.all(existing.filter(n => String(n.identifier) === notificationId || String(n.identifier).startsWith(`${notificationId}-`)).map(n => Notifications.cancelScheduledNotificationAsync(n.identifier)));
     } catch (cancelError) {
       console.warn('[Notifications] Could not cancel habit notification (may not exist):', cancelError);
     }
@@ -248,21 +251,21 @@ export const scheduleHabitReminder = async (habitId: string, habitTitle: string,
     // Parse time (HH:MM format)
     const [hours, minutes] = time.split(':').map(Number);
     
-    // Schedule new notification
-    try {
+    for (const weekday of days) try {
       await Notifications.scheduleNotificationAsync({
-        identifier: notificationId,
+        identifier: `${notificationId}-${weekday}`,
         content: {
           title: `Time for: ${habitTitle} ⏰`,
           body: `A small step today: ${habitTitle}. Tap to mark it done or snooze for 10 minutes.`,
           sound: 'default',
-          data: { type: 'habit', habitId, route: '/(tabs)/calendar' },
+          data: { type: 'habit', habitId, route: '/(tabs)/calendar', weekday },
           categoryIdentifier: 'habit-reminder-actions',
         },
         trigger: {
           type: Notifications.SchedulableTriggerInputTypes.CALENDAR,
           hour: hours,
           minute: minutes,
+          weekday: weekday + 1,
           repeats: true,
         },
       });
@@ -270,6 +273,7 @@ export const scheduleHabitReminder = async (habitId: string, habitTitle: string,
     } catch (scheduleError) {
       console.warn('[Notifications] Could not schedule habit notification:', scheduleError);
     }
+    return true;
   } catch (error) {
     console.warn('[Notifications] Error in scheduleHabitReminder:', error);
   }
@@ -281,12 +285,48 @@ export const scheduleHabitReminder = async (habitId: string, habitTitle: string,
 export const cancelHabitReminder = async (habitId: string) => {
   try {
     const notificationId = `habit-${habitId}`;
-    await Notifications.cancelScheduledNotificationAsync(notificationId);
+    const existing = await Notifications.getAllScheduledNotificationsAsync();
+    await Promise.all(existing.filter(n => String(n.identifier) === notificationId || String(n.identifier).startsWith(`${notificationId}-`)).map(n => Notifications.cancelScheduledNotificationAsync(n.identifier)));
     console.log('[Notifications] Habit reminder cancelled for', habitId);
   } catch (error) {
     console.error('[Notifications] Error cancelling habit reminder:', error);
   }
 };
+
+export const scheduleAffirmationReminders = async (id: string, text: string, days: number[], times: string[]) => {
+  const permission = await Notifications.getPermissionsAsync();
+  if (permission.status !== 'granted' && (await Notifications.requestPermissionsAsync()).status !== 'granted') return false;
+  await cancelAffirmationReminders(id);
+  await Notifications.setNotificationCategoryAsync('affirmation-actions', [
+    { identifier: 'complete', buttonTitle: 'Acknowledge', options: { opensAppToForeground: false } },
+  ]);
+  for (const day of days) for (const time of times) {
+    const [hour, minute] = time.split(':').map(Number);
+    await Notifications.scheduleNotificationAsync({
+      identifier: `affirmation-${id}-${day}-${time.replace(':','')}`,
+      content: { title: 'A thought for you', body: text, sound: 'default', data: { type: 'affirmation', affirmationId: id, route: '/(tabs)' }, categoryIdentifier: 'affirmation-actions' },
+      trigger: { type: Notifications.SchedulableTriggerInputTypes.CALENDAR, weekday: day + 1, hour, minute, repeats: true },
+    });
+  }
+  return true;
+};
+
+export const cancelAffirmationReminders = async (id: string) => {
+  const existing = await Notifications.getAllScheduledNotificationsAsync();
+  await Promise.all(existing.filter(n => String(n.identifier).startsWith(`affirmation-${id}-`)).map(n => Notifications.cancelScheduledNotificationAsync(n.identifier)));
+};
+
+export const scheduleTaskReminder = async (taskId: string, title: string, date: string, time: string) => {
+  const permission = await Notifications.getPermissionsAsync();
+  if (permission.status !== 'granted' && (await Notifications.requestPermissionsAsync()).status !== 'granted') return false;
+  await cancelTaskReminder(taskId);
+  const [year, month, day] = date.split('-').map(Number); const [hour, minute] = time.split(':').map(Number);
+  const triggerDate = new Date(year, month - 1, day, hour, minute, 0, 0);
+  if (triggerDate.getTime() <= Date.now()) return false;
+  await Notifications.scheduleNotificationAsync({ identifier: `task-${taskId}`, content: { title: 'Task reminder', body: title, sound: 'default', data: { type: 'task', taskId, date, route: '/(tabs)/calendar' } }, trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: triggerDate } });
+  return true;
+};
+export const cancelTaskReminder = async (taskId: string) => { try { await Notifications.cancelScheduledNotificationAsync(`task-${taskId}`); } catch {} };
 
 /**
  * Get daily habits reminder settings

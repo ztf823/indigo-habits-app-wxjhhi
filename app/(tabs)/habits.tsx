@@ -13,10 +13,10 @@ import {
   ActivityIndicator,
   RefreshControl,
   Platform,
+  Switch,
 } from "react-native";
 import * as Haptics from "expo-haptics";
 import { IconSymbol } from "@/components/IconSymbol";
-import DateTimePicker from '@react-native-community/datetimepicker';
 import {
   getAllHabits,
   getAllAffirmations,
@@ -26,17 +26,16 @@ import {
   createAffirmation,
   updateAffirmation,
   deleteAffirmation,
-  getProfile,
 } from "@/utils/database";
-import { getRandomAffirmation } from "@/utils/affirmations";
 import { playChime } from "@/utils/sounds";
 import {
-  saveHabitReminder,
   removeHabitReminder,
   getHabitReminderTime,
 } from "@/utils/notifications";
 import { useTheme } from "@/contexts/ThemeContext";
 import { getColors } from "@/styles/commonStyles";
+import { ALL_DAYS, WEEKDAYS, getAllHabitSchedules, getAffirmationSchedules, saveHabitSchedule, removeHabitSchedule, saveAffirmationSchedule, removeAffirmationSchedule, HabitSchedule, AffirmationSchedule, formatTime } from "@/utils/planner";
+import { scheduleAffirmationReminders, cancelAffirmationReminders, scheduleHabitReminder, cancelHabitReminder } from "@/utils/notifications";
 
 interface Habit {
   id: string;
@@ -83,7 +82,19 @@ export default function HabitsScreen() {
   const [affirmations, setAffirmations] = useState<Affirmation[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [isPremium, setIsPremium] = useState(false);
+  const [habitSchedules, setHabitSchedules] = useState<Record<string, HabitSchedule>>({});
+  const [scheduleHabit, setScheduleHabit] = useState<Habit | null>(null);
+  const [scheduleDays, setScheduleDays] = useState<number[]>(ALL_DAYS);
+  const [scheduleTime, setScheduleTime] = useState("");
+  const [scheduleReminder, setScheduleReminder] = useState(false);
+  const [schedulePaused, setSchedulePaused] = useState(false);
+  const [scheduleModalVisible, setScheduleModalVisible] = useState(false);
+  const [affirmationScheduleModalVisible, setAffirmationScheduleModalVisible] = useState(false);
+  const [scheduleAffirmation, setScheduleAffirmation] = useState<Affirmation | null>(null);
+  const [affirmationDays, setAffirmationDays] = useState<number[]>(ALL_DAYS);
+  const [affirmationTimes, setAffirmationTimes] = useState("09:00");
+  const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
+  const [affirmationSchedules, setAffirmationSchedules] = useState<AffirmationSchedule[]>([]);
 
   // Habit modal state
   const [habitModalVisible, setHabitModalVisible] = useState(false);
@@ -96,24 +107,11 @@ export default function HabitsScreen() {
   const [affirmationText, setAffirmationText] = useState("");
 
   // Habit reminder state
-  const [reminderModalVisible, setReminderModalVisible] = useState(false);
-  const [selectedHabitForReminder, setSelectedHabitForReminder] = useState<Habit | null>(null);
-  const [reminderTime, setReminderTime] = useState(new Date());
-  const [showTimePicker, setShowTimePicker] = useState(false);
   const [habitReminders, setHabitReminders] = useState<Record<string, string>>({});
-
-  const loadPremiumStatus = useCallback(async () => {
-    try {
-      const profile = await getProfile();
-      setIsPremium((profile as any)?.isPremium === 1);
-    } catch (error) {
-      console.error("Error loading premium status:", error);
-    }
-  }, []);
 
   const loadHabits = useCallback(async () => {
     try {
-      const dbHabits = await getAllHabits() as Habit[];
+      const [dbHabits, schedules] = await Promise.all([getAllHabits(), getAllHabitSchedules()]) as [Habit[], Record<string, HabitSchedule>];
       
       // If no habits exist, create default ones
       if (dbHabits.length === 0) {
@@ -135,6 +133,7 @@ export default function HabitsScreen() {
       }
       
       setHabits(dbHabits);
+      setHabitSchedules(schedules);
       console.log(`Loaded ${dbHabits.length} habits`);
       
       // Load habit reminders
@@ -154,8 +153,9 @@ export default function HabitsScreen() {
 
   const loadAffirmations = useCallback(async () => {
     try {
-      const dbAffirmations = await getAllAffirmations() as Affirmation[];
+      const [dbAffirmations, schedules] = await Promise.all([getAllAffirmations(), getAffirmationSchedules()]) as [Affirmation[], AffirmationSchedule[]];
       setAffirmations(dbAffirmations);
+      setAffirmationSchedules(schedules);
       console.log(`Loaded ${dbAffirmations.length} affirmations`);
     } catch (error) {
       console.error("Error loading affirmations:", error);
@@ -166,7 +166,6 @@ export default function HabitsScreen() {
     try {
       setLoading(true);
       await Promise.all([
-        loadPremiumStatus(),
         loadHabits(),
         loadAffirmations(),
       ]);
@@ -176,7 +175,7 @@ export default function HabitsScreen() {
     } finally {
       setLoading(false);
     }
-  }, [loadPremiumStatus, loadHabits, loadAffirmations]);
+  }, [loadHabits, loadAffirmations]);
 
   useEffect(() => {
     loadData();
@@ -263,6 +262,8 @@ export default function HabitsScreen() {
               console.log("User deleting habit:", id);
               Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
               await deleteHabit(id);
+              await removeHabitSchedule(id);
+              await removeHabitReminder(id);
               await loadHabits();
               playChime();
             } catch (error) {
@@ -283,27 +284,80 @@ export default function HabitsScreen() {
     setHabitModalVisible(true);
   };
 
-  const toggleHabitRepeating = async (habitId: string) => {
-    try {
-      const habit = habits.find((h) => h.id === habitId);
-      if (!habit) return;
+  const openHabitSchedule = async (habit: Habit) => {
+    const saved = await getAllHabitSchedules();
+    const schedule = saved[habit.id] || { days: ALL_DAYS, time: "", reminderEnabled: false, paused: false };
+    setScheduleHabit(habit);
+    setScheduleDays(schedule.days);
+    setScheduleTime(schedule.time);
+    setScheduleReminder(schedule.reminderEnabled);
+    setSchedulePaused(schedule.paused);
+    setScheduleModalVisible(true);
+  };
 
-      const newRepeating = habit.isRepeating === 1 ? 0 : 1;
-      
-      console.log("Toggling habit daily repeat:", habitId);
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-
-      setHabits((prev) =>
-        prev.map((h) =>
-          h.id === habitId ? { ...h, isRepeating: newRepeating } : h
-        )
-      );
-
-      await updateHabit(habitId, { isRepeating: newRepeating === 1 });
-      playChime();
-    } catch (error) {
-      console.error("Error toggling habit repeating:", error);
+  const saveHabitScheduleChanges = async () => {
+    if (!scheduleHabit) return;
+    if (!schedulePaused && scheduleDays.length === 0) {
+      Alert.alert("Choose days", "Select at least one day, or pause this habit.");
+      return;
     }
+    if (scheduleReminder && !/^([01]\d|2[0-3]):[0-5]\d$/.test(scheduleTime)) {
+      Alert.alert("Add a reminder time", "Use 24-hour time, such as 08:30.");
+      return;
+    }
+    try {
+      const schedule: HabitSchedule = { days: schedulePaused ? [] : scheduleDays, time: scheduleTime, reminderEnabled: scheduleReminder, paused: schedulePaused };
+      await saveHabitSchedule(scheduleHabit.id, schedule);
+      if (scheduleReminder && !schedulePaused) {
+        await scheduleHabitReminder(scheduleHabit.id, scheduleHabit.title, scheduleTime, schedule.days);
+
+      } else {
+        await removeHabitReminder(scheduleHabit.id);
+      }
+      setHabitSchedules(prev => ({ ...prev, [scheduleHabit.id]: schedule }));
+      setHabitReminders(prev => { const next={...prev}; if(scheduleReminder&&!schedulePaused)next[scheduleHabit.id]=scheduleTime;else delete next[scheduleHabit.id]; return next; });
+      setScheduleModalVisible(false);
+      await loadHabits();
+    } catch (error) {
+      console.error("Could not save habit schedule", error);
+      Alert.alert("Could not save schedule", "Please try again.");
+    }
+  };
+
+  const openAffirmationSchedule = async (affirmation: Affirmation) => {
+    const saved = (await getAffirmationSchedules()).find(item => item.affirmationId === affirmation.id);
+    setScheduleAffirmation(affirmation);
+    setAffirmationDays(saved?.days || WEEKDAYS);
+    setAffirmationTimes(saved?.times.join(", ") || "09:00");
+    setAffirmationScheduleModalVisible(true);
+  };
+
+  const saveAffirmationScheduleChanges = async () => {
+    if (!scheduleAffirmation) return;
+    const times = [...new Set(affirmationTimes.split(",").map(value => value.trim()).filter(Boolean))];
+    if (!affirmationDays.length || !times.length || times.some(time => !/^([01]\d|2[0-3]):[0-5]\d$/.test(time))) {
+      Alert.alert("Check the schedule", "Choose at least one day and enter times like 09:00 or 18:30, separated by commas.");
+      return;
+    }
+    try {
+      const schedule: AffirmationSchedule = { enabled: true, affirmationId: scheduleAffirmation.id, days: affirmationDays, times };
+      await saveAffirmationSchedule(schedule);
+      const notified = await scheduleAffirmationReminders(scheduleAffirmation.id, scheduleAffirmation.text, schedule.days, schedule.times);
+      if (!notified) Alert.alert("Reminder not enabled", "The affirmation is scheduled in your plan, but notification permission is off.");
+      setAffirmationSchedules(prev => [...prev.filter(item => item.affirmationId !== schedule.affirmationId), schedule]);
+      setAffirmationScheduleModalVisible(false);
+    } catch (error) {
+      console.error("Could not save affirmation schedule", error);
+      Alert.alert("Could not save schedule", "Check notification permission and try again.");
+    }
+  };
+
+  const removeAffirmationScheduleChanges = async () => {
+    if (!scheduleAffirmation) return;
+    await removeAffirmationSchedule(scheduleAffirmation.id);
+    await cancelAffirmationReminders(scheduleAffirmation.id);
+    setAffirmationSchedules(prev => prev.filter(item => item.affirmationId !== scheduleAffirmation.id));
+    setAffirmationScheduleModalVisible(false);
   };
 
   const handleAddCustomAffirmation = async () => {
@@ -335,29 +389,6 @@ export default function HabitsScreen() {
     } catch (error) {
       console.error("Error adding affirmation:", error);
       Alert.alert("Error", "Failed to add affirmation. Please try again.");
-    }
-  };
-
-  const toggleAffirmationRepeating = async (affirmationId: string) => {
-    try {
-      const affirmation = affirmations.find((a) => a.id === affirmationId);
-      if (!affirmation) return;
-
-      const newRepeating = affirmation.isRepeating === 1 ? 0 : 1;
-      
-      console.log("Toggling affirmation daily repeat:", affirmationId);
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-
-      setAffirmations((prev) =>
-        prev.map((a) =>
-          a.id === affirmationId ? { ...a, isRepeating: newRepeating } : a
-        )
-      );
-
-      await updateAffirmation(affirmationId, { isRepeating: newRepeating === 1 });
-      playChime();
-    } catch (error) {
-      console.error("Error toggling affirmation repeating:", error);
     }
   };
 
@@ -398,6 +429,8 @@ export default function HabitsScreen() {
               console.log("User deleting affirmation:", affirmationId);
               Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
               await deleteAffirmation(affirmationId);
+              await removeAffirmationSchedule(affirmationId);
+              await cancelAffirmationReminders(affirmationId);
               await loadAffirmations();
               playChime();
             } catch (error) {
@@ -408,123 +441,6 @@ export default function HabitsScreen() {
         },
       ]
     );
-  };
-
-  const openReminderModal = async (habit: Habit) => {
-    try {
-      console.log("User tapped reminder for habit:", habit.title);
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      
-      setSelectedHabitForReminder(habit);
-      
-      // Load existing reminder time if any
-      const existingTime = habitReminders[habit.id];
-      if (existingTime) {
-        const [hours, minutes] = existingTime.split(':').map(Number);
-        const date = new Date();
-        date.setHours(hours, minutes, 0, 0);
-        setReminderTime(date);
-      } else {
-        // Default to 9:00 AM
-        const date = new Date();
-        date.setHours(9, 0, 0, 0);
-        setReminderTime(date);
-      }
-      
-      setReminderModalVisible(true);
-    } catch (error) {
-      console.error("Error opening reminder modal:", error);
-    }
-  };
-
-  const handleSaveReminder = async () => {
-    if (!selectedHabitForReminder) return;
-    
-    try {
-      console.log("Saving habit reminder for:", selectedHabitForReminder.title);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      
-      const timeString = formatTimeToString(reminderTime);
-      await saveHabitReminder(selectedHabitForReminder.id, timeString, selectedHabitForReminder.title);
-      
-      // Update local state
-      setHabitReminders(prev => ({
-        ...prev,
-        [selectedHabitForReminder.id]: timeString,
-      }));
-      
-      setReminderModalVisible(false);
-      playChime();
-      
-      Alert.alert(
-        'Reminder Set! ⏰',
-        `You'll receive a reminder at ${formatTimeDisplay(reminderTime)} for "${selectedHabitForReminder.title}"`,
-        [{ text: 'OK' }]
-      );
-    } catch (error) {
-      console.error("Error saving habit reminder:", error);
-      Alert.alert("Error", "Failed to save reminder. Please try again.");
-    }
-  };
-
-  const handleRemoveReminder = async () => {
-    if (!selectedHabitForReminder) return;
-    
-    try {
-      console.log("Removing habit reminder for:", selectedHabitForReminder.title);
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      
-      await removeHabitReminder(selectedHabitForReminder.id);
-      
-      // Update local state
-      setHabitReminders(prev => {
-        const updated = { ...prev };
-        delete updated[selectedHabitForReminder.id];
-        return updated;
-      });
-      
-      setReminderModalVisible(false);
-      playChime();
-      
-      Alert.alert(
-        'Reminder Removed',
-        `Reminder for "${selectedHabitForReminder.title}" has been removed.`,
-        [{ text: 'OK' }]
-      );
-    } catch (error) {
-      console.error("Error removing habit reminder:", error);
-      Alert.alert("Error", "Failed to remove reminder. Please try again.");
-    }
-  };
-
-  const handleTimeChange = (event: any, selectedDate?: Date) => {
-    setShowTimePicker(Platform.OS === 'ios');
-    
-    if (selectedDate) {
-      console.log("User changed reminder time:", selectedDate);
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      setReminderTime(selectedDate);
-    }
-  };
-
-  const formatTimeToString = (date: Date): string => {
-    const hours = date.getHours().toString().padStart(2, '0');
-    const minutes = date.getMinutes().toString().padStart(2, '0');
-    return `${hours}:${minutes}`;
-  };
-
-  const formatTimeDisplay = (date: Date | string): string => {
-    if (typeof date === 'string') {
-      const [hours, minutes] = date.split(':').map(Number);
-      if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return date;
-      const period = hours >= 12 ? 'PM' : 'AM';
-      return `${hours % 12 || 12}:${minutes.toString().padStart(2, '0')} ${period}`;
-    }
-    return date.toLocaleTimeString('en-US', {
-      hour: 'numeric',
-      minute: '2-digit',
-      hour12: true,
-    });
   };
 
   if (loading) {
@@ -643,17 +559,17 @@ export default function HabitsScreen() {
                         </View>
                         <View style={styles.habitActions}>
                           <TouchableOpacity
-                            onPress={() => openReminderModal(habit)}
+                            onPress={() => openHabitSchedule(habit)}
                             style={[
                               styles.iconButton,
-                              habitReminders[habit.id] && styles.iconButtonActive,
+                              (habitReminders[habit.id] || habitSchedules[habit.id]?.time) && styles.iconButtonActive,
                             ]}
                           >
                             <IconSymbol
                               ios_icon_name="alarm.fill"
                               android_material_icon_name="alarm"
                               size={20}
-                              color={habitReminders[habit.id] ? "#10B981" : "#6366F1"}
+                              color={(habitReminders[habit.id] || habitSchedules[habit.id]?.time) ? "#10B981" : "#6366F1"}
                             />
                           </TouchableOpacity>
                           <TouchableOpacity
@@ -681,48 +597,15 @@ export default function HabitsScreen() {
                         </View>
                       </View>
                       
-                      {/* Reminder time and Daily/Repeat Toggle */}
                       <View style={styles.habitBottom}>
-                        {habitReminders[habit.id] && (
-                          <View style={styles.reminderTimeRow}>
-                            <IconSymbol
-                              ios_icon_name="alarm.fill"
-                              android_material_icon_name="alarm"
-                              size={16}
-                              color="#047857"
-                            />
-                            <Text style={[styles.reminderTimeText, { color: isDark ? "#6EE7B7" : "#047857" }]}>
-                              Reminder set for {formatTimeDisplay(habitReminders[habit.id])}
-                            </Text>
-                          </View>
-                        )}
-                        <TouchableOpacity
-                          style={[
-                            styles.repeatToggle,
-                            habit.isRepeating === 1 && styles.repeatToggleActive,
-                          ]}
-                          onPress={() => toggleHabitRepeating(habit.id)}
-                        >
-                          <IconSymbol
-                            ios_icon_name="repeat"
-                            android_material_icon_name="repeat"
-                            size={16}
-                            color={habit.isRepeating === 1 ? "white" : "#6366F1"}
-                          />
-                          <Text
-                            style={[
-                              styles.repeatToggleText,
-                              habit.isRepeating === 1 && styles.repeatToggleTextActive,
-                            ]}
-                          >
-                            {habit.isRepeating === 1 ? "Daily Repeat ON" : "Daily Repeat OFF"}
+                        <TouchableOpacity style={styles.repeatToggle} onPress={() => openHabitSchedule(habit)}>
+                          <IconSymbol ios_icon_name="calendar" android_material_icon_name="calendar-month" size={16} color="#456AFF" />
+                          <Text style={styles.repeatToggleText}>
+                            {habitSchedules[habit.id]?.paused ? "Paused" : `${(habitSchedules[habit.id]?.days || [0,1,2,3,4,5,6]).length} days`}
+                            {habitSchedules[habit.id]?.time ? ` · ${formatTime(habitSchedules[habit.id].time)}` : " · Set schedule"}
                           </Text>
+                          {habitSchedules[habit.id]?.reminderEnabled && <Text style={styles.reminderTimeText}>Reminder on</Text>}
                         </TouchableOpacity>
-                        {habit.isRepeating === 1 && (
-                          <Text style={styles.repeatHint}>
-                            Will appear on home screen
-                          </Text>
-                        )}
                       </View>
                     </View>
                   ))}
@@ -731,6 +614,9 @@ export default function HabitsScreen() {
             </>
           ) : (
             <>
+              <View style={{flexDirection:"row",gap:8,marginBottom:12}}>
+                {[false,true].map(favorites => <TouchableOpacity key={String(favorites)} onPress={()=>setShowFavoritesOnly(favorites)} style={{paddingHorizontal:15,paddingVertical:9,borderRadius:18,backgroundColor:showFavoritesOnly===favorites?"#426CFF":"rgba(255,255,255,.25)"}}><Text style={{color:"white",fontWeight:"700"}}>{favorites?"Favorites":"All"}</Text></TouchableOpacity>)}
+              </View>
               {affirmations.length === 0 ? (
                 <View style={styles.emptyState}>
                   <IconSymbol
@@ -746,77 +632,23 @@ export default function HabitsScreen() {
                 </View>
               ) : (
                 <>
-                  {affirmations.map((affirmation) => (
-                    <View key={affirmation.id} style={[styles.affirmationCard, { backgroundColor: themeColors.card }]}>
+                  {affirmations.filter(a=>!showFavoritesOnly||a.isFavorite===1).map((affirmation) => {
+                    const scheduled = affirmationSchedules.find(item=>item.affirmationId===affirmation.id);
+                    return <View key={affirmation.id} style={[styles.affirmationCard, { backgroundColor: themeColors.card }]}>
                       <Text style={[styles.affirmationText, { color: themeColors.text }]}>{affirmation.text}</Text>
-                      
                       <View style={styles.affirmationMeta}>
-                        <View style={styles.affirmationBadges}>
-                          {affirmation.isCustom === 1 && (
-                            <View style={styles.badge}>
-                              <Text style={styles.badgeText}>Custom</Text>
-                            </View>
-                          )}
-                          {affirmation.isFavorite === 1 && (
-                            <TouchableOpacity
-                              style={styles.badge}
-                              onPress={() => toggleAffirmationFavorite(affirmation.id)}
-                            >
-                              <IconSymbol
-                                ios_icon_name="star.fill"
-                                android_material_icon_name="star"
-                                size={14}
-                                color="#F59E0B"
-                              />
-                              <Text style={styles.badgeText}>Favorite</Text>
-                            </TouchableOpacity>
-                          )}
-                        </View>
-                        <TouchableOpacity
-                          onPress={() => deleteAffirmationItem(affirmation.id)}
-                          style={styles.iconButton}
-                        >
-                          <IconSymbol
-                            ios_icon_name="trash"
-                            android_material_icon_name="delete"
-                            size={20}
-                            color="#EF4444"
-                          />
+                        <View style={styles.affirmationBadges}>{affirmation.isCustom===1&&<View style={styles.badge}><Text style={styles.badgeText}>Custom</Text></View>}</View>
+                        <TouchableOpacity onPress={()=>toggleAffirmationFavorite(affirmation.id)} style={[styles.badge,{backgroundColor:affirmation.isFavorite===1?'#FFF4D5':'#EEF1FF'}]}>
+                          <IconSymbol ios_icon_name={affirmation.isFavorite===1?'star.fill':'star'} android_material_icon_name="star" size={14} color="#F59E0B"/><Text style={styles.badgeText}>{affirmation.isFavorite===1?'Saved':'Save'}</Text>
                         </TouchableOpacity>
+                        <TouchableOpacity onPress={()=>deleteAffirmationItem(affirmation.id)} style={styles.iconButton}><IconSymbol ios_icon_name="trash" android_material_icon_name="delete" size={20} color="#EF4444"/></TouchableOpacity>
                       </View>
-
-                      {/* Daily/Repeat Toggle */}
-                      <View style={styles.affirmationBottom}>
-                        <TouchableOpacity
-                          style={[
-                            styles.repeatToggle,
-                            affirmation.isRepeating === 1 && styles.repeatToggleActive,
-                          ]}
-                          onPress={() => toggleAffirmationRepeating(affirmation.id)}
-                        >
-                          <IconSymbol
-                            ios_icon_name="repeat"
-                            android_material_icon_name="repeat"
-                            size={16}
-                            color={affirmation.isRepeating === 1 ? "white" : "#6366F1"}
-                          />
-                          <Text
-                            style={[
-                              styles.repeatToggleText,
-                              affirmation.isRepeating === 1 && styles.repeatToggleTextActive,
-                            ]}
-                          >
-                            {affirmation.isRepeating === 1 ? "Daily Repeat ON" : "Daily Repeat OFF"}
-                          </Text>
-                        </TouchableOpacity>
-                        {affirmation.isRepeating === 1 && (
-                          <Text style={styles.repeatHint}>
-                            Will appear on home screen
-                          </Text>
-                        )}
+                      <View style={[styles.affirmationBottom,{flexDirection:'row',justifyContent:'space-between',alignItems:'center'}]}>
+                        <Text style={styles.repeatHint}>{scheduled?`Scheduled · ${scheduled.days.length} days · ${scheduled.times.map(formatTime).join(', ')}`:'Not scheduled'}</Text>
+                        <TouchableOpacity style={[styles.repeatToggle,styles.repeatToggleActive]} onPress={()=>openAffirmationSchedule(affirmation)}><Text style={[styles.repeatToggleText,styles.repeatToggleTextActive]}>{scheduled?'Edit schedule':'Schedule'}</Text></TouchableOpacity>
                       </View>
-                    </View>
-                  ))}
+                    </View>;
+                  })}
                 </>
               )}
             </>
@@ -936,100 +768,23 @@ export default function HabitsScreen() {
         </View>
       </Modal>
 
-      {/* Habit Reminder Modal */}
-      <Modal
-        visible={reminderModalVisible}
-        animationType="slide"
-        presentationStyle="pageSheet"
-        onRequestClose={() => setReminderModalVisible(false)}
-      >
-        <View style={[styles.modalContainer, { backgroundColor: themeColors.card }]}>
-          <View style={[styles.modalHeader, { borderBottomColor: themeColors.border }]}>
-            <TouchableOpacity onPress={() => setReminderModalVisible(false)}>
-              <Text style={styles.modalCancel}>Cancel</Text>
-            </TouchableOpacity>
-            <Text style={[styles.modalTitle, { color: themeColors.text }]}>Set Reminder</Text>
-            <TouchableOpacity onPress={handleSaveReminder}>
-              <Text style={styles.modalSave}>Save</Text>
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.modalContent}>
-            <View style={styles.previewBadge}>
-              <IconSymbol
-                ios_icon_name="crown.fill"
-                android_material_icon_name="workspace-premium"
-                size={16}
-                color="#FFD700"
-              />
-              <Text style={styles.previewBadgeText}>
-                {isPremium ? "Premium reminder feature" : "Premium feature"}
-              </Text>
-            </View>
-
-            {selectedHabitForReminder && (
-              <React.Fragment>
-                <Text style={[styles.label, { color: themeColors.text }]}>Habit</Text>
-                <View style={[styles.habitPreview, { backgroundColor: isDark ? themeColors.border : "#F3F4F6" }]}>
-                  <View
-                    style={[
-                      styles.habitDot,
-                      { backgroundColor: selectedHabitForReminder.color },
-                    ]}
-                  />
-                  <Text style={[styles.habitPreviewText, { color: themeColors.text }]}>
-                    {selectedHabitForReminder.title}
-                  </Text>
-                </View>
-
-                <Text style={[styles.label, { color: themeColors.text }]}>Reminder Time</Text>
-                <TouchableOpacity
-                  style={[styles.timePickerButton, { backgroundColor: isDark ? themeColors.border : "#F3F4F6" }]}
-                  onPress={() => setShowTimePicker(true)}
-                >
-                  <IconSymbol
-                    ios_icon_name="clock.fill"
-                    android_material_icon_name="access-time"
-                    size={24}
-                    color="#6366F1"
-                  />
-                  <Text style={[styles.timePickerText, { color: themeColors.text }]}>
-                    {formatTimeDisplay(reminderTime)}
-                  </Text>
-                </TouchableOpacity>
-
-                {showTimePicker && (
-                  <DateTimePicker
-                    value={reminderTime}
-                    mode="time"
-                    is24Hour={false}
-                    display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                    onChange={handleTimeChange}
-                  />
-                )}
-
-                <Text style={[styles.reminderNote, { color: themeColors.textSecondary }]}>
-                  🔔 You'll receive a soft Tibetan bowl chime at this time every day
-                </Text>
-
-                {habitReminders[selectedHabitForReminder.id] && (
-                  <TouchableOpacity
-                    style={styles.removeReminderButton}
-                    onPress={handleRemoveReminder}
-                  >
-                    <IconSymbol
-                      ios_icon_name="trash"
-                      android_material_icon_name="delete"
-                      size={20}
-                      color="#EF4444"
-                    />
-                    <Text style={styles.removeReminderText}>Remove Reminder</Text>
-                  </TouchableOpacity>
-                )}
-              </React.Fragment>
-            )}
-          </View>
+      <Modal visible={scheduleModalVisible} animationType="slide" presentationStyle="pageSheet" onRequestClose={()=>setScheduleModalVisible(false)}>
+        <View style={[styles.modalContainer,{backgroundColor:themeColors.card}]}>
+          <View style={[styles.modalHeader,{borderBottomColor:themeColors.border}]}><TouchableOpacity onPress={()=>setScheduleModalVisible(false)}><Text style={styles.modalCancel}>Cancel</Text></TouchableOpacity><Text style={[styles.modalTitle,{color:themeColors.text}]}>Habit Schedule</Text><TouchableOpacity onPress={saveHabitScheduleChanges}><Text style={styles.modalSave}>Save</Text></TouchableOpacity></View>
+          <ScrollView style={styles.modalContent}>
+            <Text style={[styles.label,{color:themeColors.text}]}>{scheduleHabit?.title}</Text>
+            <View style={{flexDirection:'row',gap:8,marginVertical:8}}>{[{label:'Daily',days:ALL_DAYS},{label:'Weekdays',days:WEEKDAYS},{label:'Weekend',days:[0,6]}].map(p=><TouchableOpacity key={p.label} onPress={()=>{setScheduleDays(p.days);setSchedulePaused(false)}} style={{padding:10,borderRadius:12,backgroundColor:'#E9EDFF'}}><Text style={{color:'#315CDF',fontWeight:'700'}}>{p.label}</Text></TouchableOpacity>)}</View>
+            <View style={{flexDirection:'row',justifyContent:'space-between',marginVertical:12}}>{['S','M','T','W','T','F','S'].map((d,i)=><TouchableOpacity key={i} onPress={()=>setScheduleDays(prev=>prev.includes(i)?prev.filter(x=>x!==i):[...prev,i].sort())} style={{width:38,height:38,borderRadius:19,alignItems:'center',justifyContent:'center',backgroundColor:scheduleDays.includes(i)?'#426CFF':'#EEF1FA'}}><Text style={{color:scheduleDays.includes(i)?'white':'#65708F',fontWeight:'700'}}>{d}</Text></TouchableOpacity>)}</View>
+            <Text style={[styles.label,{color:themeColors.text}]}>Time (optional)</Text><TextInput value={scheduleTime} onChangeText={setScheduleTime} placeholder="08:30" style={[styles.input,{backgroundColor:isDark?themeColors.border:'#F3F4F6',color:themeColors.text}]} />
+            <View style={{flexDirection:'row',justifyContent:'space-between',alignItems:'center',paddingVertical:14}}><Text style={{color:themeColors.text,fontWeight:'600'}}>Reminder notification</Text><Switch value={scheduleReminder} onValueChange={setScheduleReminder} /></View>
+            <View style={{flexDirection:'row',justifyContent:'space-between',alignItems:'center',paddingVertical:12}}><Text style={{color:themeColors.text,fontWeight:'600'}}>Pause this habit</Text><Switch value={schedulePaused} onValueChange={setSchedulePaused} /></View>
+          </ScrollView>
         </View>
+      </Modal>
+      <Modal visible={affirmationScheduleModalVisible} animationType="slide" presentationStyle="pageSheet" onRequestClose={()=>setAffirmationScheduleModalVisible(false)}>
+        <View style={[styles.modalContainer,{backgroundColor:themeColors.card}]}><View style={[styles.modalHeader,{borderBottomColor:themeColors.border}]}><TouchableOpacity onPress={()=>setAffirmationScheduleModalVisible(false)}><Text style={styles.modalCancel}>Cancel</Text></TouchableOpacity><Text style={[styles.modalTitle,{color:themeColors.text}]}>Schedule Affirmation</Text><TouchableOpacity onPress={saveAffirmationScheduleChanges}><Text style={styles.modalSave}>Save</Text></TouchableOpacity></View>
+          <ScrollView style={styles.modalContent}><Text style={[styles.affirmationText,{color:themeColors.text}]}>{scheduleAffirmation?.text}</Text><Text style={[styles.label,{color:themeColors.text,marginTop:22}]}>Repeat on</Text><View style={{flexDirection:'row',justifyContent:'space-between',marginVertical:12}}>{['S','M','T','W','T','F','S'].map((d,i)=><TouchableOpacity key={i} onPress={()=>setAffirmationDays(prev=>prev.includes(i)?prev.filter(x=>x!==i):[...prev,i].sort())} style={{width:38,height:38,borderRadius:19,alignItems:'center',justifyContent:'center',backgroundColor:affirmationDays.includes(i)?'#426CFF':'#EEF1FA'}}><Text style={{color:affirmationDays.includes(i)?'white':'#65708F',fontWeight:'700'}}>{d}</Text></TouchableOpacity>)}</View><Text style={[styles.label,{color:themeColors.text}]}>Times (comma separated)</Text><TextInput value={affirmationTimes} onChangeText={setAffirmationTimes} placeholder="09:00, 18:00" style={[styles.input,{backgroundColor:isDark?themeColors.border:'#F3F4F6',color:themeColors.text}]} />
+          {affirmationSchedules.some(item=>item.affirmationId===scheduleAffirmation?.id)&&<TouchableOpacity style={{paddingVertical:18}} onPress={removeAffirmationScheduleChanges}><Text style={{color:'#D8445B',fontWeight:'700'}}>Remove schedule</Text></TouchableOpacity>}</ScrollView></View>
       </Modal>
     </LinearGradient>
   );

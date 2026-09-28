@@ -1,6 +1,8 @@
 
 import { LinearGradient } from "expo-linear-gradient";
 import React, { useState, useEffect, useCallback } from "react";
+import { useFocusEffect } from "expo-router";
+import { getLocalDateKey, getPlanForDate, getDayCompletion } from "@/utils/planner";
 import { IconSymbol } from "@/components/IconSymbol";
 import { BadgeIcon } from "@/components/BadgeIcon";
 import { getStreakData } from "@/utils/database";
@@ -58,6 +60,7 @@ export default function ProgressScreen() {
   const [badges, setBadges] = useState<Badge[]>(BADGES);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [weekTotals, setWeekTotals] = useState({completed:0,total:0});
 
   const loadProgress = useCallback(async () => {
     setIsLoading(true);
@@ -65,6 +68,9 @@ export default function ProgressScreen() {
     try {
       console.log("[Progress] Loading progress from SQLite...");
       
+      const now = new Date(); const start = new Date(now.getFullYear(), now.getMonth(), now.getDate()-now.getDay(), 12);
+      const weekPlans = await Promise.all(Array.from({length:7},(_,i)=>{const d=new Date(start);d.setDate(start.getDate()+i);return getPlanForDate(getLocalDateKey(d))}));
+      setWeekTotals(weekPlans.map(getDayCompletion).reduce((sum,d)=>({completed:sum.completed+d.completed,total:sum.total+d.total}),{completed:0,total:0}));
       // Load streak data from database
       const streakData = await getStreakData();
       setStreaks(streakData as StreakData);
@@ -85,9 +91,7 @@ export default function ProgressScreen() {
     setIsLoading(false);
   }, []);
 
-  useEffect(() => {
-    loadProgress();
-  }, [loadProgress]);
+  useFocusEffect(useCallback(() => { void loadProgress(); }, [loadProgress]));
 
   const onRefresh = async () => {
     setIsRefreshing(true);
@@ -121,6 +125,7 @@ export default function ProgressScreen() {
         <Text style={styles.title}>Your Progress</Text>
         <Text style={styles.subtitle}>Track your journey to better habits</Text>
 
+        <View style={{backgroundColor:themeColors.card,borderRadius:18,padding:17,marginBottom:18}}><Text style={{color:themeColors.text,fontSize:16,fontWeight:'700'}}>This week</Text><Text style={{color:themeColors.textSecondary,fontSize:13,marginTop:5}}>{weekTotals.completed} of {weekTotals.total} habits and tasks completed</Text><View style={{height:7,backgroundColor:'#E8ECF8',borderRadius:5,marginTop:12,overflow:'hidden'}}><View style={{height:7,width:`${weekTotals.total?Math.round(weekTotals.completed/weekTotals.total*100):0}%`,backgroundColor:'#426CFF'}}/></View></View>
         {/* Streaks Section */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Streaks</Text>

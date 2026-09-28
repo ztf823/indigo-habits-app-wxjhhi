@@ -498,6 +498,16 @@ export default function ProfileScreen() {
           <View style={styles.section}>
             <Text style={[styles.sectionTitle, { color: colors.text }]}>Account</Text>
             <View style={[styles.card, { backgroundColor: colors.card }]}>
+              <TouchableOpacity style={styles.menuItem} onPress={() => router.push('/(tabs)/progress' as any)}>
+                <View style={styles.menuItemLeft}>
+                  <IconSymbol ios_icon_name="chart.line.uptrend.xyaxis" android_material_icon_name="trending-up" size={24} color={colors.text} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.menuItemText, { color: colors.text }]}>Progress</Text>
+                    <Text style={[styles.menuItemSubtext, { color: colors.textSecondary }]}>Review streaks and weekly completion</Text>
+                  </View>
+                </View>
+                <IconSymbol ios_icon_name="chevron.right" android_material_icon_name="arrow-forward" size={20} color={colors.textSecondary} />
+              </TouchableOpacity>
               <TouchableOpacity style={styles.menuItem} onPress={handleEditName}>
                 <View style={styles.menuItemLeft}>
                   <IconSymbol ios_icon_name="person" android_material_icon_name="person" size={24} color={colors.text} />

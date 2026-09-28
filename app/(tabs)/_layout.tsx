@@ -43,13 +43,6 @@ export default function TabLayout() {
       android_material_icon_name: 'history',
     },
     {
-      name: 'progress',
-      route: '/(tabs)/progress' as any,
-      label: 'Progress',
-      ios_icon_name: 'chart.line.uptrend.xyaxis',
-      android_material_icon_name: 'trending-up',
-    },
-    {
       name: 'profile',
       route: '/(tabs)/profile' as any,
       label: 'More',
