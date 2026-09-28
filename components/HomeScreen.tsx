@@ -47,12 +47,20 @@ const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 const AFFIRMATION_CARD_WIDTH = 300;
 const AFFIRMATION_CARD_MARGIN = 16;
 
+const getLocalDateKey = (date = new Date()) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
 interface Affirmation {
   id: string;
   text: string;
   isCustom: number;
   isFavorite?: number;
   isRepeating?: number;
+  orderIndex?: number;
 }
 
 interface Habit {
@@ -167,8 +175,9 @@ export default function HomeScreen() {
       
       let repeatingAffirmations = dbAffirmations.filter(a => a.isRepeating === 1);
       
-      if (repeatingAffirmations.length < FREE_AFFIRMATION_LIMIT) {
-        const needed = Math.min(5, FREE_AFFIRMATION_LIMIT - repeatingAffirmations.length);
+      // Only seed on a truly new database. Respect a user's choice to pause every affirmation.
+      if (dbAffirmations.length === 0) {
+        const needed = Math.min(5, FREE_AFFIRMATION_LIMIT);
         console.log(`Creating ${needed} default affirmations...`);
         
         for (let i = 0; i < needed; i++) {
@@ -199,11 +208,12 @@ export default function HomeScreen() {
   const loadHabits = useCallback(async () => {
     try {
       const dbHabits = (await getAllHabits()) as Habit[];
-      const today = new Date().toISOString().split("T")[0];
+      const today = getLocalDateKey();
 
       let repeatingHabits = dbHabits.filter(h => h.isRepeating === 1);
 
-      if (repeatingHabits.length === 0) {
+      // Only seed defaults on first install; an all-paused list is intentional.
+      if (dbHabits.length === 0) {
         console.log(`Creating ${DEFAULT_HABITS.length} default habits...`);
         
         for (let i = 0; i < DEFAULT_HABITS.length; i++) {
@@ -252,7 +262,7 @@ export default function HomeScreen() {
 
   const loadTodayJournal = useCallback(async () => {
     try {
-      const today = new Date().toISOString().split("T")[0];
+      const today = getLocalDateKey();
       const allEntries = await getAllJournalEntries() as JournalEntry[];
       const todayEntry = allEntries.find(e => e.date === today);
       
@@ -326,7 +336,7 @@ export default function HomeScreen() {
       console.log(`User toggled habit: ${habitId}`);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
-      const today = new Date().toISOString().split("T")[0];
+      const today = getLocalDateKey();
       const habit = habits.find((h) => h.id === habitId);
 
       if (!habit) return;
@@ -412,15 +422,40 @@ export default function HomeScreen() {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
       const newText = getRandomAffirmation();
+      const currentAffirmation = affirmations.find((item) => item.id === affirmationId);
 
-      setAffirmations((prev) =>
-        prev.map((a) => (a.id === affirmationId ? { ...a, text: newText } : a))
-      );
-
-      await updateAffirmation(affirmationId, { text: newText });
+      if (currentAffirmation?.isFavorite === 1 || currentAffirmation?.isCustom === 1) {
+        // Keep favorited and user-written text intact as its own saved record.
+        const replacement = {
+          id: `affirmation_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+          text: newText,
+          isCustom: false,
+          isRepeating: true,
+          isFavorite: false,
+          orderIndex: currentAffirmation.orderIndex ?? affirmations.indexOf(currentAffirmation),
+        };
+        await createAffirmation(replacement);
+        try {
+          await updateAffirmation(affirmationId, { isRepeating: false });
+        } catch (error) {
+          await deleteAffirmation(replacement.id);
+          throw error;
+        }
+        setAffirmations((prev) =>
+          prev.map((item) => item.id === affirmationId
+            ? { ...replacement, isCustom: 0, isRepeating: 1, isFavorite: 0 }
+            : item)
+        );
+      } else {
+        await updateAffirmation(affirmationId, { text: newText, isFavorite: false });
+        setAffirmations((prev) =>
+          prev.map((item) => item.id === affirmationId
+            ? { ...item, text: newText, isFavorite: 0 }
+            : item)
+        );
+      }
 
       playChime();
-
       console.log("New affirmation generated");
     } catch (error) {
       console.error("Error generating new affirmation:", error);
@@ -463,7 +498,7 @@ export default function HomeScreen() {
       setIsSaving(true);
       console.log("Saving journal entry...");
       
-      const today = new Date().toISOString().split("T")[0];
+      const today = getLocalDateKey();
       
       if (currentJournalId) {
         await updateJournalEntry(currentJournalId, {
