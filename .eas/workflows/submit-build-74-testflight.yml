@@ -1,6 +1,9 @@
 name: Submit build 74 to TestFlight
 on:
   workflow_dispatch: {}
+defaults:
+  tools:
+    node: 22.23.1
 jobs:
   submit_build_74:
     type: testflight
