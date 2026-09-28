@@ -1,6 +1,4 @@
-
 import { SafeAreaView } from "react-native-safe-area-context";
-import { authenticatedApiCall } from "@/utils/api";
 import { IconSymbol } from "@/components/IconSymbol";
 import { LinearGradient } from "expo-linear-gradient";
 import React, { useState, useEffect, useCallback } from "react";
@@ -16,41 +14,72 @@ import {
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { useTheme } from "@/contexts/ThemeContext";
 import { getColors } from "@/styles/commonStyles";
+import { getJournalEntryById } from "@/utils/database";
 
 interface EntryDetail {
   id: string;
   content: string;
-  photoUrl?: string;
-  createdAt: string;
+  photoUri?: string | null;
+  audioUri?: string | null;
+  affirmationText?: string | null;
+  createdAt?: string | null;
+  date: string;
+  isFavorite?: number;
 }
 
 export default function EntryDetailScreen() {
   const { isDark } = useTheme();
   const themeColors = getColors(isDark);
-  const { id } = useLocalSearchParams();
+  const { id } = useLocalSearchParams<{ id?: string | string[] }>();
+  const entryId = Array.isArray(id) ? id[0] : id;
   const router = useRouter();
   const [entry, setEntry] = useState<EntryDetail | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
 
   const loadEntry = useCallback(async () => {
+    if (!entryId) {
+      setEntry(null);
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+    setLoadFailed(false);
     try {
-      const data = await authenticatedApiCall(`/api/journal-entries/${id}`);
-      setEntry(data);
+      const localEntry = await getJournalEntryById(entryId);
+      setEntry((localEntry as EntryDetail | null) ?? null);
     } catch (error) {
-      console.error("Error loading entry:", error);
+      console.error("[JournalEntry] Error loading local entry:", error);
+      setEntry(null);
+      setLoadFailed(true);
     } finally {
       setLoading(false);
     }
-  }, [id]);
+  }, [entryId]);
 
   useEffect(() => {
-    if (id) {
-      loadEntry();
-    }
-  }, [id, loadEntry]);
+    loadEntry();
+  }, [loadEntry]);
 
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
+  const goBackToHistory = () => {
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace("/(tabs)/history" as any);
+    }
+  };
+
+  const formatDate = (dateString?: string | null) => {
+    if (!dateString) return "";
+    const normalized = dateString.includes("T")
+      ? dateString
+      : dateString.includes(" ")
+        ? `${dateString.replace(" ", "T")}Z`
+        : `${dateString}T12:00:00`;
+    const date = new Date(normalized);
+    if (Number.isNaN(date.getTime())) return dateString;
+
     return date.toLocaleDateString("en-US", {
       weekday: "long",
       year: "numeric",
@@ -61,7 +90,7 @@ export default function EntryDetailScreen() {
 
   if (loading) {
     return (
-      <View style={styles.loadingContainer}>
+      <View style={[styles.loadingContainer, { backgroundColor: themeColors.background }]}>
         <ActivityIndicator size="large" color="#6366F1" />
       </View>
     );
@@ -69,22 +98,54 @@ export default function EntryDetailScreen() {
 
   if (!entry) {
     return (
-      <View style={styles.errorContainer}>
-        <Text style={styles.errorText}>Entry not found</Text>
-      </View>
+      <LinearGradient
+        colors={isDark ? [themeColors.gradientStart, themeColors.gradientEnd] : ["#6366F1", "#87CEEB"]}
+        style={styles.container}
+      >
+        <SafeAreaView style={styles.safeArea}>
+          <Stack.Screen options={{ title: "Journal Entry", headerShown: false }} />
+          <View style={styles.errorContainer}>
+            <Text style={[styles.errorTitle, { color: themeColors.text }]}>
+              {loadFailed ? "Couldn’t load this entry" : "Entry not found"}
+            </Text>
+            <Text style={[styles.errorMessage, { color: themeColors.textSecondary }]}>
+              {loadFailed
+                ? "Your journal entry is saved on this device. Please try again."
+                : "This journal entry isn’t available on this device."}
+            </Text>
+            {loadFailed && (
+              <TouchableOpacity onPress={loadEntry} style={styles.retryButton} accessibilityRole="button">
+                <Text style={styles.retryText}>Try again</Text>
+              </TouchableOpacity>
+            )}
+            <TouchableOpacity onPress={goBackToHistory} style={styles.returnButton} accessibilityRole="button">
+              <Text style={styles.returnText}>Back to History</Text>
+            </TouchableOpacity>
+          </View>
+        </SafeAreaView>
+      </LinearGradient>
     );
   }
 
   return (
-    <LinearGradient colors={isDark ? [themeColors.gradientStart, themeColors.gradientEnd] : ["#6366F1", "#87CEEB"]} style={styles.container}>
+    <LinearGradient
+      colors={isDark ? [themeColors.gradientStart, themeColors.gradientEnd] : ["#6366F1", "#87CEEB"]}
+      style={styles.container}
+    >
       <SafeAreaView style={styles.safeArea}>
+        <Stack.Screen options={{ title: "Journal Entry", headerShown: false }} />
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-            <IconSymbol 
-              ios_icon_name="chevron.left" 
-              android_material_icon_name="arrow-back" 
-              size={24} 
-              color="#FFF" 
+          <TouchableOpacity
+            onPress={goBackToHistory}
+            style={styles.backButton}
+            accessibilityRole="button"
+            accessibilityLabel="Back to History"
+          >
+            <IconSymbol
+              ios_icon_name="chevron.left"
+              android_material_icon_name="arrow-back"
+              size={24}
+              color="#FFF"
             />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Journal Entry</Text>
@@ -93,12 +154,10 @@ export default function EntryDetailScreen() {
 
         <ScrollView contentContainerStyle={styles.scrollContent}>
           <View style={[styles.card, { backgroundColor: themeColors.card }]}>
-            <Text style={styles.date}>{formatDate(entry.createdAt)}</Text>
-            
-            {entry.photoUrl && (
-              <Image source={{ uri: entry.photoUrl }} style={styles.photo} />
+            <Text style={styles.date}>{formatDate(entry.createdAt || entry.date)}</Text>
+            {entry.photoUri && (
+              <Image source={{ uri: entry.photoUri }} style={styles.photo} />
             )}
-
             <Text style={[styles.content, { color: themeColors.text }]}>{entry.content}</Text>
           </View>
         </ScrollView>
@@ -123,10 +182,42 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
+    paddingHorizontal: 28,
   },
-  errorText: {
-    fontSize: 18,
-    color: "#EF4444",
+  errorTitle: {
+    fontSize: 20,
+    fontWeight: "600",
+    textAlign: "center",
+    marginBottom: 8,
+  },
+  errorMessage: {
+    fontSize: 15,
+    lineHeight: 22,
+    textAlign: "center",
+    marginBottom: 20,
+  },
+  retryButton: {
+    minHeight: 46,
+    justifyContent: "center",
+    paddingHorizontal: 24,
+    borderRadius: 14,
+    backgroundColor: "#5145E5",
+    marginBottom: 10,
+  },
+  retryText: {
+    color: "#FFF",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  returnButton: {
+    minHeight: 46,
+    justifyContent: "center",
+    paddingHorizontal: 24,
+  },
+  returnText: {
+    color: "#FFF",
+    fontSize: 16,
+    fontWeight: "600",
   },
   header: {
     flexDirection: "row",
@@ -151,7 +242,6 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
   },
   card: {
-    backgroundColor: "#FFF",
     borderRadius: 16,
     padding: 20,
     shadowColor: "#000",
@@ -174,7 +264,6 @@ const styles = StyleSheet.create({
   },
   content: {
     fontSize: 16,
-    color: "#1F2937",
     lineHeight: 24,
   },
 });
