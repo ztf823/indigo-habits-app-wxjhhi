@@ -2,10 +2,10 @@ import React, { useCallback, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter, useFocusEffect } from 'expo-router';
-import { createAffirmation, deleteAffirmation, getAllAffirmations, updateAffirmation } from '@/utils/database';
+import { createAffirmation, deleteAffirmation, getAllAffirmations, setHabitCompletion, updateAffirmation } from '@/utils/database';
 import { usePremium } from '@/hooks/usePremium';
 import { getPlanBasedAffirmation } from '@/utils/affirmations';
-import { getPlanForDate, getDayCompletion, getLocalDateKey, PlanEntry, getAffirmationUsage, recordAffirmationRefresh, getDailyAffirmationId, setDailyAffirmationId, getAffirmationSchedules, formatTime } from '@/utils/planner';
+import { getPlanForDate, getDayCompletion, getLocalDateKey, PlanEntry, getAffirmationUsage, recordAffirmationRefresh, getDailyAffirmationId, setDailyAffirmationId, getAffirmationSchedules, formatTime, setPlannedItemCompleted } from '@/utils/planner';
 import { useTheme } from '@/contexts/ThemeContext';
 
 export default function TodayScreen() {
@@ -67,9 +67,15 @@ export default function TodayScreen() {
 
   useFocusEffect(useCallback(() => { void load(); }, [load]));
 
-  const openNext = () => {
+  const completeNext = async () => {
     if (!next) return;
-    router.push({ pathname: '/(tabs)/calendar', params: { date, item: next.habitId || next.taskId || '' } } as any);
+    try {
+      if (next.kind === 'habit' && next.habitId) await setHabitCompletion(next.habitId, date, true);
+      if (next.kind === 'task' && next.taskId) await setPlannedItemCompleted(next.taskId, date, true);
+      await load();
+    } catch {
+      Alert.alert('Could not update plan', 'Please try again.');
+    }
   };
 
   const refreshAffirmation = async () => {
@@ -131,12 +137,9 @@ export default function TodayScreen() {
           <View style={[s.percent, { backgroundColor: isDark ? '#27325C' : '#EEF0FF' }]}><Text style={{ fontSize: 13, fontWeight: '800', color: tint }}>{percent}%</Text></View>
         </View>
 
-        <View style={s.rowHead}>
-          <Text style={s.section}>Next up</Text>
-          <Pressable onPress={() => router.push({ pathname: '/(tabs)/calendar', params: { date } } as any)}><Text style={s.link}>Open calendar</Text></Pressable>
-        </View>
+        <View style={s.rowHead}><Text style={s.section}>Next up</Text></View>
         {next ? (
-          <Pressable accessibilityRole="button" accessibilityLabel={`Open ${next.title} in calendar`} onPress={openNext} style={[s.nextCard, { backgroundColor: isDark ? '#1B2A55' : '#3779E8' }]}>
+          <Pressable accessibilityRole="button" accessibilityLabel={`Mark ${next.title} complete`} onPress={completeNext} style={[s.nextCard, { backgroundColor: isDark ? '#1B2A55' : '#3779E8' }]}>
             <View style={[s.nextIcon, { backgroundColor: next.color || '#6895F0' }]} />
             <View style={{ flex: 1 }}><Text style={s.cardTitle}>{next.title}</Text><Text style={s.meta}>{next.kind === 'task' ? 'One-time task' : next.time ? `Today · ${formatTime(next.time)}` : 'Today'}</Text></View>
             <Text style={s.arrow}>›</Text>
@@ -154,8 +157,10 @@ export default function TodayScreen() {
         </View>
         <View style={[s.affirm, { backgroundColor: surface }]}>
           <View style={s.affirmHead}><Text style={[s.affirmFoot, { color: secondary }]}>YOUR DAILY AFFIRMATION</Text><Pressable accessibilityRole="button" accessibilityLabel={fav ? 'Remove from favorites' : 'Add to favorites'} onPress={toggleFavorite}><Text style={{ fontSize: 20, color: '#E4A900' }}>{fav ? '★' : '☆'}</Text></Pressable></View>
-          <Pressable accessibilityRole="button" accessibilityLabel="Tap to change this affirmation" onPress={() => affirmationId && router.push({ pathname: '/(tabs)/habits', params: { editAffirmation: affirmationId } } as any)}><Text style={[s.affirmText, { color: primary }]}>{affirmation || 'I am growing at my own pace.'}</Text></Pressable>
+          <Pressable accessibilityRole="button" accessibilityLabel="Show next affirmation" onPress={refreshAffirmation}><Text style={[s.affirmText, { color: primary }]}>{affirmation || 'I am growing at my own pace.'}</Text></Pressable>
         </View>
+        <View style={s.rowHead}><Text style={s.section}>Journal</Text><Pressable onPress={() => router.push('/reflection' as any)}><Text style={s.link}>Write an entry</Text></Pressable></View>
+        <Pressable accessibilityRole="button" onPress={() => router.push('/reflection' as any)} style={[s.journalCard, { backgroundColor: surface }]}><Text style={[s.journalText, { color: primary }]}>Take a moment to reflect on your day.</Text><Text style={{ color: tint, fontWeight: '700' }}>Open journal  ›</Text></Pressable>
       </ScrollView>
     </LinearGradient>
   );
@@ -169,4 +174,5 @@ const s = StyleSheet.create({
   nextCard: { borderRadius: 18, padding: 15, flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 10 }, nextIcon: { width: 42, height: 42, borderRadius: 22 }, cardTitle: { color: 'white', fontSize: 15, fontWeight: '700' }, meta: { color: '#DFE9FF', fontSize: 12, marginTop: 4 }, arrow: { color: 'white', fontSize: 27 },
   quickLinks: { flexDirection: 'row', gap: 10, marginBottom: 8 }, quickButton: { flex: 1, backgroundColor: '#3779E8', borderRadius: 14, paddingVertical: 13, alignItems: 'center' }, quickText: { color: 'white', fontSize: 13, fontWeight: '800' },
   affirm: { borderRadius: 22, padding: 18, marginBottom: 12 }, affirmHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, affirmFoot: { fontSize: 10, letterSpacing: 1.1, fontWeight: '800' }, affirmText: { fontSize: 18, lineHeight: 25, fontWeight: '700', marginTop: 10 },
+  journalCard: { borderRadius: 18, padding: 18, marginBottom: 12, gap: 12 }, journalText: { fontSize: 15, fontWeight: '600' },
 });

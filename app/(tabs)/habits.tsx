@@ -35,7 +35,7 @@ import {
 } from "@/utils/notifications";
 import { useTheme } from "@/contexts/ThemeContext";
 import { getColors } from "@/styles/commonStyles";
-import { ALL_DAYS, WEEKDAYS, getAllHabitSchedules, getAffirmationSchedules, saveHabitSchedule, removeHabitSchedule, saveAffirmationSchedule, removeAffirmationSchedule, HabitSchedule, AffirmationSchedule, formatTime, normalizeTime, sortTimes } from "@/utils/planner";
+import { ALL_DAYS, WEEKDAYS, getAllHabitSchedules, getAffirmationSchedules, saveHabitSchedule, removeHabitSchedule, saveAffirmationSchedule, removeAffirmationSchedule, HabitSchedule, AffirmationSchedule, formatTime, normalizeTime, sortTimes, timeToMinutes } from "@/utils/planner";
 import { scheduleAffirmationReminders, cancelAffirmationReminders, scheduleHabitReminder, cancelHabitReminder } from "@/utils/notifications";
 import TimePickerField from "@/components/TimePickerField";
 
@@ -138,7 +138,13 @@ export default function HabitsScreen() {
         }
       }
       
-      setHabits(dbHabits);
+      setHabits([...dbHabits].sort((a, b) => {
+        const aTime = timeToMinutes(schedules[a.id]?.time);
+        const bTime = timeToMinutes(schedules[b.id]?.time);
+        if (aTime === null && bTime !== null) return 1;
+        if (bTime === null && aTime !== null) return -1;
+        return (aTime ?? 0) - (bTime ?? 0) || a.title.localeCompare(b.title);
+      }));
       setHabitSchedules(schedules);
       console.log(`Loaded ${dbHabits.length} habits`);
       

@@ -25,7 +25,7 @@ import {
 } from "@/utils/database";
 import { useTheme } from "@/contexts/ThemeContext";
 import { getColors } from "@/styles/commonStyles";
-import { getAffirmationSchedules, formatTime as formatScheduledTime, AffirmationSchedule, getLocalDateKey } from "@/utils/planner";
+import { getAffirmationSchedules, formatTime as formatScheduledTime, AffirmationSchedule, getLocalDateKey, setDailyAffirmationId } from "@/utils/planner";
 
 interface JournalEntry {
   id: string;
@@ -82,8 +82,9 @@ export default function HistoryScreen() {
           if (item.id.startsWith("daily_generated_") && !item.id.startsWith(todayPrefix) && item.isFavorite !== 1 && !scheduledIds.has(item.id)) await deleteAffirmation(item.id);
         }
         const currentAffirmations = await getAllAffirmations() as Affirmation[];
-        setAffirmations(currentAffirmations);
-        console.log("[History] Loaded", currentAffirmations.length, "affirmations");
+        const activeAffirmations = currentAffirmations.filter(item => item.isFavorite !== 1);
+        setAffirmations(activeAffirmations);
+        console.log("[History] Loaded", activeAffirmations.length, "active affirmations");
       } else if (activeTab === "favorites") {
         const allAffirmations = await getAllAffirmations() as Affirmation[];
         const scheduledIds = new Set(schedules.filter(item => item.enabled).map(item => item.affirmationId));
@@ -162,19 +163,27 @@ export default function HistoryScreen() {
     router.push({ pathname: "/(tabs)/habits", params: { scheduleAffirmation: affirmationId } } as any);
   };
 
-  const renderAffirmationSchedule = (affirmationId: string) => {
+  const activateFavoriteToday = async (affirmationId: string) => {
+    await setDailyAffirmationId(affirmationId, getLocalDateKey());
+    router.navigate("/(tabs)/" as any);
+  };
+
+  const renderAffirmationSchedule = (affirmationId: string, allowRotation = false) => {
     const schedule = affirmationSchedules.find(item => item.affirmationId === affirmationId && item.enabled);
     const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
     const summary = schedule
       ? `${schedule.days.map(day => dayNames[day]).join(", ")} · ${schedule.times.map(formatScheduledTime).join(", ")}`
       : "Not scheduled";
     return (
-      <View style={styles.scheduleRow}>
-        <Text style={styles.scheduleSummary}>{summary}</Text>
-        <TouchableOpacity style={styles.scheduleButton} onPress={() => scheduleAffirmation(affirmationId)}>
-          <Text style={styles.scheduleButtonText}>{schedule ? "Edit schedule" : "Schedule"}</Text>
-        </TouchableOpacity>
-      </View>
+      <>
+        <View style={styles.scheduleRow}>
+          <Text style={styles.scheduleSummary}>{summary}</Text>
+          <TouchableOpacity style={styles.scheduleButton} onPress={() => scheduleAffirmation(affirmationId)}>
+            <Text style={styles.scheduleButtonText}>{schedule ? "Edit schedule" : "Schedule"}</Text>
+          </TouchableOpacity>
+        </View>
+        {allowRotation && <TouchableOpacity style={styles.rotationButton} onPress={() => void activateFavoriteToday(affirmationId)}><Text style={styles.scheduleButtonText}>Use in today’s rotation</Text></TouchableOpacity>}
+      </>
     );
   };
 
@@ -385,7 +394,7 @@ export default function HistoryScreen() {
                         <Text style={styles.customBadgeText}>Custom</Text>
                       </View>
                     )}
-                    {renderAffirmationSchedule(affirmation.id)}
+                    {renderAffirmationSchedule(affirmation.id, true)}
                   </View>
                 ))
               )}
@@ -571,5 +580,13 @@ const styles = StyleSheet.create({
     color: "#4057DD",
     fontSize: 12,
     fontWeight: "700",
+  },
+  rotationButton: {
+    alignSelf: "flex-start",
+    marginTop: 10,
+    paddingVertical: 9,
+    paddingHorizontal: 13,
+    borderRadius: 12,
+    backgroundColor: "#EEF1FF",
   },
 });

@@ -11,7 +11,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import * as ImagePicker from "expo-image-picker";
 import { getOfferings, purchasePackage, restorePurchases, getCustomerInfo } from "@/utils/revenueCat";
 import { RemindersOverlay } from "@/components/RemindersOverlay";
-import { initializeNotifications } from "@/utils/notifications";
+import { getReminderSound, initializeNotifications, REMINDER_SOUND_OPTIONS, ReminderSound, saveReminderSound } from "@/utils/notifications";
 import { exportJournalsToPdf, getExportPreview } from "@/utils/pdfExport";
 
 const styles = StyleSheet.create({
@@ -379,6 +379,17 @@ export default function ProfileScreen() {
     }
   };
 
+  const handleNotificationSound = async () => {
+    const current = await getReminderSound();
+    Alert.alert('Notification sound', 'Choose a sound for scheduled reminders.', [
+      ...REMINDER_SOUND_OPTIONS.map(option => ({
+        text: (option.value === current ? '✓ ' : '') + option.label,
+        onPress: () => { void saveReminderSound(option.value as ReminderSound); },
+      })),
+      { text: 'Cancel', style: 'cancel' },
+    ]);
+  };
+
 
 
   const handlePrivacy = () => {
@@ -562,6 +573,13 @@ export default function ProfileScreen() {
                 <View style={styles.menuItemLeft}>
                   <IconSymbol ios_icon_name="bell" android_material_icon_name="notifications" size={24} color={colors.text} />
                   <Text style={[styles.menuItemText, { color: colors.text }]}>Notifications</Text>
+                </View>
+                <IconSymbol ios_icon_name="chevron.right" android_material_icon_name="arrow-forward" size={20} color={colors.textSecondary} />
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.menuItem} onPress={handleNotificationSound}>
+                <View style={styles.menuItemLeft}>
+                  <IconSymbol ios_icon_name="speaker.wave.2" android_material_icon_name="volume-up" size={24} color={colors.text} />
+                  <Text style={[styles.menuItemText, { color: colors.text }]}>Notification sound</Text>
                 </View>
                 <IconSymbol ios_icon_name="chevron.right" android_material_icon_name="arrow-forward" size={20} color={colors.textSecondary} />
               </TouchableOpacity>

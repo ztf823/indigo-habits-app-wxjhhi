@@ -12,6 +12,58 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 const DAILY_HABITS_REMINDER_KEY = 'dailyHabitsReminder';
 const JOURNAL_REMINDER_KEY = 'journalReminder';
 const HABIT_REMINDERS_KEY = 'habitReminders';
+const REMINDER_SOUND_KEY = '@indigo_habits/reminder_sound_v1';
+export type ReminderSound = 'default' | 'chime' | 'gentle' | 'silent';
+export const REMINDER_SOUND_OPTIONS: { value: ReminderSound; label: string }[] = [
+  { value: 'default', label: 'Default' },
+  { value: 'chime', label: 'Indigo chime' },
+  { value: 'gentle', label: 'Gentle bell' },
+  { value: 'silent', label: 'Silent' },
+];
+export const getReminderSound = async (): Promise<ReminderSound> => {
+  const saved = await AsyncStorage.getItem(REMINDER_SOUND_KEY);
+  return REMINDER_SOUND_OPTIONS.some(option => option.value === saved) ? saved as ReminderSound : 'default';
+};
+export const saveReminderSound = async (sound: ReminderSound) => {
+  await AsyncStorage.setItem(REMINDER_SOUND_KEY, sound);
+  const scheduled = await Notifications.getAllScheduledNotificationsAsync();
+  await configureSoundChannel(sound);
+  for (const notification of scheduled) {
+    const trigger = notification.trigger;
+    if (!trigger) continue;
+    const content = notification.content;
+    await Notifications.cancelScheduledNotificationAsync(notification.identifier);
+    await Notifications.scheduleNotificationAsync({
+      identifier: notification.identifier,
+      content: { ...content, sound: soundResource(sound) } as unknown as Notifications.NotificationContentInput,
+      trigger: { ...(trigger as object), ...(Platform.OS === 'android' ? { channelId: soundChannel(sound) } : {}) } as Notifications.NotificationTriggerInput,
+    });
+  }
+};
+const soundResource = (sound: ReminderSound) => sound === 'chime' ? 'indigo-chime.wav'
+  : sound === 'gentle' ? 'indigo-gentle.wav' : sound === 'silent' ? false : 'default';
+const soundChannel = (sound: ReminderSound) => 'habits-reminders-' + sound;
+const configureSoundChannel = async (sound: ReminderSound) => {
+  if (Platform.OS !== 'android') return;
+  const resource = soundResource(sound);
+  await Notifications.setNotificationChannelAsync(soundChannel(sound), {
+    name: 'Habit reminders · ' + (REMINDER_SOUND_OPTIONS.find(option => option.value === sound)?.label ?? 'Default'),
+    importance: Notifications.AndroidImportance.HIGH,
+    sound: resource === false ? null : resource === 'default' ? 'default' : resource.replace(/\.wav$/, ''),
+    vibrationPattern: [0, 250, 250, 250],
+    lightColor: '#4F46E5',
+  });
+};
+const currentSoundContent = async () => {
+  const sound = await getReminderSound();
+  await configureSoundChannel(sound);
+  return { sound: soundResource(sound) };
+};
+const currentSoundTrigger = async () => {
+  const sound = await getReminderSound();
+  await configureSoundChannel(sound);
+  return Platform.OS === 'android' ? { channelId: soundChannel(sound) } : {};
+};
 
 // Notification IDs
 const DAILY_HABITS_NOTIFICATION_ID = 'daily-habits-reminder';
@@ -139,10 +191,11 @@ export const scheduleDailyHabitsReminder = async (time: string) => {
         content: {
           title: 'Time for your daily habits! 🌟',
           body: 'Complete your habits to build your streak',
-          sound: 'default',
+          ...(await currentSoundContent()),
           data: { type: 'daily-habits' },
         },
         trigger: {
+          ...(await currentSoundTrigger()),
           type: Notifications.SchedulableTriggerInputTypes.CALENDAR,
           hour: hours,
           minute: minutes,
@@ -194,10 +247,11 @@ export const scheduleJournalReminder = async (time: string) => {
         content: {
           title: 'Time to journal 📝',
           body: 'Reflect on your day and capture your thoughts',
-          sound: 'default',
+          ...(await currentSoundContent()),
           data: { type: 'journal', route: '/reflection' },
         },
         trigger: {
+          ...(await currentSoundTrigger()),
           type: Notifications.SchedulableTriggerInputTypes.CALENDAR,
           hour: hours,
           minute: minutes,
@@ -257,11 +311,12 @@ export const scheduleHabitReminder = async (habitId: string, habitTitle: string,
         content: {
           title: habitTitle,
           body: '',
-          sound: 'default',
+          ...(await currentSoundContent()),
           data: { type: 'habit', habitId, route: '/(tabs)/calendar', weekday },
           categoryIdentifier: 'habit-reminder-actions',
         },
         trigger: {
+          ...(await currentSoundTrigger()),
           type: Notifications.SchedulableTriggerInputTypes.CALENDAR,
           hour: hours,
           minute: minutes,
@@ -304,8 +359,8 @@ export const scheduleAffirmationReminders = async (id: string, text: string, day
     const [hour, minute] = time.split(':').map(Number);
     await Notifications.scheduleNotificationAsync({
       identifier: `affirmation-${id}-${day}-${time.replace(':','')}`,
-      content: { title: 'A thought for you', body: text, sound: 'default', data: { type: 'affirmation', affirmationId: id, route: '/(tabs)' }, categoryIdentifier: 'affirmation-actions' },
-      trigger: { type: Notifications.SchedulableTriggerInputTypes.CALENDAR, weekday: day + 1, hour, minute, repeats: true },
+      content: { title: 'A thought for you', body: text, ...(await currentSoundContent()), data: { type: 'affirmation', affirmationId: id, route: '/(tabs)' }, categoryIdentifier: 'affirmation-actions' },
+      trigger: { ...(await currentSoundTrigger()), type: Notifications.SchedulableTriggerInputTypes.CALENDAR, weekday: day + 1, hour, minute, repeats: true },
     });
   }
   return true;
@@ -323,7 +378,7 @@ export const scheduleTaskReminder = async (taskId: string, title: string, date: 
   const [year, month, day] = date.split('-').map(Number); const [hour, minute] = time.split(':').map(Number);
   const triggerDate = new Date(year, month - 1, day, hour, minute, 0, 0);
   if (triggerDate.getTime() <= Date.now()) return false;
-  await Notifications.scheduleNotificationAsync({ identifier: `task-${taskId}`, content: { title, body: '', sound: 'default', data: { type: 'task', taskId, date, route: '/(tabs)/calendar' } }, trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: triggerDate } });
+  await Notifications.scheduleNotificationAsync({ identifier: `task-${taskId}`, content: { title, body: '', ...(await currentSoundContent()), data: { type: 'task', taskId, date, route: '/(tabs)/calendar' } }, trigger: { ...(await currentSoundTrigger()), type: Notifications.SchedulableTriggerInputTypes.DATE, date: triggerDate } });
   return true;
 };
 export const cancelTaskReminder = async (taskId: string) => { try { await Notifications.cancelScheduledNotificationAsync(`task-${taskId}`); } catch {} };
