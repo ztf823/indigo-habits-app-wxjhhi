@@ -47,6 +47,7 @@ const PLANNED_ITEMS_KEY = "@indigo_habits/planned_items_v1";
 const AFFIRMATION_SCHEDULE_KEY = "@indigo_habits/affirmation_schedules_v2";
 const AFFIRMATION_USAGE_KEY = "@indigo_habits/affirmation_usage_v1";
 const CURRENT_AFFIRMATION_KEY = "@indigo_habits/current_affirmation_v1";
+const DAILY_AFFIRMATIONS_KEY = "@indigo_habits/daily_affirmations_v1";
 
 export const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6];
 export const WEEKDAYS = [1, 2, 3, 4, 5];
@@ -213,6 +214,15 @@ export const removeAffirmationSchedule = async (affirmationId: string) => {
 
 export const getCurrentAffirmationId = () => AsyncStorage.getItem(CURRENT_AFFIRMATION_KEY);
 export const setCurrentAffirmationId = (id: string) => AsyncStorage.setItem(CURRENT_AFFIRMATION_KEY, id);
+export const getDailyAffirmationId = async (date = getLocalDateKey()) => {
+  const daily = parseJson<Record<string, string>>(await AsyncStorage.getItem(DAILY_AFFIRMATIONS_KEY), {});
+  return daily[date] || null;
+};
+export const setDailyAffirmationId = async (id: string, date = getLocalDateKey()) => {
+  const daily = parseJson<Record<string, string>>(await AsyncStorage.getItem(DAILY_AFFIRMATIONS_KEY), {});
+  daily[date] = id;
+  await AsyncStorage.setItem(DAILY_AFFIRMATIONS_KEY, JSON.stringify(daily));
+};
 
 export const getAffirmationUsage = async (date = getLocalDateKey()): Promise<number> => {
   const usage = parseJson<Record<string, number>>(await AsyncStorage.getItem(AFFIRMATION_USAGE_KEY), {});

@@ -78,7 +78,7 @@ const DEFAULT_HABITS = [
 
 export default function HabitsScreen() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ editAffirmation?: string }>();
+  const params = useLocalSearchParams<{ editAffirmation?: string; scheduleAffirmation?: string }>();
   const { isDark } = useTheme();
   const themeColors = getColors(isDark);
   const [activeTab, setActiveTab] = useState<"habits" | "affirmations">("habits");
@@ -351,6 +351,16 @@ export default function HabitsScreen() {
     setNewAffirmationTime("18:00");
     setAffirmationScheduleModalVisible(true);
   };
+
+  useEffect(() => {
+    const requestedId = params.scheduleAffirmation;
+    if (!requestedId) return;
+    const affirmation = affirmations.find(item => item.id === requestedId);
+    if (!affirmation) return;
+    setActiveTab("affirmations");
+    void openAffirmationSchedule(affirmation);
+    (router as any).setParams({ scheduleAffirmation: undefined });
+  }, [affirmations, params.scheduleAffirmation, router]);
 
   const saveAffirmationScheduleChanges = async () => {
     if (!scheduleAffirmation) return;

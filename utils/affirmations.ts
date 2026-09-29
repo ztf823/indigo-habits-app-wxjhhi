@@ -497,6 +497,26 @@ export function getRandomAffirmation(): string {
   return DEFAULT_AFFIRMATIONS[randomIndex];
 }
 
+/** Pick an embedded affirmation that fits the themes in today's plan. */
+export function getPlanBasedAffirmation(planTitles: string[], exclude: string[] = []): string {
+  const plan = planTitles.join(" ").toLowerCase();
+  const themes: { words: string[]; cues: string[] }[] = [
+    { words: ["exercise", "walk", "run", "workout", "movement", "water", "body", "health"], cues: ["body", "strong", "energy", "care", "healthy", "move", "capable"] },
+    { words: ["meditat", "breath", "mindful", "calm", "peace", "journal"], cues: ["peace", "calm", "mind", "present", "breathe", "quiet", "inner"] },
+    { words: ["work", "write", "study", "goal", "project", "practice", "create"], cues: ["goal", "focus", "create", "progress", "capable", "achieve", "effort"] },
+    { words: ["gratitude", "thank", "kind", "love"], cues: ["grateful", "gratitude", "love", "kind", "good"] },
+    { words: ["rest", "sleep", "break", "relax"], cues: ["rest", "peace", "patient", "deserve", "relax", "enough"] },
+  ];
+  const theme = themes.find(candidate => candidate.words.some(word => plan.includes(word)));
+  const available = DEFAULT_AFFIRMATIONS.filter(text => !exclude.includes(text));
+  if (theme) {
+    const matched = available.filter(text => theme.cues.some(cue => text.toLowerCase().includes(cue)));
+    if (matched.length) return matched[Math.floor(Math.random() * matched.length)];
+  }
+  const pool = available.length ? available : DEFAULT_AFFIRMATIONS;
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+
 export function getMultipleRandomAffirmations(count: number): string[] {
   const shuffled = [...DEFAULT_AFFIRMATIONS].sort(() => 0.5 - Math.random());
   return shuffled.slice(0, Math.min(count, DEFAULT_AFFIRMATIONS.length));

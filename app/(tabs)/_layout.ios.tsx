@@ -13,6 +13,7 @@ export default function TabLayout() {
   const tabRoutes = useMemo(() => [
     '/(tabs)/',
     '/(tabs)/habits',
+    '/(tabs)/calendar',
     '/(tabs)/history',
     '/(tabs)/progress',
     '/(tabs)/profile',
@@ -49,6 +50,10 @@ export default function TabLayout() {
           <NativeTabs.Trigger key="habits" name="habits">
             <Icon sf="checkmark.circle.fill" />
             <Label>Habits</Label>
+          </NativeTabs.Trigger>
+          <NativeTabs.Trigger key="calendar" name="calendar">
+            <Icon sf="calendar" />
+            <Label>Calendar</Label>
           </NativeTabs.Trigger>
           <NativeTabs.Trigger key="history" name="history">
             <Icon sf="clock.fill" />
