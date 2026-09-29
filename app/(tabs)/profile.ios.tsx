@@ -13,6 +13,7 @@ import { getColors } from "@/styles/commonStyles";
 import { RemindersOverlay } from "@/components/RemindersOverlay";
 import { initializeNotifications } from "@/utils/notifications";
 import { getOfferings, purchasePackage, restorePurchases, getCustomerInfo } from "@/utils/revenueCat";
+import ProgressScreen from "./progress";
 
 export default function ProfileScreen() {
   const router = useRouter();
@@ -423,7 +424,7 @@ export default function ProfileScreen() {
       style={styles.container}
     >
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        <Text style={[styles.title, { color: colors.text }]}>Profile</Text>
+        <Text style={[styles.title, { color: colors.text }]}>More</Text>
 
         <View style={[styles.profileCard, { backgroundColor: colors.card }]}>
           <TouchableOpacity 
@@ -444,22 +445,12 @@ export default function ProfileScreen() {
               </View>
             )}
             
-            {/* Upload overlay */}
-            <View style={[styles.avatarOverlay, { backgroundColor: colors.primary }]}>
-              {isUploadingImage ? (
-                <ActivityIndicator color="#FFF" size="small" />
-              ) : (
-                <IconSymbol
-                  ios_icon_name="camera.fill"
-                  android_material_icon_name="camera-alt"
-                  size={24}
-                  color="#FFF"
-                />
-              )}
-            </View>
+            {!profileImage && <View style={[styles.avatarOverlay, { backgroundColor: colors.primary }]}>
+              {isUploadingImage ? <ActivityIndicator color="#FFF" size="small" /> : <IconSymbol ios_icon_name="camera.fill" android_material_icon_name="camera-alt" size={24} color="#FFF" />}
+            </View>}
           </TouchableOpacity>
           
-          <Text style={[styles.uploadHint, { color: colors.textSecondary }]}>Tap to change photo</Text>
+          {!profileImage && <Text style={[styles.uploadHint, { color: colors.textSecondary }]}>Add a profile photo</Text>}
           
           <TouchableOpacity onPress={handleEditName} style={styles.editableField}>
             <Text style={[styles.name, { color: colors.text }]}>{userName}</Text>
@@ -493,6 +484,11 @@ export default function ProfileScreen() {
               <Text style={styles.premiumBadgeText}>Premium Member</Text>
             </View>
           )}
+        </View>
+
+        <View style={styles.progressSection}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Progress & achievements</Text>
+          <ProgressScreen embedded />
         </View>
 
         {/* Premium Unlock Section - Original Design */}
@@ -709,7 +705,7 @@ export default function ProfileScreen() {
         </View>
 
         <View style={styles.footer}>
-          <Text style={styles.footerText}>Indigo Habits v1.0.56</Text>
+          <Text style={styles.footerText}>Indigo Habits v1.0.61</Text>
           <Text style={styles.footerSubtext}>All data stored locally on your device</Text>
           <Text style={styles.footerSubtext}>Powered by RevenueCat</Text>
         </View>
@@ -896,6 +892,10 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#FFFFFF",
     marginBottom: 16,
+  },
+  progressSection: {
+    marginBottom: 24,
+    paddingHorizontal: 4,
   },
   settingItem: {
     flexDirection: "row",

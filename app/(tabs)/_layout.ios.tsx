@@ -13,8 +13,8 @@ export default function TabLayout() {
   const tabRoutes = useMemo(() => [
     '/(tabs)/',
     '/(tabs)/habits',
+    '/(tabs)/calendar',
     '/(tabs)/history',
-    '/(tabs)/progress',
     '/(tabs)/profile',
   ], []);
   const segments = pathname.split('/').filter(Boolean);
@@ -50,17 +50,17 @@ export default function TabLayout() {
             <Icon sf="checkmark.circle.fill" />
             <Label>Habits</Label>
           </NativeTabs.Trigger>
+          <NativeTabs.Trigger key="calendar" name="calendar">
+            <Icon sf="calendar" />
+            <Label>Calendar</Label>
+          </NativeTabs.Trigger>
           <NativeTabs.Trigger key="history" name="history">
             <Icon sf="clock.fill" />
             <Label>History</Label>
           </NativeTabs.Trigger>
-          <NativeTabs.Trigger key="progress" name="progress">
-            <Icon sf="chart.line.uptrend.xyaxis" />
-            <Label>Progress</Label>
-          </NativeTabs.Trigger>
           <NativeTabs.Trigger key="profile" name="profile">
-            <Icon sf="person.fill" />
-            <Label>Profile</Label>
+            <Icon sf="ellipsis" />
+            <Label>More</Label>
           </NativeTabs.Trigger>
         </NativeTabs>
       </View>

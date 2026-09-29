@@ -99,7 +99,9 @@ function AppNavigator() {
       const action = response.actionIdentifier;
       if (action === "snooze") {
         const original = response.notification.request.content;
-        await Notifications.scheduleNotificationAsync({ content: { title: original.title ?? "Reminder", body: original.body ?? "", data: original.data ?? {}, sound: "default", categoryIdentifier: original.categoryIdentifier ?? undefined }, trigger: { type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL, seconds: 600, repeats: false } });
+        const originalTrigger = response.notification.request.trigger;
+        const channelId = (originalTrigger as any)?.channelId;
+        await Notifications.scheduleNotificationAsync({ content: { title: original.title ?? "Reminder", body: original.body ?? "", data: original.data ?? {}, sound: original.sound ?? "default", categoryIdentifier: original.categoryIdentifier ?? undefined }, trigger: { ...(channelId ? { channelId } : {}), type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL, seconds: 600, repeats: false } });
         return;
       }
       const date = typeof data.date === "string" ? data.date : getLocalDateKey();
@@ -125,6 +127,7 @@ function AppNavigator() {
           <Stack.Screen name="welcome" />
           <Stack.Screen name="(tabs)" />
           <Stack.Screen name="reflection" />
+          <Stack.Screen name="voice-plan" options={{ presentation: "modal", animation: "slide_from_bottom" }} />
           <Stack.Screen name="modal" options={{ presentation: "modal" }} />
           <Stack.Screen name="formsheet" options={{ presentation: "formSheet" }} />
           <Stack.Screen name="transparent-modal" options={{ presentation: "transparentModal" }} />

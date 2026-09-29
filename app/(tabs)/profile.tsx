@@ -11,8 +11,9 @@ import React, { useState, useEffect, useCallback } from "react";
 import * as ImagePicker from "expo-image-picker";
 import { getOfferings, purchasePackage, restorePurchases, getCustomerInfo } from "@/utils/revenueCat";
 import { RemindersOverlay } from "@/components/RemindersOverlay";
-import { initializeNotifications } from "@/utils/notifications";
+import { getReminderSound, initializeNotifications, REMINDER_SOUND_OPTIONS, ReminderSound, saveReminderSound } from "@/utils/notifications";
 import { exportJournalsToPdf, getExportPreview } from "@/utils/pdfExport";
+import ProgressScreen from "./progress";
 
 const styles = StyleSheet.create({
   container: {
@@ -379,6 +380,17 @@ export default function ProfileScreen() {
     }
   };
 
+  const handleNotificationSound = async () => {
+    const current = await getReminderSound();
+    Alert.alert('Notification sound', 'Choose a sound for scheduled reminders.', [
+      ...REMINDER_SOUND_OPTIONS.map(option => ({
+        text: (option.value === current ? '✓ ' : '') + option.label,
+        onPress: () => { void saveReminderSound(option.value as ReminderSound); },
+      })),
+      { text: 'Cancel', style: 'cancel' },
+    ]);
+  };
+
 
 
   const handlePrivacy = () => {
@@ -405,7 +417,7 @@ export default function ProfileScreen() {
 
   const userName = profile?.name || 'User';
   const userEmail = profile?.email || 'Keep building your habits';
-  const profilePicture = profile?.profilePicture;
+  const profilePicture = profile?.photoUri;
   const priceText = "$4.99/month";
 
   return (
@@ -422,11 +434,16 @@ export default function ProfileScreen() {
                 )}
               </View>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.changePhotoButton} onPress={handlePickImage}>
-              <Text style={styles.changePhotoText}>Change Photo</Text>
-            </TouchableOpacity>
+            {!profilePicture && <TouchableOpacity style={styles.changePhotoButton} onPress={handlePickImage}>
+              <Text style={styles.changePhotoText}>Add profile photo</Text>
+            </TouchableOpacity>}
             <Text style={styles.userName}>{userName}</Text>
             <Text style={styles.userEmail}>{userEmail}</Text>
+          </View>
+
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: '#FFFFFF' }]}>Progress & achievements</Text>
+            <ProgressScreen embedded />
           </View>
 
           {!isPremium && (
@@ -498,16 +515,6 @@ export default function ProfileScreen() {
           <View style={styles.section}>
             <Text style={[styles.sectionTitle, { color: colors.text }]}>Account</Text>
             <View style={[styles.card, { backgroundColor: colors.card }]}>
-              <TouchableOpacity style={styles.menuItem} onPress={() => router.push('/(tabs)/progress' as any)}>
-                <View style={styles.menuItemLeft}>
-                  <IconSymbol ios_icon_name="chart.line.uptrend.xyaxis" android_material_icon_name="trending-up" size={24} color={colors.text} />
-                  <View style={{ flex: 1 }}>
-                    <Text style={[styles.menuItemText, { color: colors.text }]}>Progress</Text>
-                    <Text style={[styles.menuItemSubtext, { color: colors.textSecondary }]}>Review streaks and weekly completion</Text>
-                  </View>
-                </View>
-                <IconSymbol ios_icon_name="chevron.right" android_material_icon_name="arrow-forward" size={20} color={colors.textSecondary} />
-              </TouchableOpacity>
               <TouchableOpacity style={styles.menuItem} onPress={handleEditName}>
                 <View style={styles.menuItemLeft}>
                   <IconSymbol ios_icon_name="person" android_material_icon_name="person" size={24} color={colors.text} />
@@ -562,6 +569,13 @@ export default function ProfileScreen() {
                 <View style={styles.menuItemLeft}>
                   <IconSymbol ios_icon_name="bell" android_material_icon_name="notifications" size={24} color={colors.text} />
                   <Text style={[styles.menuItemText, { color: colors.text }]}>Notifications</Text>
+                </View>
+                <IconSymbol ios_icon_name="chevron.right" android_material_icon_name="arrow-forward" size={20} color={colors.textSecondary} />
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.menuItem} onPress={handleNotificationSound}>
+                <View style={styles.menuItemLeft}>
+                  <IconSymbol ios_icon_name="speaker.wave.2" android_material_icon_name="volume-up" size={24} color={colors.text} />
+                  <Text style={[styles.menuItemText, { color: colors.text }]}>Notification sound</Text>
                 </View>
                 <IconSymbol ios_icon_name="chevron.right" android_material_icon_name="arrow-forward" size={20} color={colors.textSecondary} />
               </TouchableOpacity>

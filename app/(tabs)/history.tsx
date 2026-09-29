@@ -20,10 +20,12 @@ import {
   getAllAffirmations,
   getAllHabits,
   updateAffirmation,
+  deleteAffirmation,
   getHabitCompletionsForDate,
 } from "@/utils/database";
 import { useTheme } from "@/contexts/ThemeContext";
 import { getColors } from "@/styles/commonStyles";
+import { getAffirmationSchedules, formatTime as formatScheduledTime, AffirmationSchedule, getLocalDateKey, setDailyAffirmationId } from "@/utils/planner";
 
 interface JournalEntry {
   id: string;
@@ -57,12 +59,15 @@ export default function HistoryScreen() {
   const [journalEntries, setJournalEntries] = useState<JournalEntry[]>([]);
   const [affirmations, setAffirmations] = useState<Affirmation[]>([]);
   const [favorites, setFavorites] = useState<Affirmation[]>([]);
+  const [affirmationSchedules, setAffirmationSchedules] = useState<AffirmationSchedule[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const router = useRouter();
 
   const loadHistory = useCallback(async () => {
     try {
+      const schedules = await getAffirmationSchedules();
+      setAffirmationSchedules(schedules);
       console.log("[History] Loading history for tab:", activeTab);
       
       if (activeTab === "journal") {
@@ -71,11 +76,24 @@ export default function HistoryScreen() {
         console.log("[History] Loaded", entries.length, "journal entries");
       } else if (activeTab === "affirmations") {
         const allAffirmations = await getAllAffirmations() as Affirmation[];
-        setAffirmations(allAffirmations);
-        console.log("[History] Loaded", allAffirmations.length, "affirmations");
+        const scheduledIds = new Set(schedules.filter(item => item.enabled).map(item => item.affirmationId));
+        const todayPrefix = `daily_generated_${getLocalDateKey()}_`;
+        for (const item of allAffirmations) {
+          if (item.id.startsWith("daily_generated_") && !item.id.startsWith(todayPrefix) && item.isFavorite !== 1 && !scheduledIds.has(item.id)) await deleteAffirmation(item.id);
+        }
+        const currentAffirmations = await getAllAffirmations() as Affirmation[];
+        const activeAffirmations = currentAffirmations.filter(item => item.isFavorite !== 1);
+        setAffirmations(activeAffirmations);
+        console.log("[History] Loaded", activeAffirmations.length, "active affirmations");
       } else if (activeTab === "favorites") {
         const allAffirmations = await getAllAffirmations() as Affirmation[];
-        const favoriteAffirmations = allAffirmations.filter(a => a.isFavorite === 1);
+        const scheduledIds = new Set(schedules.filter(item => item.enabled).map(item => item.affirmationId));
+        const todayPrefix = `daily_generated_${getLocalDateKey()}_`;
+        for (const item of allAffirmations) {
+          if (item.id.startsWith("daily_generated_") && !item.id.startsWith(todayPrefix) && item.isFavorite !== 1 && !scheduledIds.has(item.id)) await deleteAffirmation(item.id);
+        }
+        const currentAffirmations = await getAllAffirmations() as Affirmation[];
+        const favoriteAffirmations = currentAffirmations.filter(a => a.isFavorite === 1);
         setFavorites(favoriteAffirmations);
         console.log("[History] Loaded", favoriteAffirmations.length, "favorites");
       }
@@ -139,6 +157,34 @@ export default function HistoryScreen() {
       minute: "2-digit",
       hour12: true,
     });
+  };
+
+  const scheduleAffirmation = (affirmationId: string) => {
+    router.push({ pathname: "/(tabs)/habits", params: { scheduleAffirmation: affirmationId } } as any);
+  };
+
+  const activateFavoriteToday = async (affirmationId: string) => {
+    await setDailyAffirmationId(affirmationId, getLocalDateKey());
+    router.navigate("/(tabs)/" as any);
+  };
+
+  const renderAffirmationSchedule = (affirmationId: string, allowRotation = false) => {
+    const schedule = affirmationSchedules.find(item => item.affirmationId === affirmationId && item.enabled);
+    const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    const summary = schedule
+      ? `${schedule.days.map(day => dayNames[day]).join(", ")} · ${schedule.times.map(formatScheduledTime).join(", ")}`
+      : "Not scheduled";
+    return (
+      <>
+        <View style={styles.scheduleRow}>
+          <Text style={styles.scheduleSummary}>{summary}</Text>
+          <TouchableOpacity style={styles.scheduleButton} onPress={() => scheduleAffirmation(affirmationId)}>
+            <Text style={styles.scheduleButtonText}>{schedule ? "Edit schedule" : "Schedule"}</Text>
+          </TouchableOpacity>
+        </View>
+        {allowRotation && <TouchableOpacity style={styles.rotationButton} onPress={() => void activateFavoriteToday(affirmationId)}><Text style={styles.scheduleButtonText}>Use in today’s rotation</Text></TouchableOpacity>}
+      </>
+    );
   };
 
   return (
@@ -308,6 +354,7 @@ export default function HistoryScreen() {
                         <Text style={styles.customBadgeText}>Custom</Text>
                       </View>
                     )}
+                    {renderAffirmationSchedule(affirmation.id)}
                   </View>
                 ))
               )}
@@ -347,6 +394,7 @@ export default function HistoryScreen() {
                         <Text style={styles.customBadgeText}>Custom</Text>
                       </View>
                     )}
+                    {renderAffirmationSchedule(affirmation.id, true)}
                   </View>
                 ))
               )}
@@ -509,5 +557,36 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: "#FFF",
     fontWeight: "600",
+  },
+  scheduleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 8,
+    marginTop: 14,
+  },
+  scheduleSummary: {
+    color: "#6B7280",
+    fontSize: 12,
+    flex: 1,
+  },
+  scheduleButton: {
+    backgroundColor: "#EEF1FF",
+    borderRadius: 9,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  scheduleButtonText: {
+    color: "#4057DD",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  rotationButton: {
+    alignSelf: "flex-start",
+    marginTop: 10,
+    paddingVertical: 9,
+    paddingHorizontal: 13,
+    borderRadius: 12,
+    backgroundColor: "#EEF1FF",
   },
 });

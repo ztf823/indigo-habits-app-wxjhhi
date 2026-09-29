@@ -49,7 +49,7 @@ const BADGES: Badge[] = [
   { id: "12", name: "Indigo Master", description: "365-day streak", daysRequired: 365, earned: false, glowColor: "#FFD700" },
 ];
 
-export default function ProgressScreen() {
+export default function ProgressScreen({ embedded = false }: { embedded?: boolean }) {
   const { isDark } = useTheme();
   const themeColors = getColors(isDark);
   const [streaks, setStreaks] = useState<StreakData>({
@@ -100,6 +100,9 @@ export default function ProgressScreen() {
   };
 
   if (isLoading) {
+    if (embedded) {
+      return <View style={[styles.loadingContainer, styles.embeddedLoading]}><ActivityIndicator size="small" color={themeColors.primary || "#4F46E5"} /><Text style={[styles.loadingText, { color: themeColors.textSecondary }]}>Loading progress...</Text></View>;
+    }
     return (
       <LinearGradient colors={isDark ? [themeColors.gradientStart, themeColors.gradientEnd] : ["#4F46E5", "#7C3AED", "#87CEEB"]} style={styles.container}>
         <View style={styles.loadingContainer}>
@@ -114,14 +117,8 @@ export default function ProgressScreen() {
   const nextBadge = badges.find(b => !b.earned);
   const earnedBadges = badges.filter(b => b.earned);
 
-  return (
-    <LinearGradient colors={isDark ? [themeColors.gradientStart, themeColors.gradientEnd] : ["#4F46E5", "#7C3AED", "#87CEEB"]} style={styles.container}>
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        refreshControl={
-          <RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} tintColor="#FFF" />
-        }
-      >
+  const progressContent = (
+      <>
         <Text style={styles.title}>Your Progress</Text>
         <Text style={styles.subtitle}>Track your journey to better habits</Text>
 
@@ -274,6 +271,14 @@ export default function ProgressScreen() {
               : "Start your journey today! Complete your first habit to begin your streak."}
           </Text>
         </View>
+      </>
+  );
+
+  if (embedded) return <View style={styles.embeddedContent}>{progressContent}</View>;
+  return (
+    <LinearGradient colors={isDark ? [themeColors.gradientStart, themeColors.gradientEnd] : ["#4F46E5", "#7C3AED", "#87CEEB"]} style={styles.container}>
+      <ScrollView contentContainerStyle={styles.scrollContent} refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} tintColor="#FFF" />}>
+        {progressContent}
       </ScrollView>
     </LinearGradient>
   );
@@ -282,6 +287,12 @@ export default function ProgressScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  embeddedContent: {
+    paddingTop: 4,
+  },
+  embeddedLoading: {
+    minHeight: 100,
   },
   loadingContainer: {
     flex: 1,

@@ -1,36 +1,180 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter, useFocusEffect } from 'expo-router';
-import { getAllAffirmations, setHabitCompletion, updateAffirmation } from '@/utils/database';
+import { createAffirmation, deleteAffirmation, getAllAffirmations, setHabitCompletion, updateAffirmation } from '@/utils/database';
 import { usePremium } from '@/hooks/usePremium';
-import { getRandomAffirmation } from '@/utils/affirmations';
-import { getPlanForDate, getDayCompletion, getLocalDateKey, PlanEntry, getAffirmationUsage, recordAffirmationRefresh, getCurrentAffirmationId, setCurrentAffirmationId, setPlannedItemCompleted } from '@/utils/planner';
+import { getPlanBasedAffirmation } from '@/utils/affirmations';
+import { getPlanForDate, getDayCompletion, getLocalDateKey, PlanEntry, getAffirmationUsage, recordAffirmationRefresh, getDailyAffirmationId, setDailyAffirmationId, getAffirmationSchedules, formatTime, setPlannedItemCompleted } from '@/utils/planner';
 import { useTheme } from '@/contexts/ThemeContext';
 
-const bg = (dark:boolean) => dark ? '#0A102C' : '#F4F6FF';
-export default function TodayScreen(){
- const router=useRouter(); const {isDark}=useTheme(); const {isPro}=usePremium(); const [items,setItems]=useState<PlanEntry[]>([]); const [affirmation,setAffirmation]=useState(''); const [affirmationId,setAffirmationId]=useState<string|null>(null); const [fav,setFav]=useState(false); const [used,setUsed]=useState(0); const [loading,setLoading]=useState(true); const date=getLocalDateKey();
- const load=useCallback(async()=>{try{const [plan,allAff,current,count]=await Promise.all([getPlanForDate(date),getAllAffirmations(),getCurrentAffirmationId(),getAffirmationUsage(date)]);setItems(plan);setUsed(count);let chosen=allAff.find((a:any)=>a.id===current)||allAff.find((a:any)=>a.isRepeating===1)||allAff[0];if(!chosen&&allAff.length===0){const text=getRandomAffirmation();setAffirmation(text);setFav(false);}else if(chosen){setCurrentAffirmationId(chosen.id);setAffirmationId(chosen.id);setAffirmation(chosen.text);setFav(chosen.isFavorite===1);}}catch(e){console.warn('[Today] load failed',e)}finally{setLoading(false)}},[date]);
- useFocusEffect(useCallback(()=>{void load()},[load]));
- const toggle=async(item:PlanEntry)=>{const completed=!item.completed;if(item.kind==='habit'&&item.habitId)await setHabitCompletion(item.habitId,date,completed);if(item.kind==='task'&&item.taskId)await setPlannedItemCompleted(item.taskId,date,completed);await load()};
- const refreshAff=async()=>{if(!isPro&&used>=3){Alert.alert('That’s today’s limit','You can refresh your daily affirmation up to three times a day.');return}const rows=await getAllAffirmations();const current=await getCurrentAffirmationId();const other=rows.filter((a:any)=>a.id!==current);if(!other.length){Alert.alert('No more affirmations','Add another affirmation in Habits to refresh this one.');return}const next=other[Math.floor(Math.random()*other.length)];await setCurrentAffirmationId(next.id);if(!isPro){await recordAffirmationRefresh(date);setUsed(used+1)}setAffirmationId(next.id);setAffirmation(next.text);setFav(next.isFavorite===1)};
- const toggleFavorite=async()=>{if(!affirmationId)return;const next=!fav;await updateAffirmation(affirmationId,{isFavorite:next});setFav(next)};
- const counts=getDayCompletion(items);const next=items.find(i=>!i.completed&&i.kind!=='affirmation');
- if(loading)return <View style={[s.center,{backgroundColor:bg(isDark)}]}><ActivityIndicator color="#3869FF"/></View>;
- return <LinearGradient colors={['#111A78','#1455D9','#23B9EB']} start={{x:0,y:0}} end={{x:0,y:1}} style={{flex:1}}><ScrollView style={{flex:1}} contentContainerStyle={s.content}>
-  <Text style={[s.eyebrow,{color:'#DCE8FF'}]}>{new Date().toLocaleDateString(undefined,{weekday:'long',month:'long',day:'numeric'}).toUpperCase()}</Text>
-  <Text style={[s.title,{color:'white'}]}>Today</Text><Text style={{color:'#DCE8FF',fontSize:13,marginTop:-11,marginBottom:16}}>A little progress, planned with purpose.</Text>
-  <View style={s.progress}>
-   <View style={{flex:1}}><Text style={[s.progressLabel,{color:'#7480A6'}]}>TODAY’S PROGRESS</Text><Text style={[s.progressNum,{color:'#151C45'}]}>{counts.completed}<Text style={[s.progressTotal,{color:'#151C45'}]}> of {counts.total} complete</Text></Text><View style={s.progressTrack}><View style={[s.progressFill,{width:`${counts.total?Math.round(counts.completed/counts.total*100):0}%`}]} /></View><Text style={[s.progressFoot,{color:'#7480A6'}]}>{counts.total?`${Math.round(counts.completed/counts.total*100)}% of your plan complete`:'Your day is yours to shape'}</Text><Pressable onPress={()=>router.push('/(tabs)/calendar' as any)} style={s.progressButton}><Text style={{color:'#4057DD',fontWeight:'700'}}>Open today’s plan</Text></Pressable></View><View style={s.percent}><Text style={{fontSize:13,fontWeight:'800',color:'#4057DD'}}>{counts.total?Math.round(counts.completed/counts.total*100):0}%</Text></View>
-  </View>
-  <View style={s.rowHead}><Text style={[s.section,{color:'white'}]}>Next up</Text><Pressable onPress={()=>router.push('/(tabs)/calendar' as any)}><Text style={s.link}>Open calendar</Text></Pressable></View>
-  {next?<Pressable onPress={()=>toggle(next)} style={[s.nextCard,{backgroundColor:'#3779E8'}]}><View style={[s.check,{borderColor:next.color||'#5182FF'}]}/><View style={{flex:1}}><Text style={[s.cardTitle,{color:'white'}]}>{next.title}</Text><Text style={s.meta}>{next.kind==='task'?'One-time task':next.time?'Today · '+next.time:'Today'}</Text></View><Text style={[s.arrow,{color:'white'}]}>›</Text></Pressable>:<View style={[s.nextCard,{backgroundColor:'#3779E8'}]}><Text style={[s.cardTitle,{color:'white'}]}>You’re all caught up ✨</Text></View>}
-  <View style={s.rowHead}><Text style={[s.section,{color:'white'}]}>Today’s plan</Text><Pressable onPress={()=>router.push('/(tabs)/habits' as any)}><Text style={s.link}>Manage</Text></Pressable></View>
-  {items.filter(i=>i.kind!=='affirmation').map(item=><Pressable key={item.id} onPress={()=>toggle(item)} style={[s.item,{backgroundColor:'white'}]}><View style={[s.checkbox,item.completed&&s.checkboxOn]}>{item.completed&&<Text style={{color:'white',fontWeight:'700'}}>✓</Text>}</View><View style={{flex:1}}><Text style={[s.itemTitle,{color:'#151C45',textDecorationLine:item.completed?'line-through':'none'}]}>{item.title}</Text><Text style={s.meta}>{item.kind==='task'?'One-time task':'Habit'}{item.time?' · '+item.time:''}</Text></View><Text style={s.meta}>›</Text></Pressable>)}
-  <View style={s.rowHead}><Text style={[s.section,{color:'white'}]}>A thought for you</Text><Pressable onPress={refreshAff}><Text style={s.link}>{isPro?'Refresh':'Refresh '+Math.max(0,3-used)+' left'}</Text></Pressable></View>
-  <View style={s.affirm}><View style={{flexDirection:'row',justifyContent:'space-between',alignItems:'center'}}><Text style={s.affirmFoot}>YOUR DAILY AFFIRMATION</Text><Pressable onPress={toggleFavorite}><Text style={{fontSize:19,color:'#E4A900'}}>{fav?'★':'☆'}</Text></Pressable></View><Text style={[s.affirmText,{color:'#151C45'}]}>{affirmation||'I am growing at my own pace.'}</Text><Pressable onPress={toggleFavorite}><Text style={[s.affirmFoot,{color:'#4057DD'}]}>{fav?'SAVED TO FAVORITES':'SAVE THIS AFFIRMATION'}</Text></Pressable></View>
-  <Pressable style={s.reflection} onPress={()=>router.push('/reflection' as any)}><Text style={{fontSize:20}}>✎</Text><View style={{flex:1}}><Text style={[s.cardTitle,{color:'#151C45'}]}>Daily reflection</Text><Text style={s.meta}>Capture how today feels</Text></View><Text style={s.arrow}>›</Text></Pressable>
- </ScrollView></LinearGradient>
+export default function TodayScreen() {
+  const router = useRouter();
+  const { isDark } = useTheme();
+  const { isPro } = usePremium();
+  const [items, setItems] = useState<PlanEntry[]>([]);
+  const [affirmation, setAffirmation] = useState('');
+  const [affirmationId, setAffirmationId] = useState<string | null>(null);
+  const [fav, setFav] = useState(false);
+  const [used, setUsed] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const date = getLocalDateKey();
+
+  const load = useCallback(async () => {
+    try {
+      const [plan, current, count, schedules] = await Promise.all([
+        getPlanForDate(date), getDailyAffirmationId(date), getAffirmationUsage(date), getAffirmationSchedules(),
+      ]);
+      let allAff = await getAllAffirmations();
+      const scheduledIds = new Set(schedules.filter(schedule => schedule.enabled).map(schedule => schedule.affirmationId));
+      for (const item of allAff) {
+        if (item.id.startsWith('daily_generated_') && item.id !== current && item.isFavorite !== 1 && !scheduledIds.has(item.id)) {
+          await deleteAffirmation(item.id);
+        }
+      }
+      allAff = await getAllAffirmations();
+      setItems(plan);
+      setUsed(count);
+      let chosen = allAff.find((item: any) => item.id === current);
+      if (!chosen && allAff.length) {
+        const text = getPlanBasedAffirmation(plan.map(item => item.title));
+        const id = `daily_generated_${date}_${Date.now()}`;
+        await createAffirmation({ id, text, isCustom: false, isFavorite: false, isRepeating: false, orderIndex: -1 });
+        chosen = { id, text, isFavorite: 0 };
+        await setDailyAffirmationId(chosen.id, date);
+      } else if (!chosen) {
+        const text = getPlanBasedAffirmation(plan.map(item => item.title));
+        const id = `daily_generated_${date}_${Date.now()}`;
+        await createAffirmation({ id, text, isCustom: false, isFavorite: false, isRepeating: false, orderIndex: -1 });
+        chosen = { id, text, isFavorite: 0 };
+        await setDailyAffirmationId(id, date);
+      }
+      if (chosen) {
+        setAffirmationId(chosen.id);
+        setAffirmation(chosen.text);
+        setFav(chosen.isFavorite === 1);
+      } else {
+        setAffirmationId(null);
+        setAffirmation(getPlanBasedAffirmation(plan.map(item => item.title)));
+        setFav(false);
+      }
+    } catch (error) {
+      console.warn('[Today] load failed', error);
+    } finally {
+      setLoading(false);
+    }
+  }, [date]);
+
+  useFocusEffect(useCallback(() => { void load(); }, [load]));
+
+  const completeNext = async () => {
+    if (!next) return;
+    try {
+      if (next.kind === 'habit' && next.habitId) await setHabitCompletion(next.habitId, date, true);
+      if (next.kind === 'task' && next.taskId) await setPlannedItemCompleted(next.taskId, date, true);
+      await load();
+    } catch {
+      Alert.alert('Could not update plan', 'Please try again.');
+    }
+  };
+
+  const refreshAffirmation = async () => {
+    if (!isPro && used >= 3) {
+      Alert.alert('That’s today’s limit', 'You can refresh your daily affirmation up to three times a day.');
+      return;
+    }
+    const rows = await getAllAffirmations();
+    const schedules = await getAffirmationSchedules();
+    const current = rows.find((item: any) => item.id === affirmationId);
+    if (current?.id.startsWith('daily_generated_') && current.isFavorite !== 1 && !schedules.some(item => item.affirmationId === current.id && item.enabled)) {
+      await deleteAffirmation(current.id);
+    }
+    const text = getPlanBasedAffirmation(items.map(item => item.title), rows.map((item: any) => item.text));
+    const id = `daily_generated_${date}_${Date.now()}`;
+    await createAffirmation({ id, text, isCustom: false, isFavorite: false, isRepeating: false, orderIndex: -1 });
+    await setDailyAffirmationId(id, date);
+    if (!isPro) {
+      const count = await recordAffirmationRefresh(date);
+      setUsed(count);
+    }
+    setAffirmationId(id);
+    setAffirmation(text);
+    setFav(false);
+  };
+
+  const toggleFavorite = async () => {
+    if (!affirmationId) return;
+    const nextFavorite = !fav;
+    await updateAffirmation(affirmationId, { isFavorite: nextFavorite });
+    setFav(nextFavorite);
+  };
+
+  const counts = getDayCompletion(items);
+  const next = items.find(item => !item.completed && item.kind !== 'affirmation');
+  const surface = isDark ? '#141D42' : '#FFFFFF';
+  const primary = isDark ? '#F4F6FF' : '#151C45';
+  const secondary = isDark ? '#AEB9D5' : '#7480A6';
+  const tint = isDark ? '#C6D7FF' : '#4057DD';
+  const percent = counts.total ? Math.round(counts.completed / counts.total * 100) : 0;
+
+  if (loading) return <View style={[s.center, { backgroundColor: isDark ? '#0A102C' : '#F4F6FF' }]}><ActivityIndicator color="#3869FF" /></View>;
+
+  return (
+    <LinearGradient colors={isDark ? ['#070B20', '#0A102C', '#101C3D'] : ['#111A78', '#1455D9', '#23B9EB']} start={{ x: 0, y: 0 }} end={{ x: 0, y: 1 }} style={{ flex: 1 }}>
+      <ScrollView contentContainerStyle={s.content}>
+        <Text style={s.eyebrow}>TODAY</Text>
+        <Text style={s.title}>{new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}</Text>
+        <Text style={s.subtitle}>A little progress, planned with purpose.</Text>
+
+        <View style={[s.progress, { backgroundColor: surface }]}>
+          <View style={{ flex: 1 }}>
+            <Text style={[s.progressLabel, { color: secondary }]}>TODAY’S PROGRESS</Text>
+            <Text style={[s.progressNum, { color: primary }]}>{counts.completed}<Text style={[s.progressTotal, { color: primary }]}> of {counts.total} plan items complete</Text></Text>
+            <View style={[s.progressTrack, { backgroundColor: isDark ? '#2B365E' : '#E6E9F4' }]}><View style={[s.progressFill, { width: `${percent}%` }]} /></View>
+            <Text style={[s.progressFoot, { color: secondary }]}>{counts.total ? `${percent}% of your plan complete` : 'Your day is yours to shape'}</Text>
+            <Pressable onPress={() => router.push({ pathname: '/(tabs)/calendar', params: { date } } as any)} style={[s.progressButton, { backgroundColor: isDark ? '#222E59' : '#F0F1FF' }]}><Text style={{ color: tint, fontWeight: '700' }}>Open today’s plan</Text></Pressable>
+          </View>
+          <View style={[s.percent, { backgroundColor: isDark ? '#27325C' : '#EEF0FF' }]}><Text style={{ fontSize: 13, fontWeight: '800', color: tint }}>{percent}%</Text></View>
+        </View>
+
+        <View style={s.rowHead}><Text style={s.section}>Next up</Text></View>
+        {next ? (
+          <Pressable accessibilityRole="button" accessibilityLabel={`Mark ${next.title} complete`} onPress={completeNext} style={[s.nextCard, { backgroundColor: isDark ? '#1B2A55' : '#3779E8' }]}>
+            <View style={[s.nextIcon, { backgroundColor: next.color || '#6895F0' }]} />
+            <View style={{ flex: 1 }}><Text style={s.cardTitle}>{next.title}</Text><Text style={s.meta}>{next.kind === 'task' ? 'One-time task' : next.time ? `Today · ${formatTime(next.time)}` : 'Today'}</Text></View>
+            <Text style={s.arrow}>›</Text>
+          </Pressable>
+        ) : <View style={[s.nextCard, { backgroundColor: isDark ? '#1B2A55' : '#3779E8' }]}><Text style={s.cardTitle}>You’re all caught up ✨</Text></View>}
+
+        <View style={s.quickLinks}>
+          <Pressable onPress={() => router.push({ pathname: '/(tabs)/calendar', params: { date } } as any)} style={s.quickButton}><Text style={s.quickText}>Calendar</Text></Pressable>
+          <Pressable onPress={() => router.push('/(tabs)/habits' as any)} style={s.quickButton}><Text style={s.quickText}>Manage habits</Text></Pressable>
+        </View>
+        <Pressable accessibilityRole="button" onPress={() => router.push('/voice-plan' as any)} style={s.voicePlanButton}><Text style={s.quickText}>🎙  Plan my day with your voice</Text></Pressable>
+
+        <View style={s.rowHead}>
+          <Text style={s.section}>A thought for today</Text>
+          <Pressable onPress={refreshAffirmation}><Text style={s.link}>{isPro ? 'New affirmation' : `New · ${Math.max(0, 3 - used)} left`}</Text></Pressable>
+        </View>
+        <View style={[s.affirm, { backgroundColor: surface }]}>
+          <View style={s.affirmHead}><Text style={[s.affirmFoot, { color: secondary }]}>YOUR DAILY AFFIRMATION</Text><Pressable accessibilityRole="button" accessibilityLabel={fav ? 'Remove from favorites' : 'Add to favorites'} onPress={toggleFavorite}><Text style={{ fontSize: 20, color: '#E4A900' }}>{fav ? '★' : '☆'}</Text></Pressable></View>
+          <Pressable accessibilityRole="button" accessibilityLabel="Show next affirmation" onPress={refreshAffirmation}><Text style={[s.affirmText, { color: primary }]}>{affirmation || 'I am growing at my own pace.'}</Text></Pressable>
+        </View>
+        <View style={s.rowHead}><Text style={s.section}>Journal</Text><Pressable onPress={() => router.push('/reflection' as any)}><Text style={s.link}>Write an entry</Text></Pressable></View>
+        <Pressable accessibilityRole="button" onPress={() => router.push('/reflection' as any)} style={[s.journalCard, { backgroundColor: surface }]}><Text style={[s.journalText, { color: primary }]}>Take a moment to reflect on your day.</Text><Text style={{ color: tint, fontWeight: '700' }}>Open journal  ›</Text></Pressable>
+      </ScrollView>
+    </LinearGradient>
+  );
 }
-const s=StyleSheet.create({center:{flex:1,alignItems:'center',justifyContent:'center'},content:{paddingHorizontal:20,paddingTop:18,paddingBottom:110},eyebrow:{fontSize:11,fontWeight:'700',letterSpacing:1.3},title:{fontSize:34,fontWeight:'800',marginTop:5,marginBottom:17},progress:{borderRadius:24,padding:21,minHeight:178,flexDirection:'row',alignItems:'center',marginBottom:25,backgroundColor:'white'},progressTrack:{height:7,backgroundColor:'#E6E9F4',borderRadius:5,marginTop:13,overflow:'hidden'},progressFill:{height:7,backgroundColor:'#4F5BE7',borderRadius:5},progressButton:{backgroundColor:'#F0F1FF',borderRadius:12,padding:11,alignItems:'center',marginTop:13},percent:{width:54,height:54,borderRadius:27,backgroundColor:'#EEF0FF',alignItems:'center',justifyContent:'center',marginLeft:10},progressLabel:{color:'#DAE8FF',fontSize:10,fontWeight:'700',letterSpacing:1.2},progressNum:{fontSize:40,fontWeight:'800',color:'white',marginTop:4},progressTotal:{fontSize:22,color:'#D9E6FF'},progressFoot:{fontSize:12,color:'#E2ECFF',marginTop:3},ring:{width:64,height:64,borderRadius:32,borderWidth:5,borderColor:'#B4EEFF',alignItems:'center',justifyContent:'center',marginRight:6},rowHead:{flexDirection:'row',alignItems:'center',justifyContent:'space-between',marginTop:9,marginBottom:11},section:{fontSize:19,fontWeight:'700'},link:{color:'#456AFF',fontWeight:'700',fontSize:13},nextCard:{borderRadius:18,padding:17,flexDirection:'row',alignItems:'center',gap:13,marginBottom:11},check:{width:23,height:23,borderWidth:2,borderRadius:12},cardTitle:{fontSize:15,fontWeight:'700'},meta:{fontSize:12,color:'#8892B2',marginTop:5},arrow:{fontSize:25,color:'#8F9AB8'},item:{borderRadius:15,padding:14,marginBottom:8,flexDirection:'row',alignItems:'center',gap:12},checkbox:{width:22,height:22,borderRadius:7,borderWidth:1.5,borderColor:'#C5CCE0',alignItems:'center',justifyContent:'center'},checkboxOn:{backgroundColor:'#426BFF',borderColor:'#426BFF'},itemTitle:{fontSize:14,fontWeight:'600'},affirm:{borderRadius:22,padding:20,marginBottom:12,backgroundColor:'white'},spark:{fontSize:20,color:'#BCEBFF',marginBottom:8},affirmText:{fontSize:20,lineHeight:28,color:'white',fontWeight:'600'},affirmFoot:{fontSize:10,color:'#7480A6',letterSpacing:1.1,fontWeight:'700',marginTop:16},reflection:{borderRadius:18,padding:16,backgroundColor:'#FFFFFF',flexDirection:'row',alignItems:'center',gap:12,marginTop:4}});
+
+const s = StyleSheet.create({
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center' }, content: { paddingHorizontal: 20, paddingTop: 18, paddingBottom: 110 },
+  eyebrow: { color: '#DCE8FF', fontSize: 11, fontWeight: '800', letterSpacing: 1.5 }, title: { color: 'white', fontSize: 28, fontWeight: '800', marginTop: 7 }, subtitle: { color: '#DCE8FF', fontSize: 13, marginTop: 3, marginBottom: 16 },
+  progress: { borderRadius: 24, padding: 20, minHeight: 160, flexDirection: 'row', alignItems: 'center', marginBottom: 18 }, progressLabel: { fontSize: 10, fontWeight: '800', letterSpacing: 1.2 }, progressNum: { fontSize: 23, fontWeight: '800', marginTop: 8 }, progressTotal: { fontSize: 16, fontWeight: '700' }, progressTrack: { height: 7, borderRadius: 5, marginTop: 13, overflow: 'hidden' }, progressFill: { height: 7, backgroundColor: '#4F5BE7', borderRadius: 5 }, progressFoot: { fontSize: 12, marginTop: 4 }, progressButton: { borderRadius: 12, padding: 11, alignItems: 'center', marginTop: 13 }, percent: { width: 54, height: 54, borderRadius: 27, alignItems: 'center', justifyContent: 'center', marginLeft: 9 },
+  rowHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8, marginBottom: 10 }, section: { color: 'white', fontSize: 19, fontWeight: '800' }, link: { color: '#DCE8FF', fontWeight: '700', fontSize: 13 },
+  nextCard: { borderRadius: 18, padding: 15, flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 10 }, nextIcon: { width: 42, height: 42, borderRadius: 22 }, cardTitle: { color: 'white', fontSize: 15, fontWeight: '700' }, meta: { color: '#DFE9FF', fontSize: 12, marginTop: 4 }, arrow: { color: 'white', fontSize: 27 },
+  quickLinks: { flexDirection: 'row', gap: 10, marginBottom: 8 }, quickButton: { flex: 1, backgroundColor: '#3779E8', borderRadius: 14, paddingVertical: 13, alignItems: 'center' }, quickText: { color: 'white', fontSize: 13, fontWeight: '800' },
+  voicePlanButton: { backgroundColor: '#3779E8', borderRadius: 14, paddingVertical: 13, alignItems: 'center', marginBottom: 8 },
+  affirm: { borderRadius: 22, padding: 18, marginBottom: 12 }, affirmHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, affirmFoot: { fontSize: 10, letterSpacing: 1.1, fontWeight: '800' }, affirmText: { fontSize: 18, lineHeight: 25, fontWeight: '700', marginTop: 10 },
+  journalCard: { borderRadius: 18, padding: 18, marginBottom: 12, gap: 12 }, journalText: { fontSize: 15, fontWeight: '600' },
+});
