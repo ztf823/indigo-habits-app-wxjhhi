@@ -1,6 +1,7 @@
 
 import { LinearGradient } from "expo-linear-gradient";
 import React, { useState, useEffect, useCallback } from "react";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import {
   View,
   Text,
@@ -34,8 +35,9 @@ import {
 } from "@/utils/notifications";
 import { useTheme } from "@/contexts/ThemeContext";
 import { getColors } from "@/styles/commonStyles";
-import { ALL_DAYS, WEEKDAYS, getAllHabitSchedules, getAffirmationSchedules, saveHabitSchedule, removeHabitSchedule, saveAffirmationSchedule, removeAffirmationSchedule, HabitSchedule, AffirmationSchedule, formatTime } from "@/utils/planner";
+import { ALL_DAYS, WEEKDAYS, getAllHabitSchedules, getAffirmationSchedules, saveHabitSchedule, removeHabitSchedule, saveAffirmationSchedule, removeAffirmationSchedule, HabitSchedule, AffirmationSchedule, formatTime, normalizeTime, sortTimes } from "@/utils/planner";
 import { scheduleAffirmationReminders, cancelAffirmationReminders, scheduleHabitReminder, cancelHabitReminder } from "@/utils/notifications";
+import TimePickerField from "@/components/TimePickerField";
 
 interface Habit {
   id: string;
@@ -75,6 +77,8 @@ const DEFAULT_HABITS = [
 ];
 
 export default function HabitsScreen() {
+  const router = useRouter();
+  const params = useLocalSearchParams<{ editAffirmation?: string }>();
   const { isDark } = useTheme();
   const themeColors = getColors(isDark);
   const [activeTab, setActiveTab] = useState<"habits" | "affirmations">("habits");
@@ -92,7 +96,8 @@ export default function HabitsScreen() {
   const [affirmationScheduleModalVisible, setAffirmationScheduleModalVisible] = useState(false);
   const [scheduleAffirmation, setScheduleAffirmation] = useState<Affirmation | null>(null);
   const [affirmationDays, setAffirmationDays] = useState<number[]>(ALL_DAYS);
-  const [affirmationTimes, setAffirmationTimes] = useState("09:00");
+  const [affirmationTimes, setAffirmationTimes] = useState<string[]>(["09:00"]);
+  const [newAffirmationTime, setNewAffirmationTime] = useState("18:00");
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
   const [affirmationSchedules, setAffirmationSchedules] = useState<AffirmationSchedule[]>([]);
 
@@ -104,6 +109,7 @@ export default function HabitsScreen() {
 
   // Affirmation modal state
   const [affirmationModalVisible, setAffirmationModalVisible] = useState(false);
+  const [editingAffirmation, setEditingAffirmation] = useState<Affirmation | null>(null);
   const [affirmationText, setAffirmationText] = useState("");
 
   // Habit reminder state
@@ -180,6 +186,18 @@ export default function HabitsScreen() {
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  useEffect(() => {
+    const requestedId = params.editAffirmation;
+    if (!requestedId) return;
+    const affirmation = affirmations.find(item => item.id === requestedId);
+    if (!affirmation) return;
+    setActiveTab("affirmations");
+    setEditingAffirmation(affirmation);
+    setAffirmationText(affirmation.text);
+    setAffirmationModalVisible(true);
+    (router as any).setParams({ editAffirmation: undefined });
+  }, [affirmations, params.editAffirmation, router]);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -301,21 +319,22 @@ export default function HabitsScreen() {
       Alert.alert("Choose days", "Select at least one day, or pause this habit.");
       return;
     }
-    if (scheduleReminder && !/^([01]\d|2[0-3]):[0-5]\d$/.test(scheduleTime)) {
-      Alert.alert("Add a reminder time", "Use 24-hour time, such as 08:30.");
+    const normalizedTime = normalizeTime(scheduleTime);
+    if (scheduleReminder && !normalizedTime) {
+      Alert.alert("Add a reminder time", "Choose a time with the AM/PM clock.");
       return;
     }
     try {
-      const schedule: HabitSchedule = { days: schedulePaused ? [] : scheduleDays, time: scheduleTime, reminderEnabled: scheduleReminder, paused: schedulePaused };
+      const schedule: HabitSchedule = { days: schedulePaused ? [] : scheduleDays, time: normalizedTime || "", reminderEnabled: scheduleReminder, paused: schedulePaused };
       await saveHabitSchedule(scheduleHabit.id, schedule);
       if (scheduleReminder && !schedulePaused) {
-        await scheduleHabitReminder(scheduleHabit.id, scheduleHabit.title, scheduleTime, schedule.days);
+        await scheduleHabitReminder(scheduleHabit.id, scheduleHabit.title, schedule.time, schedule.days);
 
       } else {
         await removeHabitReminder(scheduleHabit.id);
       }
       setHabitSchedules(prev => ({ ...prev, [scheduleHabit.id]: schedule }));
-      setHabitReminders(prev => { const next={...prev}; if(scheduleReminder&&!schedulePaused)next[scheduleHabit.id]=scheduleTime;else delete next[scheduleHabit.id]; return next; });
+      setHabitReminders(prev => { const next={...prev}; if(scheduleReminder&&!schedulePaused)next[scheduleHabit.id]=schedule.time;else delete next[scheduleHabit.id]; return next; });
       setScheduleModalVisible(false);
       await loadHabits();
     } catch (error) {
@@ -328,15 +347,16 @@ export default function HabitsScreen() {
     const saved = (await getAffirmationSchedules()).find(item => item.affirmationId === affirmation.id);
     setScheduleAffirmation(affirmation);
     setAffirmationDays(saved?.days || WEEKDAYS);
-    setAffirmationTimes(saved?.times.join(", ") || "09:00");
+    setAffirmationTimes(sortTimes(saved?.times || ["09:00"]));
+    setNewAffirmationTime("18:00");
     setAffirmationScheduleModalVisible(true);
   };
 
   const saveAffirmationScheduleChanges = async () => {
     if (!scheduleAffirmation) return;
-    const times = [...new Set(affirmationTimes.split(",").map(value => value.trim()).filter(Boolean))];
-    if (!affirmationDays.length || !times.length || times.some(time => !/^([01]\d|2[0-3]):[0-5]\d$/.test(time))) {
-      Alert.alert("Check the schedule", "Choose at least one day and enter times like 09:00 or 18:30, separated by commas.");
+    const times = sortTimes(affirmationTimes);
+    if (!affirmationDays.length || !times.length) {
+      Alert.alert("Check the schedule", "Choose at least one day and one time.");
       return;
     }
     try {
@@ -367,8 +387,24 @@ export default function HabitsScreen() {
     }
 
     try {
-      console.log("User adding custom affirmation");
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+      if (editingAffirmation) {
+        const text = affirmationText.trim();
+        await updateAffirmation(editingAffirmation.id, { text });
+        const schedule = affirmationSchedules.find(item => item.affirmationId === editingAffirmation.id);
+        if (schedule) {
+          await scheduleAffirmationReminders(editingAffirmation.id, text, schedule.days, schedule.times);
+        }
+        await loadAffirmations();
+        setAffirmationModalVisible(false);
+        setEditingAffirmation(null);
+        setAffirmationText("");
+        playChime();
+        return;
+      }
+
+      console.log("User adding custom affirmation");
 
       const newAffirmation = {
         id: `affirmation_${Date.now()}`,
@@ -383,6 +419,7 @@ export default function HabitsScreen() {
       await loadAffirmations();
 
       setAffirmationModalVisible(false);
+      setEditingAffirmation(null);
       setAffirmationText("");
       
       playChime();
@@ -390,6 +427,12 @@ export default function HabitsScreen() {
       console.error("Error adding affirmation:", error);
       Alert.alert("Error", "Failed to add affirmation. Please try again.");
     }
+  };
+
+  const openEditAffirmation = (affirmation: Affirmation) => {
+    setEditingAffirmation(affirmation);
+    setAffirmationText(affirmation.text);
+    setAffirmationModalVisible(true);
   };
 
   const toggleAffirmationFavorite = async (affirmationId: string) => {
@@ -635,7 +678,9 @@ export default function HabitsScreen() {
                   {affirmations.filter(a=>!showFavoritesOnly||a.isFavorite===1).map((affirmation) => {
                     const scheduled = affirmationSchedules.find(item=>item.affirmationId===affirmation.id);
                     return <View key={affirmation.id} style={[styles.affirmationCard, { backgroundColor: themeColors.card }]}>
-                      <Text style={[styles.affirmationText, { color: themeColors.text }]}>{affirmation.text}</Text>
+                      <TouchableOpacity accessibilityRole="button" accessibilityLabel={`Edit affirmation: ${affirmation.text}`} onPress={() => openEditAffirmation(affirmation)}>
+                        <Text style={[styles.affirmationText, { color: themeColors.text }]}>{affirmation.text}</Text>
+                      </TouchableOpacity>
                       <View style={styles.affirmationMeta}>
                         <View style={styles.affirmationBadges}>{affirmation.isCustom===1&&<View style={styles.badge}><Text style={styles.badgeText}>Custom</Text></View>}</View>
                         <TouchableOpacity onPress={()=>toggleAffirmationFavorite(affirmation.id)} style={[styles.badge,{backgroundColor:affirmation.isFavorite===1?'#FFF4D5':'#EEF1FF'}]}>
@@ -747,7 +792,7 @@ export default function HabitsScreen() {
             <TouchableOpacity onPress={() => setAffirmationModalVisible(false)}>
               <Text style={styles.modalCancel}>Cancel</Text>
             </TouchableOpacity>
-            <Text style={[styles.modalTitle, { color: themeColors.text }]}>New Affirmation</Text>
+            <Text style={[styles.modalTitle, { color: themeColors.text }]}>{editingAffirmation ? "Edit Affirmation" : "New Affirmation"}</Text>
             <TouchableOpacity onPress={handleAddCustomAffirmation}>
               <Text style={styles.modalSave}>Save</Text>
             </TouchableOpacity>
@@ -764,6 +809,7 @@ export default function HabitsScreen() {
               numberOfLines={4}
               autoFocus
             />
+            {editingAffirmation && <Text style={styles.repeatHint}>Tap any affirmation in this list to edit it.</Text>}
           </View>
         </View>
       </Modal>
@@ -775,7 +821,7 @@ export default function HabitsScreen() {
             <Text style={[styles.label,{color:themeColors.text}]}>{scheduleHabit?.title}</Text>
             <View style={{flexDirection:'row',gap:8,marginVertical:8}}>{[{label:'Daily',days:ALL_DAYS},{label:'Weekdays',days:WEEKDAYS},{label:'Weekend',days:[0,6]}].map(p=><TouchableOpacity key={p.label} onPress={()=>{setScheduleDays(p.days);setSchedulePaused(false)}} style={{padding:10,borderRadius:12,backgroundColor:'#E9EDFF'}}><Text style={{color:'#315CDF',fontWeight:'700'}}>{p.label}</Text></TouchableOpacity>)}</View>
             <View style={{flexDirection:'row',justifyContent:'space-between',marginVertical:12}}>{['S','M','T','W','T','F','S'].map((d,i)=><TouchableOpacity key={i} onPress={()=>setScheduleDays(prev=>prev.includes(i)?prev.filter(x=>x!==i):[...prev,i].sort())} style={{width:38,height:38,borderRadius:19,alignItems:'center',justifyContent:'center',backgroundColor:scheduleDays.includes(i)?'#426CFF':'#EEF1FA'}}><Text style={{color:scheduleDays.includes(i)?'white':'#65708F',fontWeight:'700'}}>{d}</Text></TouchableOpacity>)}</View>
-            <Text style={[styles.label,{color:themeColors.text}]}>Time (optional)</Text><TextInput value={scheduleTime} onChangeText={setScheduleTime} placeholder="08:30" style={[styles.input,{backgroundColor:isDark?themeColors.border:'#F3F4F6',color:themeColors.text}]} />
+            <Text style={[styles.label,{color:themeColors.text}]}>Time (optional)</Text><TimePickerField value={scheduleTime} onChange={setScheduleTime} placeholder="Choose a time" textColor={themeColors.text} backgroundColor={isDark?themeColors.border:'#F3F4F6'} borderColor={themeColors.border} />
             <View style={{flexDirection:'row',justifyContent:'space-between',alignItems:'center',paddingVertical:14}}><Text style={{color:themeColors.text,fontWeight:'600'}}>Reminder notification</Text><Switch value={scheduleReminder} onValueChange={setScheduleReminder} /></View>
             <View style={{flexDirection:'row',justifyContent:'space-between',alignItems:'center',paddingVertical:12}}><Text style={{color:themeColors.text,fontWeight:'600'}}>Pause this habit</Text><Switch value={schedulePaused} onValueChange={setSchedulePaused} /></View>
           </ScrollView>
@@ -783,7 +829,10 @@ export default function HabitsScreen() {
       </Modal>
       <Modal visible={affirmationScheduleModalVisible} animationType="slide" presentationStyle="pageSheet" onRequestClose={()=>setAffirmationScheduleModalVisible(false)}>
         <View style={[styles.modalContainer,{backgroundColor:themeColors.card}]}><View style={[styles.modalHeader,{borderBottomColor:themeColors.border}]}><TouchableOpacity onPress={()=>setAffirmationScheduleModalVisible(false)}><Text style={styles.modalCancel}>Cancel</Text></TouchableOpacity><Text style={[styles.modalTitle,{color:themeColors.text}]}>Schedule Affirmation</Text><TouchableOpacity onPress={saveAffirmationScheduleChanges}><Text style={styles.modalSave}>Save</Text></TouchableOpacity></View>
-          <ScrollView style={styles.modalContent}><Text style={[styles.affirmationText,{color:themeColors.text}]}>{scheduleAffirmation?.text}</Text><Text style={[styles.label,{color:themeColors.text,marginTop:22}]}>Repeat on</Text><View style={{flexDirection:'row',justifyContent:'space-between',marginVertical:12}}>{['S','M','T','W','T','F','S'].map((d,i)=><TouchableOpacity key={i} onPress={()=>setAffirmationDays(prev=>prev.includes(i)?prev.filter(x=>x!==i):[...prev,i].sort())} style={{width:38,height:38,borderRadius:19,alignItems:'center',justifyContent:'center',backgroundColor:affirmationDays.includes(i)?'#426CFF':'#EEF1FA'}}><Text style={{color:affirmationDays.includes(i)?'white':'#65708F',fontWeight:'700'}}>{d}</Text></TouchableOpacity>)}</View><Text style={[styles.label,{color:themeColors.text}]}>Times (comma separated)</Text><TextInput value={affirmationTimes} onChangeText={setAffirmationTimes} placeholder="09:00, 18:00" style={[styles.input,{backgroundColor:isDark?themeColors.border:'#F3F4F6',color:themeColors.text}]} />
+          <ScrollView style={styles.modalContent}><Text style={[styles.affirmationText,{color:themeColors.text}]}>{scheduleAffirmation?.text}</Text><Text style={[styles.label,{color:themeColors.text,marginTop:22}]}>Repeat on</Text><View style={{flexDirection:'row',justifyContent:'space-between',marginVertical:12}}>{['S','M','T','W','T','F','S'].map((d,i)=><TouchableOpacity key={i} onPress={()=>setAffirmationDays(prev=>prev.includes(i)?prev.filter(x=>x!==i):[...prev,i].sort())} style={{width:38,height:38,borderRadius:19,alignItems:'center',justifyContent:'center',backgroundColor:affirmationDays.includes(i)?'#426CFF':'#EEF1FA'}}><Text style={{color:affirmationDays.includes(i)?'white':'#65708F',fontWeight:'700'}}>{d}</Text></TouchableOpacity>)}</View><Text style={[styles.label,{color:themeColors.text}]}>Reminder times</Text>
+          {affirmationTimes.map((time,index)=><View key={`${time}-${index}`} style={{flexDirection:'row',alignItems:'center',gap:10,marginTop:9}}><View style={{flex:1}}><TimePickerField value={time} onChange={next=>setAffirmationTimes(prev=>sortTimes(prev.map((item,i)=>i===index?next:item)))} textColor={themeColors.text} backgroundColor={isDark?themeColors.border:'#F3F4F6'} borderColor={themeColors.border}/></View><TouchableOpacity accessibilityRole="button" accessibilityLabel={`Remove ${formatTime(time)} reminder`} onPress={()=>setAffirmationTimes(prev=>prev.filter((_,i)=>i!==index))} style={{paddingHorizontal:9,paddingVertical:12}}><Text style={{color:'#D8445B',fontWeight:'700'}}>Remove</Text></TouchableOpacity></View>)}
+          <View style={{flexDirection:'row',alignItems:'center',gap:10,marginTop:12}}><View style={{flex:1}}><TimePickerField value={newAffirmationTime} onChange={setNewAffirmationTime} textColor={themeColors.text} backgroundColor={isDark?themeColors.border:'#F3F4F6'} borderColor={themeColors.border}/></View><TouchableOpacity onPress={()=>{if(affirmationTimes.includes(newAffirmationTime)){Alert.alert('Time already added','Choose a different time.');return}setAffirmationTimes(prev=>sortTimes([...prev,newAffirmationTime]));}} style={{paddingHorizontal:9,paddingVertical:12}}><Text style={{color:'#4057DD',fontWeight:'700'}}>＋ Add</Text></TouchableOpacity></View>
+          <Text style={styles.repeatHint}>Times are sorted automatically from earliest to latest.</Text>
           {affirmationSchedules.some(item=>item.affirmationId===scheduleAffirmation?.id)&&<TouchableOpacity style={{paddingVertical:18}} onPress={removeAffirmationScheduleChanges}><Text style={{color:'#D8445B',fontWeight:'700'}}>Remove schedule</Text></TouchableOpacity>}</ScrollView></View>
       </Modal>
     </LinearGradient>

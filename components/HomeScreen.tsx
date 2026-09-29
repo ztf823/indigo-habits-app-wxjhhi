@@ -82,30 +82,6 @@ interface JournalEntry {
   isFavorite?: number;
 }
 
-type SpeechRecognitionModule = typeof import("expo-speech-recognition").ExpoSpeechRecognitionModule;
-
-function JournalSpeechEvents({
-  onStart,
-  onEnd,
-  onResult,
-  onError,
-}: {
-  onStart: () => void;
-  onEnd: () => void;
-  onResult: (event: any) => void;
-  onError: (event: any) => void;
-}) {
-  // Load speech recognition only while the journal composer is open. It is a
-  // native module and should not participate in the cold-start path.
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { useSpeechRecognitionEvent } = require("expo-speech-recognition") as typeof import("expo-speech-recognition");
-  useSpeechRecognitionEvent("start", onStart);
-  useSpeechRecognitionEvent("end", onEnd);
-  useSpeechRecognitionEvent("result", onResult);
-  useSpeechRecognitionEvent("error", onError);
-  return null;
-}
-
 const FREE_AFFIRMATION_LIMIT = 5;
 
 const DEFAULT_HABITS = [
@@ -129,27 +105,9 @@ export default function HomeScreen() {
   const [journalTitle, setJournalTitle] = useState("");
   const [journalPhoto, setJournalPhoto] = useState<string | null>(null);
   const [audioUri, setAudioUri] = useState<string | null>(null);
-  const [isRecording, setIsRecording] = useState(false);
-  const dictationBaseRef = useRef("");
   const [isSaving, setIsSaving] = useState(false);
   const [currentJournalId, setCurrentJournalId] = useState<string | null>(null);
   const [journalIsFavorite, setJournalIsFavorite] = useState(false);
-
-  // Keep dictation local to the journal composer. The transcript is inserted as
-  // it arrives, so users can see and edit their words before saving.
-  const onSpeechStart = useCallback(() => setIsRecording(true), []);
-  const onSpeechEnd = useCallback(() => setIsRecording(false), []);
-  const onSpeechResult = useCallback((event: any) => {
-    const transcript = event.results[0]?.transcript?.trim();
-    if (!transcript) return;
-    setJournalContent(`${dictationBaseRef.current}${transcript}`);
-  }, []);
-  const onSpeechError = useCallback((event: any) => {
-    setIsRecording(false);
-    if (event.error !== "aborted" && event.error !== "no-speech") {
-      Alert.alert("Dictation unavailable", event.message || "Please try again.");
-    }
-  }, []);
 
   const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const affirmationsSectionRef = useRef<View>(null);
@@ -558,59 +516,6 @@ export default function HomeScreen() {
     }
   };
 
-  const startRecording = async () => {
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const { ExpoSpeechRecognitionModule } = require("expo-speech-recognition") as {
-        ExpoSpeechRecognitionModule: SpeechRecognitionModule;
-      };
-      if (!ExpoSpeechRecognitionModule.isRecognitionAvailable()) {
-        Alert.alert(
-          "Dictation unavailable",
-          "Turn on Speech Recognition or Siri & Dictation in your device settings, then try again."
-        );
-        return;
-      }
-
-      const permissions = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
-      if (!permissions.granted) {
-        Alert.alert(
-          "Permission required",
-          "Allow Microphone and Speech Recognition access to dictate a journal entry."
-        );
-        return;
-      }
-
-      dictationBaseRef.current = journalContent.trim()
-        ? `${journalContent.trim()} `
-        : "";
-      ExpoSpeechRecognitionModule.start({
-        lang: "en-US",
-        interimResults: true,
-        continuous: false,
-        iosTaskHint: "dictation",
-      });
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    } catch (error) {
-      console.error("Error starting dictation:", error);
-      setIsRecording(false);
-      Alert.alert("Dictation unavailable", "Please try again.");
-    }
-  };
-
-  const stopRecording = async () => {
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const { ExpoSpeechRecognitionModule } = require("expo-speech-recognition") as {
-        ExpoSpeechRecognitionModule: SpeechRecognitionModule;
-      };
-      ExpoSpeechRecognitionModule.stop();
-    } catch (error) {
-      console.error("Error stopping dictation:", error);
-      setIsRecording(false);
-    }
-  };
-
   const toggleJournalFavorite = async () => {
     if (!currentJournalId) return;
     
@@ -662,14 +567,6 @@ export default function HomeScreen() {
 
   return (
     <>
-      {journalModalVisible && (
-        <JournalSpeechEvents
-          onStart={onSpeechStart}
-          onEnd={onSpeechEnd}
-          onResult={onSpeechResult}
-          onError={onSpeechError}
-        />
-      )}
       <LinearGradient
         colors={isDark ? [themeColors.gradientStart, themeColors.gradientEnd] : ["#4F46E5", "#87CEEB"]}
         style={styles.gradient}
@@ -946,23 +843,6 @@ export default function HomeScreen() {
                     android_material_icon_name="camera-alt"
                     size={24}
                     color="#4F46E5"
-                  />
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  onPress={isRecording ? stopRecording : startRecording}
-                  accessibilityRole="button"
-                  accessibilityLabel={isRecording ? "Stop journal dictation" : "Start journal dictation"}
-                  style={[
-                    styles.journalModalActionButton,
-                    isRecording && styles.journalModalRecordingButton,
-                  ]}
-                >
-                  <IconSymbol
-                    ios_icon_name={isRecording ? "stop.circle" : "mic"}
-                    android_material_icon_name={isRecording ? "stop" : "mic"}
-                    size={24}
-                    color={isRecording ? "#EF4444" : "#4F46E5"}
                   />
                 </TouchableOpacity>
 

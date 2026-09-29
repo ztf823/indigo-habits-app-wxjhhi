@@ -70,14 +70,51 @@ export const getLocalDateKey = (date = new Date()) => {
 export const getWeekdayForDateKey = (dateKey: string) =>
   new Date(`${dateKey}T12:00:00`).getDay();
 
+export const timeToMinutes = (time?: string | null): number | null => {
+  if (!time) return null;
+  const value = time.trim();
+  const twelveHour = value.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+  if (twelveHour) {
+    const hour = Number(twelveHour[1]);
+    const minute = Number(twelveHour[2]);
+    if (hour < 1 || hour > 12 || minute > 59) return null;
+    return (hour % 12 + (/PM/i.test(twelveHour[3]) ? 12 : 0)) * 60 + minute;
+  }
+  const twentyFourHour = value.match(/^(\d{1,2}):(\d{2})$/);
+  if (!twentyFourHour) return null;
+  const hour = Number(twentyFourHour[1]);
+  const minute = Number(twentyFourHour[2]);
+  return hour <= 23 && minute <= 59 ? hour * 60 + minute : null;
+};
+
+export const normalizeTime = (time?: string | null): string | null => {
+  const minutes = timeToMinutes(time);
+  if (minutes === null) return null;
+  return `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
+};
+
+export const timeToDate = (time?: string | null): Date | null => {
+  const minutes = timeToMinutes(time);
+  if (minutes === null) return null;
+  const date = new Date();
+  date.setHours(Math.floor(minutes / 60), minutes % 60, 0, 0);
+  return date;
+};
+
+export const timeToString = (date: Date) =>
+  `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+
+export const sortTimes = (times: string[]) => [...new Set(times
+  .map(normalizeTime)
+  .filter((time): time is string => time !== null))]
+  .sort((a, b) => (timeToMinutes(a) ?? 0) - (timeToMinutes(b) ?? 0));
+
 export const formatTime = (time?: string | null) => {
   if (!time) return "Any time";
-  const [hourText, minuteText] = time.split(":");
-  const hour = Number(hourText);
-  const minute = Number(minuteText);
-  if (!Number.isFinite(hour) || !Number.isFinite(minute)) return time;
-  const period = hour >= 12 ? "PM" : "AM";
-  return `${hour % 12 || 12}:${String(minute).padStart(2, "0")} ${period}`;
+  const minutes = timeToMinutes(time);
+  if (minutes === null) return time;
+  const hour = Math.floor(minutes / 60);
+  return `${hour % 12 || 12}:${String(minutes % 60).padStart(2, "0")} ${hour >= 12 ? "PM" : "AM"}`;
 };
 
 export const makeId = (prefix: string) =>
@@ -103,6 +140,7 @@ export const saveHabitSchedule = async (habitId: string, schedule: HabitSchedule
   schedules[habitId] = {
     ...schedule,
     days: [...new Set(schedule.days)].filter(day => day >= 0 && day <= 6).sort(),
+    time: normalizeTime(schedule.time) || "",
   };
   await AsyncStorage.setItem(HABIT_SCHEDULES_KEY, JSON.stringify(schedules));
 };
@@ -159,7 +197,7 @@ export const saveAffirmationSchedule = async (schedule: AffirmationSchedule) => 
   const normalized = {
     ...schedule,
     days: [...new Set(schedule.days)].filter(day => day >= 0 && day <= 6).sort(),
-    times: [...new Set(schedule.times)].filter(Boolean).sort(),
+    times: sortTimes(schedule.times),
   };
   const next = schedules.filter(item => item.affirmationId !== schedule.affirmationId);
   if (normalized.enabled && normalized.affirmationId) next.push(normalized);
@@ -215,7 +253,7 @@ export const getPlanForDate = async (date: string): Promise<PlanEntry[]> => {
       habitId: habit.id,
       title: habit.title,
       date,
-      time: schedule.time || "",
+      time: normalizeTime(schedule.time) || "",
       kind: "habit" as const,
       completed: completedHabitIds.has(habit.id),
       color: habit.color,
@@ -228,7 +266,7 @@ export const getPlanForDate = async (date: string): Promise<PlanEntry[]> => {
     taskId: task.id,
     title: task.title,
     date,
-    time: task.time || "",
+    time: normalizeTime(task.time) || "",
     kind: "task",
     completed: task.completed,
     reminderEnabled: task.reminderEnabled,
@@ -252,9 +290,13 @@ export const getPlanForDate = async (date: string): Promise<PlanEntry[]> => {
     });
   }
 
-  return [...habitEntries, ...taskEntries, ...affirmationEntries].sort((a, b) =>
-    a.time.localeCompare(b.time) || a.title.localeCompare(b.title)
-  );
+  return [...habitEntries, ...taskEntries, ...affirmationEntries].sort((a, b) => {
+    const aTime = timeToMinutes(a.time);
+    const bTime = timeToMinutes(b.time);
+    if (aTime === null && bTime !== null) return 1;
+    if (bTime === null && aTime !== null) return -1;
+    return (aTime ?? 0) - (bTime ?? 0) || a.title.localeCompare(b.title);
+  });
 };
 
 export const getDayCompletion = (items: PlanEntry[]) => {

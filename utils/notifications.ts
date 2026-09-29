@@ -255,8 +255,8 @@ export const scheduleHabitReminder = async (habitId: string, habitTitle: string,
       await Notifications.scheduleNotificationAsync({
         identifier: `${notificationId}-${weekday}`,
         content: {
-          title: `Time for: ${habitTitle} ⏰`,
-          body: `A small step today: ${habitTitle}. Tap to mark it done or snooze for 10 minutes.`,
+          title: habitTitle,
+          body: '',
           sound: 'default',
           data: { type: 'habit', habitId, route: '/(tabs)/calendar', weekday },
           categoryIdentifier: 'habit-reminder-actions',
@@ -323,7 +323,7 @@ export const scheduleTaskReminder = async (taskId: string, title: string, date: 
   const [year, month, day] = date.split('-').map(Number); const [hour, minute] = time.split(':').map(Number);
   const triggerDate = new Date(year, month - 1, day, hour, minute, 0, 0);
   if (triggerDate.getTime() <= Date.now()) return false;
-  await Notifications.scheduleNotificationAsync({ identifier: `task-${taskId}`, content: { title: 'Task reminder', body: title, sound: 'default', data: { type: 'task', taskId, date, route: '/(tabs)/calendar' } }, trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: triggerDate } });
+  await Notifications.scheduleNotificationAsync({ identifier: `task-${taskId}`, content: { title, body: '', sound: 'default', data: { type: 'task', taskId, date, route: '/(tabs)/calendar' } }, trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: triggerDate } });
   return true;
 };
 export const cancelTaskReminder = async (taskId: string) => { try { await Notifications.cancelScheduledNotificationAsync(`task-${taskId}`); } catch {} };
