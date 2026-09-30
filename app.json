@@ -3,7 +3,7 @@
     "name": "Indigo Habits",
     "slug": "indigo-habits",
     "scheme": "indigohabits",
-    "version": "1.0.61",
+    "version": "1.0.62",
     "orientation": "portrait",
     "icon": "./assets/images/blue-flame-icon.png",
     "userInterfaceStyle": "automatic",
@@ -11,13 +11,13 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.indigohabits.journal2026",
-      "buildNumber": "81",
+      "buildNumber": "82",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NSPhotoLibraryUsageDescription": "Indigo Habits needs access to your photos to add images to your journal entries.",
         "NSCameraUsageDescription": "Indigo Habits needs access to your camera to take photos for your journal entries.",
-        "NSSpeechRecognitionUsageDescription": "Indigo Habits uses speech recognition to turn your spoken plan into editable tasks and habits.",
-        "NSMicrophoneUsageDescription": "Indigo Habits uses the microphone when you choose to speak a plan."
+        "NSSpeechRecognitionUsageDescription": "Indigo Habits uses speech recognition for optional journal dictation.",
+        "NSMicrophoneUsageDescription": "Indigo Habits uses the microphone for optional journal audio notes and dictation."
       },
       "config": {
         "usesNonExemptEncryption": false
@@ -30,7 +30,7 @@
       },
       "edgeToEdgeEnabled": true,
       "package": "com.indigohabits.journal2026",
-      "versionCode": 81,
+      "versionCode": 82,
       "permissions": [
         "CAMERA",
         "READ_EXTERNAL_STORAGE",
@@ -61,8 +61,8 @@
       [
         "expo-speech-recognition",
         {
-          "microphonePermission": "Allow Indigo Habits to listen while you speak your plan.",
-          "speechRecognitionPermission": "Allow speech recognition to transcribe your plan.",
+          "microphonePermission": "Allow Indigo Habits to dictate optional journal entries.",
+          "speechRecognitionPermission": "Allow speech recognition for optional journal dictation.",
           "androidSpeechServicePackages": ["com.google.android.googlequicksearchbox"]
         }
       ],
@@ -79,7 +79,7 @@
           "icon": "./assets/images/blue-flame-icon.png",
           "color": "#0B5FFF",
           "defaultChannel": "habits-reminders",
-          "sounds": ["./assets/sounds/indigo-chime.wav", "./assets/sounds/indigo-gentle.wav"]
+          "sounds": ["./assets/sounds/indigo-chime.wav", "./assets/sounds/indigo-bell.wav", "./assets/sounds/indigo-gentle.wav"]
         }
       ]
     ],

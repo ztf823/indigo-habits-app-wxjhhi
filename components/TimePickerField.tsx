@@ -17,6 +17,7 @@ type Props = {
   textColor?: string;
   backgroundColor?: string;
   borderColor?: string;
+  darkMode?: boolean;
 };
 
 export default function TimePickerField({
@@ -26,6 +27,7 @@ export default function TimePickerField({
   textColor = '#151C45',
   backgroundColor = '#F3F4F6',
   borderColor = '#DCE1EF',
+  darkMode = false,
 }: Props) {
   const [visible, setVisible] = useState(false);
   const [draft, setDraft] = useState(() => timeToDate(value) ?? timeToDate('09:00')!);
@@ -65,14 +67,14 @@ export default function TimePickerField({
         onRequestClose={() => setVisible(false)}
       >
         <View style={styles.scrim}>
-          <View style={styles.sheet}>
+          <View style={[styles.sheet, darkMode && styles.sheetDark]}>
             <View style={styles.header}>
               <Pressable accessibilityRole="button" onPress={() => setVisible(false)}>
-                <Text style={styles.cancel}>Cancel</Text>
+                <Text style={[styles.cancel, darkMode && { color: '#C6D7FF' }]}>Cancel</Text>
               </Pressable>
-              <Text style={styles.title}>Set time</Text>
+              <Text style={[styles.title, darkMode && { color: '#F4F6FF' }]}>Set time</Text>
               <Pressable accessibilityRole="button" onPress={finish}>
-                <Text style={styles.done}>Done</Text>
+                <Text style={[styles.done, darkMode && { color: '#8FA8FF' }]}>Done</Text>
               </Pressable>
             </View>
             <DateTimePicker
@@ -83,6 +85,8 @@ export default function TimePickerField({
               is24Hour={false}
               minuteInterval={1}
               onChange={onPickerChange}
+              textColor={darkMode ? '#F4F6FF' : '#151C45'}
+              themeVariant={darkMode ? 'dark' : 'light'}
               style={styles.picker}
             />
           </View>
@@ -115,6 +119,7 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 24,
     paddingBottom: Platform.OS === 'ios' ? 30 : 20,
   },
+  sheetDark: { backgroundColor: '#141D42' },
   header: {
     minHeight: 54,
     paddingHorizontal: 22,

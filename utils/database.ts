@@ -48,7 +48,7 @@ const createMockDb = () => {
       
       // Handle profile query
       if (query.includes('profile')) {
-        return storage.profile || { id: 'default', name: 'User', email: '', isPremium: 0 };
+        return storage.profile || { id: 'default', name: 'User', email: '', quote: '', isPremium: 0 };
       }
       
       return null;
@@ -188,6 +188,7 @@ export const initDatabase = async (): Promise<void> => {
             id TEXT PRIMARY KEY DEFAULT 'default',
             name TEXT,
             email TEXT,
+            quote TEXT,
             photoUri TEXT,
             isPremium INTEGER DEFAULT 0,
             updatedAt TEXT DEFAULT CURRENT_TIMESTAMP
@@ -207,6 +208,10 @@ export const initDatabase = async (): Promise<void> => {
         return;
       }
 
+      const profileColumns = await db.getAllAsync('PRAGMA table_info(profile)');
+      if (!(profileColumns as any[]).some(column => column.name === 'quote')) {
+        await db.execAsync('ALTER TABLE profile ADD COLUMN quote TEXT');
+      }
       dbInitialized = true;
       console.log('[Database] SQLite database ready');
     } catch (error) {
@@ -453,7 +458,7 @@ export const getHabitCompletionsForRange = async (startDate: string, endDate: st
 export const getAllJournalEntries = async () => {
   const database = requireDb('getAllJournalEntries');
   if (!database) return [];
-  return await database.getAllAsync('SELECT * FROM journal_entries ORDER BY date DESC, createdAt DESC');
+  return await database.getAllAsync('SELECT * FROM journal_entries ORDER BY date DESC, julianday(createdAt) DESC');
 };
 
 export const getJournalEntryById = async (id: string) => {
@@ -479,8 +484,8 @@ export const createJournalEntry = async (entry: {
   const database = requireDb('createJournalEntry');
   if (!database) return entry;
   await database.runAsync(
-    'INSERT INTO journal_entries (id, content, photoUri, audioUri, affirmationText, date, isFavorite) VALUES (?, ?, ?, ?, ?, ?, ?)',
-    [entry.id, entry.content, entry.photoUri || null, entry.audioUri || null, entry.affirmationText || null, entry.date, 0]
+    'INSERT INTO journal_entries (id, content, photoUri, audioUri, affirmationText, date, createdAt, isFavorite) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+    [entry.id, entry.content, entry.photoUri || null, entry.audioUri || null, entry.affirmationText || null, entry.date, new Date().toISOString(), 0]
   );
   return entry;
 };
@@ -557,6 +562,7 @@ export const getProfile = async () => {
 export const updateProfile = async (updates: {
   name?: string;
   email?: string;
+  quote?: string;
   photoUri?: string;
   isPremium?: boolean;
 }) => {
@@ -572,6 +578,10 @@ export const updateProfile = async (updates: {
   if (updates.email !== undefined) {
     fields.push('email = ?');
     values.push(updates.email);
+  }
+  if (updates.quote !== undefined) {
+    fields.push('quote = ?');
+    values.push(updates.quote);
   }
   if (updates.photoUri !== undefined) {
     fields.push('photoUri = ?');

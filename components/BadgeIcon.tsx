@@ -12,7 +12,7 @@ interface BadgeIconProps {
 
 // Map badge names to their unique icons
 const BADGE_ICON_MAP: Record<string, { ios: string; android: string }> = {
-  "Indigo Warrior": { ios: "sword", android: "sports-martial-arts" }, // sword icon
+  "Indigo Warrior": { ios: "leaf.fill", android: "eco" }, // unique growth icon
   "Indigo Guardian": { ios: "shield.fill", android: "shield" }, // shield icon
   "Indigo Sentinel": { ios: "eye.fill", android: "visibility" }, // eye icon
   "Indigo Champion": { ios: "trophy.fill", android: "emoji-events" }, // trophy icon

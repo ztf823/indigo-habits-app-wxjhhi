@@ -1,6 +1,6 @@
 
 import { IconSymbol } from "@/components/IconSymbol";
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Image, ActivityIndicator, Platform, Switch, Linking } from "react-native";
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Image, ActivityIndicator, Platform, Switch, Linking, Modal, TextInput } from "react-native";
 import { useTheme } from "@/contexts/ThemeContext";
 import { getProfile, updateProfile, clearAllData } from "@/utils/database";
 import { useRouter } from "expo-router";
@@ -11,7 +11,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import * as ImagePicker from "expo-image-picker";
 import { getOfferings, purchasePackage, restorePurchases, getCustomerInfo } from "@/utils/revenueCat";
 import { RemindersOverlay } from "@/components/RemindersOverlay";
-import { getReminderSound, initializeNotifications, REMINDER_SOUND_OPTIONS, ReminderSound, saveReminderSound } from "@/utils/notifications";
+import { initializeNotifications } from "@/utils/notifications";
 import { exportJournalsToPdf, getExportPreview } from "@/utils/pdfExport";
 import ProgressScreen from "./progress";
 
@@ -208,6 +208,10 @@ export default function ProfileScreen() {
   const [loading, setLoading] = useState(true);
   const [isPremium, setIsPremium] = useState(false);
   const [showRemindersOverlay, setShowRemindersOverlay] = useState(false);
+  const [profileQuote, setProfileQuote] = useState('Small steps every day.');
+  const [quoteCustomized, setQuoteCustomized] = useState(false);
+  const [quoteEditorVisible, setQuoteEditorVisible] = useState(false);
+  const [quoteDraft, setQuoteDraft] = useState('');
   const { isDark, toggleTheme } = useTheme();
   const colors = getColors(isDark);
 
@@ -216,6 +220,8 @@ export default function ProfileScreen() {
       setLoading(true);
       const profileData = await getProfile();
       setProfile(profileData);
+      setProfileQuote(profileData?.quote || 'Small steps every day.');
+      setQuoteCustomized(Boolean(profileData?.quote));
       setIsPremium(profileData?.isPremium === 1);
     } catch (error) {
       console.error('Failed to load profile:', error);
@@ -263,8 +269,27 @@ export default function ProfileScreen() {
   };
 
   const handleEditEmail = () => {
-    console.log('Edit email tapped');
-    Alert.alert('Coming Soon', 'Email editing will be available in a future update.');
+    Alert.alert('Edit Email', 'Email details are managed in Account settings.');
+  };
+
+  const handleEditQuote = () => {
+    setQuoteDraft(profileQuote);
+    setQuoteEditorVisible(true);
+  };
+
+  const saveQuote = async () => {
+    const nextQuote = quoteDraft.trim();
+    if (!nextQuote) return;
+    try {
+      await updateProfile({ quote: nextQuote });
+      setProfileQuote(nextQuote);
+      setQuoteCustomized(true);
+      setProfile((current: any) => ({ ...current, quote: nextQuote }));
+      setQuoteEditorVisible(false);
+    } catch (error) {
+      console.error('Could not save profile quote:', error);
+      Alert.alert('Could not save quote', 'Please try again.');
+    }
   };
 
   const handleUnlockPremium = async () => {
@@ -380,16 +405,7 @@ export default function ProfileScreen() {
     }
   };
 
-  const handleNotificationSound = async () => {
-    const current = await getReminderSound();
-    Alert.alert('Notification sound', 'Choose a sound for scheduled reminders.', [
-      ...REMINDER_SOUND_OPTIONS.map(option => ({
-        text: (option.value === current ? '✓ ' : '') + option.label,
-        onPress: () => { void saveReminderSound(option.value as ReminderSound); },
-      })),
-      { text: 'Cancel', style: 'cancel' },
-    ]);
-  };
+  const handleNotificationSound = () => setShowRemindersOverlay(true);
 
 
 
@@ -407,7 +423,7 @@ export default function ProfileScreen() {
 
   if (loading) {
     return (
-      <LinearGradient colors={[colors.primary, colors.secondary]} style={styles.container}>
+      <LinearGradient colors={isDark ? ["#070B20", "#0A102C", "#101C3D"] : ["#111A78", "#1455D9", "#23B9EB"]} style={styles.container}>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#FFFFFF" />
         </View>
@@ -416,13 +432,13 @@ export default function ProfileScreen() {
   }
 
   const userName = profile?.name || 'User';
-  const userEmail = profile?.email || 'Keep building your habits';
+
   const profilePicture = profile?.photoUri;
   const priceText = "$4.99/month";
 
   return (
     <>
-      <LinearGradient colors={[colors.primary, colors.secondary]} style={styles.container}>
+      <LinearGradient colors={isDark ? ["#070B20", "#0A102C", "#101C3D"] : ["#111A78", "#1455D9", "#23B9EB"]} style={styles.container}>
         <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
           <View style={styles.header}>
             <TouchableOpacity onPress={handlePickImage}>
@@ -438,7 +454,7 @@ export default function ProfileScreen() {
               <Text style={styles.changePhotoText}>Add profile photo</Text>
             </TouchableOpacity>}
             <Text style={styles.userName}>{userName}</Text>
-            <Text style={styles.userEmail}>{userEmail}</Text>
+            <TouchableOpacity accessibilityRole="button" onPress={handleEditQuote} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}><Text style={styles.userEmail}>{profileQuote}</Text>{!quoteCustomized && <IconSymbol ios_icon_name="pencil" android_material_icon_name="edit" size={13} color="#FFFFFF" />}</TouchableOpacity>
           </View>
 
           <View style={styles.section}>

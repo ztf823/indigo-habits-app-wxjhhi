@@ -2,7 +2,6 @@ import React, { useCallback, useState } from "react";
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from "react-native";
 import { useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
-import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from "expo-speech-recognition";
 import { useTheme } from "@/contexts/ThemeContext";
 import { createHabit } from "@/utils/database";
 import { addPlannedItem, ALL_DAYS, HabitSchedule, makeId, normalizeTime, saveHabitSchedule } from "@/utils/planner";
@@ -15,7 +14,6 @@ export default function VoicePlanScreen() {
   const { isDark } = useTheme();
   const [transcript, setTranscript] = useState("");
   const [drafts, setDrafts] = useState<VoicePlanDraft[]>([]);
-  const [listening, setListening] = useState(false);
   const [saving, setSaving] = useState(false);
   const [remind, setRemind] = useState(false);
   const colors = {
@@ -25,33 +23,6 @@ export default function VoicePlanScreen() {
     muted: isDark ? "#AEB9D5" : "#7480A6",
     input: isDark ? "#202B52" : "#F5F7FC",
   } as const;
-
-  useSpeechRecognitionEvent("start", () => setListening(true));
-  useSpeechRecognitionEvent("end", () => setListening(false));
-  useSpeechRecognitionEvent("result", event => {
-    const result = event.results?.[0]?.transcript;
-    if (result) setTranscript(result);
-  });
-  useSpeechRecognitionEvent("error", event => {
-    setListening(false);
-    if (event.error !== "aborted") Alert.alert("Voice planning unavailable", event.message || "Check microphone and speech recognition access, then try again.");
-  });
-
-  const startListening = async () => {
-    try {
-      const permission = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
-      if (!permission.granted) {
-        Alert.alert("Permission needed", "Allow microphone and speech recognition access to speak your plan.");
-        return;
-      }
-      setTranscript("");
-      setDrafts([]);
-      ExpoSpeechRecognitionModule.start({ lang: "en-US", interimResults: true, continuous: false });
-    } catch (error) {
-      console.warn("Could not start speech recognition", error);
-      Alert.alert("Voice planning unavailable", "Speech recognition could not start on this device.");
-    }
-  };
 
   const createReview = () => {
     const parsed = parseVoicePlan(transcript);
@@ -120,27 +91,22 @@ export default function VoicePlanScreen() {
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <Pressable onPress={() => router.back()} style={styles.back}><Text style={styles.backText}>‹  More</Text></Pressable>
         <Text style={styles.eyebrow}>VOICE PLANNING</Text>
-        <Text style={styles.heading}>Plan My Day</Text>
-        <Text style={styles.intro}>Say what you need to do. Indigo Habits will organize a draft for you to review before saving.</Text>
+        <Text style={styles.heading}>Plan Your Day (Voice)</Text>
 
         <View style={[styles.card, { backgroundColor: colors.card }]}>
-          <Text style={[styles.cardLabel, { color: colors.muted }]}>SPEAK YOUR PLAN</Text>
+          <Text style={[styles.cardLabel, { color: colors.muted }]}>YOUR PLAN</Text>
           <TextInput
             accessibilityLabel="Spoken or typed schedule description"
             value={transcript}
             onChangeText={setTranscript}
             multiline
-            placeholder="Tomorrow, work out at 7 AM, call my mom at noon, and journal at 9 PM."
+            placeholder="Use your keyboard dictation to describe your plan. Example: Tomorrow, work out at 7 AM and journal at 9 PM."
             placeholderTextColor={colors.muted}
             style={[styles.transcript, { color: colors.text, backgroundColor: colors.input }]}
           />
           <View style={styles.actions}>
-            <Pressable onPress={listening ? () => ExpoSpeechRecognitionModule.stop() : startListening} style={[styles.micButton, listening && styles.micActive]}>
-              <Text style={styles.micText}>{listening ? "Stop listening" : "🎙  Speak"}</Text>
-            </Pressable>
             <Pressable onPress={createReview} style={styles.reviewButton}><Text style={styles.reviewText}>Review plan</Text></Pressable>
           </View>
-          <Text style={[styles.note, { color: colors.muted }]}>Speech is transcribed by your device’s speech recognition. No generative AI or paid AI service is used.</Text>
         </View>
 
         {drafts.length > 0 && <>
@@ -157,10 +123,10 @@ export default function VoicePlanScreen() {
               <Text style={[styles.fieldLabel, { color: colors.muted }]}>DATE · YYYY-MM-DD</Text>
               <TextInput value={draft.date} onChangeText={date => updateDraft(draft.id, { date })} autoCapitalize="none" placeholder="2026-09-30" placeholderTextColor={colors.muted} style={[styles.field, { color: colors.text, backgroundColor: colors.input }]} />
               <Text style={[styles.fieldLabel, { color: colors.muted }]}>TIME</Text>
-              <TimePickerField value={draft.time} onChange={time => updateDraft(draft.id, { time })} placeholder="Choose a time" textColor={colors.text} backgroundColor={colors.input} borderColor={isDark ? "#34416B" : "#DCE1EF"} />
+              <TimePickerField value={draft.time} onChange={time => updateDraft(draft.id, { time })} placeholder="Choose a time" textColor={colors.text} backgroundColor={colors.input} borderColor={isDark ? "#34416B" : "#DCE1EF"} darkMode={isDark} />
               <Text style={[styles.fieldLabel, { color: colors.muted }]}>RECURRENCE</Text>
               <TextInput editable={draft.kind === "habit"} value={draft.kind === "task" ? "One time" : draft.recurrence} onChangeText={recurrence => updateDraft(draft.id, { recurrence })} placeholder="Daily, weekdays, every 2 hours" placeholderTextColor={colors.muted} style={[styles.field, { color: colors.text, backgroundColor: colors.input, opacity: draft.kind === "task" ? 0.7 : 1 }]} />
-              {interval && draft.kind === "habit" && <><Text style={[styles.fieldLabel, { color: colors.muted }]}>REPEAT UNTIL</Text><TimePickerField value={draft.endTime || "21:00"} onChange={endTime => updateDraft(draft.id, { endTime })} placeholder="9:00 PM" textColor={colors.text} backgroundColor={colors.input} borderColor={isDark ? "#34416B" : "#DCE1EF"} /><Text style={[styles.note, { color: colors.muted }]}>The interval repeats from the start time through this time each selected day.</Text></>}
+              {interval && draft.kind === "habit" && <><Text style={[styles.fieldLabel, { color: colors.muted }]}>REPEAT UNTIL</Text><TimePickerField value={draft.endTime || "21:00"} onChange={endTime => updateDraft(draft.id, { endTime })} placeholder="9:00 PM" textColor={colors.text} backgroundColor={colors.input} borderColor={isDark ? "#34416B" : "#DCE1EF"} darkMode={isDark} /><Text style={[styles.note, { color: colors.muted }]}>The interval repeats from the start time through this time each selected day.</Text></>}
             </View>;
           })}
           <View style={styles.reminderRow}><Text style={styles.reminderText}>Set reminders for timed items</Text><Switch value={remind} onValueChange={setRemind} /></View>
@@ -181,6 +147,6 @@ const intervalTimes = (start: string, end: string, interval: number) => {
 const styles = StyleSheet.create({
   container: { flex: 1 }, content: { padding: 20, paddingTop: 54, paddingBottom: 125 }, back: { marginBottom: 24 }, backText: { color: "#DCE8FF", fontSize: 16, fontWeight: "700" },
   eyebrow: { color: "#DCE8FF", fontSize: 11, fontWeight: "800", letterSpacing: 1.6 }, heading: { color: "white", fontSize: 32, fontWeight: "800", marginTop: 7 }, intro: { color: "#DCE8FF", fontSize: 14, lineHeight: 21, marginTop: 7, marginBottom: 18 },
-  card: { borderRadius: 20, padding: 18, marginBottom: 18 }, cardLabel: { fontSize: 10, letterSpacing: 1.2, fontWeight: "800" }, transcript: { minHeight: 112, textAlignVertical: "top", borderRadius: 13, padding: 13, marginTop: 11, fontSize: 15, lineHeight: 22 }, actions: { flexDirection: "row", gap: 10, marginTop: 12 }, micButton: { flex: 1, borderRadius: 12, padding: 13, alignItems: "center", backgroundColor: "#E9EDFF" }, micActive: { backgroundColor: "#FFE8EC" }, micText: { color: "#344FD0", fontWeight: "800" }, reviewButton: { flex: 1, borderRadius: 12, padding: 13, alignItems: "center", backgroundColor: "#426CFF" }, reviewText: { color: "white", fontWeight: "800" }, note: { fontSize: 11, lineHeight: 16, marginTop: 10 },
+  card: { borderRadius: 20, padding: 18, marginBottom: 18 }, cardLabel: { fontSize: 10, letterSpacing: 1.2, fontWeight: "800" }, transcript: { minHeight: 112, textAlignVertical: "top", borderRadius: 13, padding: 13, marginTop: 11, fontSize: 15, lineHeight: 22 }, actions: { flexDirection: "row", gap: 10, marginTop: 12 }, reviewButton: { flex: 1, borderRadius: 12, padding: 13, alignItems: "center", backgroundColor: "#426CFF" }, reviewText: { color: "white", fontWeight: "800" }, note: { fontSize: 11, lineHeight: 16, marginTop: 10 },
   sectionHeading: { color: "white", fontSize: 20, fontWeight: "800", marginTop: 3 }, sectionNote: { color: "#DCE8FF", fontSize: 12, lineHeight: 18, marginTop: 5, marginBottom: 11 }, draftCard: { borderRadius: 18, padding: 16, marginBottom: 12, gap: 8 }, draftHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 3 }, remove: { color: "#D8445B", fontWeight: "700", fontSize: 12 }, field: { borderRadius: 11, padding: 12, fontSize: 14, marginTop: 5 }, fieldLabel: { fontSize: 10, letterSpacing: 1, fontWeight: "800", marginTop: 8 }, typeRow: { flexDirection: "row", gap: 8, marginVertical: 3 }, typeOption: { flex: 1, borderWidth: 1, borderColor: "#DCE1EF", borderRadius: 11, padding: 10, alignItems: "center" }, typeOptionActive: { backgroundColor: "#426CFF", borderColor: "#426CFF" }, typeText: { color: "#66708C", fontSize: 12, fontWeight: "700" }, typeTextActive: { color: "white" }, reminderRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginVertical: 10 }, reminderText: { color: "white", fontWeight: "700", fontSize: 14 }, confirmButton: { borderRadius: 14, padding: 16, alignItems: "center", backgroundColor: "#426CFF" }, confirmText: { color: "white", fontSize: 15, fontWeight: "800" },
 });

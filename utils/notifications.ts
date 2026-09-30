@@ -1,7 +1,7 @@
 
 /**
  * Notification utilities for Indigo Habits
- * Handles local notifications with custom Tibetan bowl chime sound
+ * Handles local notifications with selectable calm sounds
  */
 
 import * as Notifications from 'expo-notifications';
@@ -13,16 +13,16 @@ const DAILY_HABITS_REMINDER_KEY = 'dailyHabitsReminder';
 const JOURNAL_REMINDER_KEY = 'journalReminder';
 const HABIT_REMINDERS_KEY = 'habitReminders';
 const REMINDER_SOUND_KEY = '@indigo_habits/reminder_sound_v1';
-export type ReminderSound = 'default' | 'chime' | 'gentle' | 'silent';
+export type ReminderSound = 'tibetan' | 'bell' | 'gentle';
 export const REMINDER_SOUND_OPTIONS: { value: ReminderSound; label: string }[] = [
-  { value: 'default', label: 'Default' },
-  { value: 'chime', label: 'Indigo chime' },
-  { value: 'gentle', label: 'Gentle bell' },
-  { value: 'silent', label: 'Silent' },
+  { value: 'tibetan', label: 'Tibetan Chime' },
+  { value: 'bell', label: 'Soft Bell' },
+  { value: 'gentle', label: 'Gentle Tone' },
 ];
 export const getReminderSound = async (): Promise<ReminderSound> => {
   const saved = await AsyncStorage.getItem(REMINDER_SOUND_KEY);
-  return REMINDER_SOUND_OPTIONS.some(option => option.value === saved) ? saved as ReminderSound : 'default';
+  if (REMINDER_SOUND_OPTIONS.some(option => option.value === saved)) return saved as ReminderSound;
+  return saved === 'gentle' ? 'gentle' : 'tibetan';
 };
 export const saveReminderSound = async (sound: ReminderSound) => {
   await AsyncStorage.setItem(REMINDER_SOUND_KEY, sound);
@@ -40,8 +40,8 @@ export const saveReminderSound = async (sound: ReminderSound) => {
     });
   }
 };
-const soundResource = (sound: ReminderSound) => sound === 'chime' ? 'indigo-chime.wav'
-  : sound === 'gentle' ? 'indigo-gentle.wav' : sound === 'silent' ? false : 'default';
+const soundResource = (sound: ReminderSound) => sound === 'tibetan' ? 'indigo-chime.wav'
+  : sound === 'bell' ? 'indigo-bell.wav' : 'indigo-gentle.wav';
 const soundChannel = (sound: ReminderSound) => 'habits-reminders-' + sound;
 const configureSoundChannel = async (sound: ReminderSound) => {
   if (Platform.OS !== 'android') return;
@@ -49,7 +49,7 @@ const configureSoundChannel = async (sound: ReminderSound) => {
   await Notifications.setNotificationChannelAsync(soundChannel(sound), {
     name: 'Habit reminders · ' + (REMINDER_SOUND_OPTIONS.find(option => option.value === sound)?.label ?? 'Default'),
     importance: Notifications.AndroidImportance.HIGH,
-    sound: resource === false ? null : resource === 'default' ? 'default' : resource.replace(/\.wav$/, ''),
+    sound: resource.replace(/\.wav$/, ''),
     vibrationPattern: [0, 250, 250, 250],
     lightColor: '#4F46E5',
   });
@@ -148,22 +148,6 @@ export const initializeNotifications = async () => {
   } catch (error) {
     console.warn('[Notifications] Error initializing notifications (non-fatal):', error);
     return false;
-  }
-};
-
-/**
- * Play Tibetan bowl chime sound
- * 🚀 PREVIEW MODE: Uses the same chime as habit completion
- */
-export const playTibetanChime = async () => {
-  try {
-    console.log('[Notifications] 🚀 PREVIEW MODE: Playing soft Tibetan bowl chime...');
-    
-    // In production, this would play an actual audio file
-    // For now, we just log it
-    console.log('[Notifications] 🚀 PREVIEW MODE: Tibetan bowl chime played successfully');
-  } catch (error) {
-    console.error('[Notifications] Error playing chime:', error);
   }
 };
 

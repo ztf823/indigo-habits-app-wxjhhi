@@ -22,7 +22,8 @@ export default function ProfileScreen() {
   
   const [profileImage, setProfileImage] = useState<string | null>(null);
   const [userName, setUserName] = useState<string>("User");
-  const [userEmail, setUserEmail] = useState<string>("Keep building your habits");
+  const [profileQuote, setProfileQuote] = useState("Small steps every day.");
+  const [quoteCustomized, setQuoteCustomized] = useState(false);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [hasPremium, setHasPremium] = useState(false);
@@ -49,10 +50,9 @@ export default function ProfileScreen() {
           console.log("[Profile] Loaded user name from database:", (profile as any).name);
         }
         
-        if ((profile as any).email) {
-          setUserEmail((profile as any).email);
-          console.log("[Profile] Loaded user email from database:", (profile as any).email);
-        }
+        const savedQuote = (profile as any).quote;
+        setProfileQuote(savedQuote || "Small steps every day.");
+        setQuoteCustomized(Boolean(savedQuote));
 
         const premiumStatus = (profile as any).isPremium === 1;
         setHasPremium(premiumStatus);
@@ -166,26 +166,24 @@ export default function ProfileScreen() {
     );
   };
 
-  const handleEditEmail = () => {
-    console.log("[Profile] User tapped edit email");
+  const handleEditQuote = () => {
     Alert.prompt(
-      "Edit Email",
-      "Enter your email:",
+      "Edit your quote",
+      "Add a short line to keep you encouraged.",
       async (text) => {
-        if (text && text.trim()) {
-          try {
-            await updateProfile({ email: text.trim() });
-            setUserEmail(text.trim());
-            console.log("[Profile] User email updated:", text.trim());
-            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-          } catch (error) {
-            console.error("[Profile] Error saving email:", error);
-            Alert.alert("Error", "Failed to save email. Please try again.");
-          }
+        const nextQuote = text.trim();
+        if (!nextQuote) return;
+        try {
+          await updateProfile({ quote: nextQuote });
+          setProfileQuote(nextQuote);
+          setQuoteCustomized(true);
+        } catch (error) {
+          console.error("[Profile] Error saving quote:", error);
+          Alert.alert("Error", "Failed to save your quote. Please try again.");
         }
       },
       "plain-text",
-      userEmail
+      profileQuote
     );
   };
 
@@ -362,7 +360,8 @@ export default function ProfileScreen() {
                     // Reset state
                     setProfileImage(null);
                     setUserName("User");
-                    setUserEmail("Keep building your habits");
+                    setProfileQuote("Small steps every day.");
+                    setQuoteCustomized(false);
                     setHasPremium(false);
                     
                     // Navigate back to home
@@ -405,7 +404,7 @@ export default function ProfileScreen() {
   if (isLoading) {
     return (
       <LinearGradient 
-        colors={isDark ? [colors.gradientStart, colors.gradientEnd] : ["#4F46E5", "#7C3AED", "#06B6D4"]} 
+        colors={isDark ? ["#070B20", "#0A102C", "#101C3D"] : ["#111A78", "#1455D9", "#23B9EB"]}
         style={styles.container}
       >
         <View style={styles.loadingContainer}>
@@ -420,7 +419,7 @@ export default function ProfileScreen() {
 
   return (
     <LinearGradient 
-      colors={isDark ? [colors.gradientStart, colors.gradientEnd] : ["#4F46E5", "#7C3AED", "#06B6D4"]} 
+      colors={isDark ? ["#070B20", "#0A102C", "#101C3D"] : ["#111A78", "#1455D9", "#23B9EB"]}
       style={styles.container}
     >
       <ScrollView contentContainerStyle={styles.scrollContent}>
@@ -462,14 +461,9 @@ export default function ProfileScreen() {
             />
           </TouchableOpacity>
           
-          <TouchableOpacity onPress={handleEditEmail} style={styles.editableField}>
-            <Text style={[styles.email, { color: colors.textSecondary }]}>{userEmail}</Text>
-            <IconSymbol 
-              ios_icon_name="pencil" 
-              android_material_icon_name="edit" 
-              size={16} 
-              color={colors.iconSilver} 
-            />
+          <TouchableOpacity accessibilityRole="button" accessibilityLabel="Edit profile quote" onPress={handleEditQuote} style={styles.editableField}>
+            <Text style={[styles.email, { color: colors.textSecondary }]}>{profileQuote}</Text>
+            {!quoteCustomized && <IconSymbol ios_icon_name="pencil" android_material_icon_name="edit" size={14} color={colors.iconSilver} />}
           </TouchableOpacity>
 
           {/* Premium Status Badge */}
@@ -705,7 +699,7 @@ export default function ProfileScreen() {
         </View>
 
         <View style={styles.footer}>
-          <Text style={styles.footerText}>Indigo Habits v1.0.61</Text>
+          <Text style={styles.footerText}>Indigo Habits v1.0.62</Text>
           <Text style={styles.footerSubtext}>All data stored locally on your device</Text>
           <Text style={styles.footerSubtext}>Powered by RevenueCat</Text>
         </View>

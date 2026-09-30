@@ -131,27 +131,30 @@ export default function HistoryScreen() {
     }
   };
 
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffTime = Math.abs(now.getTime() - date.getTime());
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  const parseJournalDate = (dateString: string) => {
+    const normalized = dateString.includes('T') ? dateString : dateString.replace(' ', 'T');
+    const zoned = /Z$|[+-]\d{2}:?\d{2}$/.test(normalized) ? normalized : `${normalized}Z`;
+    return new Date(zoned);
+  };
 
-    if (diffDays === 0) {
-      return "Today";
-    } else if (diffDays === 1) {
-      return "Yesterday";
-    } else {
-      return date.toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-        year: "numeric",
-      });
-    }
+  const formatDate = (dateString: string) => {
+    const date = parseJournalDate(dateString);
+    const todayKey = getLocalDateKey();
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const entryDateKey = getLocalDateKey(date);
+
+    if (entryDateKey === todayKey) return "Today";
+    if (entryDateKey === getLocalDateKey(yesterday)) return "Yesterday";
+    return date.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
   };
 
   const formatTime = (dateString: string) => {
-    const date = new Date(dateString);
+    const date = parseJournalDate(dateString);
     return date.toLocaleTimeString("en-US", {
       hour: "numeric",
       minute: "2-digit",
@@ -189,7 +192,7 @@ export default function HistoryScreen() {
 
   return (
     <LinearGradient
-      colors={isDark ? [themeColors.gradientStart, themeColors.gradientEnd] : ["#4F46E5", "#87CEEB"]}
+      colors={isDark ? ["#070B20", "#0A102C", "#101C3D"] : ["#111A78", "#1455D9", "#23B9EB"]}
       style={styles.container}
       start={{ x: 0, y: 0 }}
       end={{ x: 0, y: 1 }}

@@ -1,4 +1,5 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter, useFocusEffect } from 'expo-router';
@@ -13,11 +14,13 @@ export default function TodayScreen() {
   const { isDark } = useTheme();
   const { isPro } = usePremium();
   const [items, setItems] = useState<PlanEntry[]>([]);
+  const [scheduledAffirmations, setScheduledAffirmations] = useState<PlanEntry[]>([]);
   const [affirmation, setAffirmation] = useState('');
   const [affirmationId, setAffirmationId] = useState<string | null>(null);
   const [fav, setFav] = useState(false);
   const [used, setUsed] = useState(0);
   const [loading, setLoading] = useState(true);
+  const completionNoticeShownFor = useRef<string | null>(null);
   const date = getLocalDateKey();
 
   const load = useCallback(async () => {
@@ -34,7 +37,17 @@ export default function TodayScreen() {
       }
       allAff = await getAllAffirmations();
       setItems(plan);
+      const todaysScheduledAffirmations = plan.filter(item => item.kind === 'affirmation');
+      setScheduledAffirmations(todaysScheduledAffirmations);
       setUsed(count);
+      if (todaysScheduledAffirmations.length && todaysScheduledAffirmations.every(item => item.completed) && completionNoticeShownFor.current !== date) {
+        completionNoticeShownFor.current = date;
+        const completionKey = `@indigo_habits/affirmations_completed_notice/${date}`;
+        if (await AsyncStorage.getItem(completionKey) !== 'shown') {
+          await AsyncStorage.setItem(completionKey, 'shown');
+          Alert.alert('Affirmations complete', 'You completed all of today’s scheduled affirmations. You can keep revisiting them.');
+        }
+      }
       let chosen = allAff.find((item: any) => item.id === current);
       if (!chosen && allAff.length) {
         const text = getPlanBasedAffirmation(plan.map(item => item.title));
@@ -79,6 +92,15 @@ export default function TodayScreen() {
   };
 
   const refreshAffirmation = async () => {
+    if (scheduledAffirmations.length && scheduledAffirmations.every(item => item.completed)) {
+      const currentIndex = scheduledAffirmations.findIndex(item => item.affirmationId === affirmationId);
+      const nextItem = scheduledAffirmations[(currentIndex + 1 + scheduledAffirmations.length) % scheduledAffirmations.length];
+      setAffirmationId(nextItem.affirmationId || null);
+      setAffirmation(nextItem.title);
+      const row = nextItem.affirmationId ? await (await getAllAffirmations()).find((item: any) => item.id === nextItem.affirmationId) : null;
+      setFav(row?.isFavorite === 1);
+      return;
+    }
     if (!isPro && used >= 3) {
       Alert.alert('That’s today’s limit', 'You can refresh your daily affirmation up to three times a day.');
       return;
@@ -116,6 +138,7 @@ export default function TodayScreen() {
   const secondary = isDark ? '#AEB9D5' : '#7480A6';
   const tint = isDark ? '#C6D7FF' : '#4057DD';
   const percent = counts.total ? Math.round(counts.completed / counts.total * 100) : 0;
+  const scheduledAffirmationsComplete = scheduledAffirmations.length > 0 && scheduledAffirmations.every(item => item.completed);
 
   if (loading) return <View style={[s.center, { backgroundColor: isDark ? '#0A102C' : '#F4F6FF' }]}><ActivityIndicator color="#3869FF" /></View>;
 
@@ -150,11 +173,11 @@ export default function TodayScreen() {
           <Pressable onPress={() => router.push({ pathname: '/(tabs)/calendar', params: { date } } as any)} style={s.quickButton}><Text style={s.quickText}>Calendar</Text></Pressable>
           <Pressable onPress={() => router.push('/(tabs)/habits' as any)} style={s.quickButton}><Text style={s.quickText}>Manage habits</Text></Pressable>
         </View>
-        <Pressable accessibilityRole="button" onPress={() => router.push('/voice-plan' as any)} style={s.voicePlanButton}><Text style={s.quickText}>🎙  Plan my day with your voice</Text></Pressable>
+        <Pressable accessibilityRole="button" onPress={() => router.push('/voice-plan' as any)} style={s.voicePlanButton}><Text style={s.quickText}>Plan Your Day (Voice)</Text></Pressable>
 
         <View style={s.rowHead}>
-          <Text style={s.section}>A thought for today</Text>
-          <Pressable onPress={refreshAffirmation}><Text style={s.link}>{isPro ? 'New affirmation' : `New · ${Math.max(0, 3 - used)} left`}</Text></Pressable>
+          <Text style={s.section}>Speak Out Loud</Text>
+          <Pressable onPress={refreshAffirmation}><Text style={s.link}>{scheduledAffirmationsComplete ? 'Replay scheduled affirmations' : isPro ? 'New affirmation' : `New · ${Math.max(0, 3 - used)} left`}</Text></Pressable>
         </View>
         <View style={[s.affirm, { backgroundColor: surface }]}>
           <View style={s.affirmHead}><Text style={[s.affirmFoot, { color: secondary }]}>YOUR DAILY AFFIRMATION</Text><Pressable accessibilityRole="button" accessibilityLabel={fav ? 'Remove from favorites' : 'Add to favorites'} onPress={toggleFavorite}><Text style={{ fontSize: 20, color: '#E4A900' }}>{fav ? '★' : '☆'}</Text></Pressable></View>

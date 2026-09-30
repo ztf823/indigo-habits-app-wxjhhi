@@ -15,12 +15,16 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { IconSymbol } from './IconSymbol';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import * as Haptics from 'expo-haptics';
+import { useAudioPlayer } from 'expo-audio';
 import {
   getDailyHabitsReminderSettings,
   saveDailyHabitsReminderSettings,
   getJournalReminderSettings,
   saveJournalReminderSettings,
-  ReminderSettings,
+  getReminderSound,
+  saveReminderSound,
+  REMINDER_SOUND_OPTIONS,
+  ReminderSound,
 } from '@/utils/notifications';
 import { useTheme } from '@/contexts/ThemeContext';
 import { getColors } from '@/styles/commonStyles';
@@ -34,6 +38,10 @@ interface RemindersOverlayProps {
 export function RemindersOverlay({ visible, onClose, isPremium }: RemindersOverlayProps) {
   const { isDark } = useTheme();
   const colors = getColors(isDark);
+  const [selectedSound, setSelectedSound] = useState<ReminderSound>('tibetan');
+  const tibetanPlayer = useAudioPlayer(require('@/assets/sounds/indigo-chime.wav'));
+  const bellPlayer = useAudioPlayer(require('@/assets/sounds/indigo-bell.wav'));
+  const gentlePlayer = useAudioPlayer(require('@/assets/sounds/indigo-gentle.wav'));
   
   const [dailyHabitsEnabled, setDailyHabitsEnabled] = useState(false);
   const [dailyHabitsTime, setDailyHabitsTime] = useState(new Date());
@@ -59,6 +67,8 @@ export function RemindersOverlay({ visible, onClose, isPremium }: RemindersOverl
       console.log('[RemindersOverlay] Loading reminder settings...');
       
       // Load daily habits reminder
+      const savedSound = await getReminderSound();
+      setSelectedSound(savedSound);
       const dailyHabitsSettings = await getDailyHabitsReminderSettings();
       setDailyHabitsEnabled(dailyHabitsSettings.enabled);
       const [dhHours, dhMinutes] = dailyHabitsSettings.time.split(':').map(Number);
@@ -186,6 +196,26 @@ export function RemindersOverlay({ visible, onClose, isPremium }: RemindersOverl
     });
   };
 
+  const playPreview = (sound: ReminderSound) => {
+    const players = [tibetanPlayer, bellPlayer, gentlePlayer];
+    const player = sound === 'tibetan' ? tibetanPlayer : sound === 'bell' ? bellPlayer : gentlePlayer;
+    players.filter(other => other !== player).forEach(other => other.pause());
+    player.seekTo(0);
+    player.play();
+  };
+
+  const selectSound = async (sound: ReminderSound) => {
+    try {
+      setSelectedSound(sound);
+      await saveReminderSound(sound);
+    } catch (error) {
+      console.error('[RemindersOverlay] Could not save notification sound:', error);
+      Alert.alert('Could not save sound', 'Please try again.');
+      const savedSound = await getReminderSound();
+      setSelectedSound(savedSound);
+    }
+  };
+
   const handleClose = () => {
     console.log('[RemindersOverlay] User closed reminders overlay');
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -232,12 +262,27 @@ export function RemindersOverlay({ visible, onClose, isPremium }: RemindersOverl
                 color={colors.primary}
               />
               <Text style={[styles.infoBannerText, { color: colors.text }]}>
-                All reminders play a soft Tibetan bowl chime 🔔
+                Choose a calm sound for your reminders.
               </Text>
             </View>
 
+            <View style={[styles.reminderSection, { backgroundColor: isDark ? colors.border : '#F2F5FC' }]}>
+              <Text style={[styles.reminderTitle, { color: colors.text, marginBottom: 10 }]}>Notification sound</Text>
+              {REMINDER_SOUND_OPTIONS.map(option => (
+                <View key={option.value} style={[styles.soundRow, { borderColor: isDark ? '#40517F' : '#D5DCF0' }]}>
+                  <TouchableOpacity accessibilityRole="radio" accessibilityState={{ checked: selectedSound === option.value }} onPress={() => void selectSound(option.value)} style={styles.soundSelect}>
+                    <View style={[styles.soundRadio, { borderColor: selectedSound === option.value ? colors.primary : colors.textSecondary }]}>{selectedSound === option.value && <View style={[styles.soundRadioInner, { backgroundColor: colors.primary }]} />}</View>
+                    <Text style={[styles.reminderDescription, { color: colors.text, flex: 1 }]}>{option.label}</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity accessibilityRole="button" accessibilityLabel={`Preview ${option.label}`} onPress={() => playPreview(option.value)} style={[styles.previewButton, { backgroundColor: isDark ? '#172B64' : '#E5EBFF' }]}>
+                    <Text style={{ color: colors.primary, fontWeight: '800', fontSize: 12 }}>▶ Preview</Text>
+                  </TouchableOpacity>
+                </View>
+              ))}
+            </View>
+
             {/* Daily habit reminder remains available on every plan. */}
-            <View style={[styles.reminderSection, { backgroundColor: isDark ? colors.border : '#F9FAFB' }]}>
+            <View style={[styles.reminderSection, { backgroundColor: isDark ? colors.border : '#F2F5FC' }]}>
                 <View style={styles.reminderHeader}>
                   <View style={styles.reminderTitleRow}>
                     <IconSymbol
@@ -281,12 +326,12 @@ export function RemindersOverlay({ visible, onClose, isPremium }: RemindersOverl
                 )}
                 
                 <Text style={[styles.reminderDescription, { color: colors.textSecondary }]}>
-                  One reminder covers all your habits. One chime only.
+                  One reminder covers all your habits and uses your selected sound.
                 </Text>
             </View>
 
             {/* Journal Reminder */}
-            <View style={[styles.reminderSection, { backgroundColor: isDark ? colors.border : '#F9FAFB' }]}>
+            <View style={[styles.reminderSection, { backgroundColor: isDark ? colors.border : '#F2F5FC' }]}>
               <View style={styles.reminderHeader}>
                 <View style={styles.reminderTitleRow}>
                   <IconSymbol
@@ -357,6 +402,8 @@ export function RemindersOverlay({ visible, onClose, isPremium }: RemindersOverl
               mode="time"
               is24Hour={false}
               display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+              locale={Platform.OS === 'ios' ? 'en_US' : undefined}
+              themeVariant={isDark ? 'dark' : 'light'}
               onChange={handleDailyHabitsTimeChange}
             />
           )}
@@ -367,6 +414,8 @@ export function RemindersOverlay({ visible, onClose, isPremium }: RemindersOverl
               mode="time"
               is24Hour={false}
               display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+              locale={Platform.OS === 'ios' ? 'en_US' : undefined}
+              themeVariant={isDark ? 'dark' : 'light'}
               onChange={handleJournalTimeChange}
             />
           )}
@@ -431,6 +480,11 @@ const styles = StyleSheet.create({
     color: '#1F2937',
     lineHeight: 20,
   },
+  soundRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderBottomWidth: StyleSheet.hairlineWidth, paddingVertical: 9 },
+  soundSelect: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
+  soundRadio: { width: 19, height: 19, borderRadius: 10, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
+  soundRadioInner: { width: 9, height: 9, borderRadius: 5 },
+  previewButton: { minWidth: 90, alignItems: 'center', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 9, marginLeft: 10 },
   reminderSection: {
     backgroundColor: '#F9FAFB',
     borderRadius: 16,

@@ -104,7 +104,7 @@ export default function ProgressScreen({ embedded = false }: { embedded?: boolea
       return <View style={[styles.loadingContainer, styles.embeddedLoading]}><ActivityIndicator size="small" color={themeColors.primary || "#4F46E5"} /><Text style={[styles.loadingText, { color: themeColors.textSecondary }]}>Loading progress...</Text></View>;
     }
     return (
-      <LinearGradient colors={isDark ? [themeColors.gradientStart, themeColors.gradientEnd] : ["#4F46E5", "#7C3AED", "#87CEEB"]} style={styles.container}>
+      <LinearGradient colors={isDark ? ["#070B20", "#0A102C", "#101C3D"] : ["#111A78", "#1455D9", "#23B9EB"]} style={styles.container}>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#FFF" />
           <Text style={styles.loadingText}>Loading progress...</Text>
@@ -276,7 +276,7 @@ export default function ProgressScreen({ embedded = false }: { embedded?: boolea
 
   if (embedded) return <View style={styles.embeddedContent}>{progressContent}</View>;
   return (
-    <LinearGradient colors={isDark ? [themeColors.gradientStart, themeColors.gradientEnd] : ["#4F46E5", "#7C3AED", "#87CEEB"]} style={styles.container}>
+    <LinearGradient colors={isDark ? ["#070B20", "#0A102C", "#101C3D"] : ["#111A78", "#1455D9", "#23B9EB"]} style={styles.container}>
       <ScrollView contentContainerStyle={styles.scrollContent} refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} tintColor="#FFF" />}>
         {progressContent}
       </ScrollView>
