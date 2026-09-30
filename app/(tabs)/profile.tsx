@@ -9,7 +9,7 @@ import * as Haptics from "expo-haptics";
 import { LinearGradient } from "expo-linear-gradient";
 import React, { useState, useEffect, useCallback } from "react";
 import * as ImagePicker from "expo-image-picker";
-import { getOfferings, purchasePackage, restorePurchases, getCustomerInfo } from "@/utils/revenueCat";
+import { getOfferings, purchasePackage, restorePurchases, getCustomerInfo, addCustomerInfoUpdateListener, getPackagePriceLabel } from "@/utils/revenueCat";
 import { RemindersOverlay } from "@/components/RemindersOverlay";
 import { initializeNotifications } from "@/utils/notifications";
 import { exportJournalsToPdf, getExportPreview } from "@/utils/pdfExport";
@@ -207,6 +207,8 @@ export default function ProfileScreen() {
   const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [isPremium, setIsPremium] = useState(false);
+  const [subscriptionPackages, setSubscriptionPackages] = useState<any[]>([]);
+  const [selectedPackageId, setSelectedPackageId] = useState<string | null>(null);
   const [showRemindersOverlay, setShowRemindersOverlay] = useState(false);
   const [profileQuote, setProfileQuote] = useState('Small steps every day.');
   const [quoteCustomized, setQuoteCustomized] = useState(false);
@@ -222,9 +224,17 @@ export default function ProfileScreen() {
       setProfile(profileData);
       setProfileQuote(profileData?.quote || 'Small steps every day.');
       setQuoteCustomized(Boolean(profileData?.quote));
-      setIsPremium(profileData?.isPremium === 1);
+      const { isPro } = await getCustomerInfo();
+      const verifiedPremium = isPro === true;
+      setIsPremium(verifiedPremium);
+      await updateProfile({ isPremium: verifiedPremium });
+      const offering = await getOfferings();
+      const packages = offering?.availablePackages ?? [];
+      setSubscriptionPackages(packages);
+      setSelectedPackageId((current) => current && packages.some((pkg) => pkg.identifier === current) ? current : packages[0]?.identifier ?? null);
     } catch (error) {
       console.error('Failed to load profile:', error);
+      setIsPremium(false);
     } finally {
       setLoading(false);
     }
@@ -232,6 +242,14 @@ export default function ProfileScreen() {
 
   useEffect(() => {
     loadProfileData();
+    let active = true;
+    let removeListener: (() => void) | undefined;
+    void addCustomerInfoUpdateListener((verifiedPremium) => {
+      if (!active) return;
+      setIsPremium(verifiedPremium);
+      void updateProfile({ isPremium: verifiedPremium });
+    }).then((remove) => { if (active) removeListener = remove; else remove(); });
+    return () => { active = false; removeListener?.(); };
   }, [loadProfileData]);
 
   const handlePickImage = async () => {
@@ -297,9 +315,8 @@ export default function ProfileScreen() {
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       console.log('Unlock premium tapped');
       
-      const offerings = await getOfferings();
-      if (offerings && offerings.availablePackages.length > 0) {
-        const packageToPurchase = offerings.availablePackages[0];
+      const packageToPurchase = subscriptionPackages.find((pkg) => pkg.identifier === selectedPackageId) ?? subscriptionPackages[0];
+      if (packageToPurchase) {
         if (packageToPurchase) {
           const purchaseResult = await purchasePackage(packageToPurchase);
           if (purchaseResult.success && purchaseResult.isPro) {
@@ -343,6 +360,10 @@ export default function ProfileScreen() {
   };
 
   const handleExportJournals = async () => {
+    if (!isPremium) {
+      Alert.alert('Premium feature', 'Journal PDF export is included with Premium.');
+      return;
+    }
     try {
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       console.log('Export journals tapped');
@@ -434,7 +455,7 @@ export default function ProfileScreen() {
   const userName = profile?.name || 'User';
 
   const profilePicture = profile?.photoUri;
-  const priceText = "$4.99/month";
+  const selectedPackage = subscriptionPackages.find((pkg) => pkg.identifier === selectedPackageId) ?? subscriptionPackages[0];
 
   return (
     <>
@@ -470,8 +491,14 @@ export default function ProfileScreen() {
                   <Text style={[styles.premiumBadgeText, { color: colors.text }]}>Unlock Premium</Text>
                 </View>
                 <Text style={[styles.premiumDescription, { color: colors.textSecondary }]}>
-                  Get unlimited affirmations and habits for just {priceText}
+                  Get up to 10 active habits, unlimited affirmation refreshes, personal reminders, and journal PDF export.
                 </Text>
+                {subscriptionPackages.map((pkg) => (
+                  <TouchableOpacity key={pkg.identifier} onPress={() => setSelectedPackageId(pkg.identifier)} style={{ padding: 12, marginTop: 8, borderRadius: 12, borderWidth: 2, borderColor: selectedPackage?.identifier === pkg.identifier ? colors.primary : colors.border, backgroundColor: selectedPackage?.identifier === pkg.identifier ? `${colors.primary}18` : colors.card }}>
+                    <Text style={{ color: colors.text, fontWeight: '700' }}>{pkg.product.localizedTitle || pkg.identifier}</Text>
+                    <Text style={{ color: colors.textSecondary }}>{getPackagePriceLabel(pkg)}</Text>
+                  </TouchableOpacity>
+                ))}
                 <View style={styles.premiumFeatures}>
                   <View style={styles.premiumFeature}>
                     <IconSymbol
@@ -480,7 +507,7 @@ export default function ProfileScreen() {
                       size={20}
                       color="#10B981"
                     />
-                    <Text style={[styles.premiumFeatureText, { color: colors.text }]}>Unlimited daily affirmations</Text>
+                    <Text style={[styles.premiumFeatureText, { color: colors.text }]}>Unlimited affirmation refreshes</Text>
                   </View>
                   <View style={styles.premiumFeature}>
                     <IconSymbol
@@ -489,7 +516,7 @@ export default function ProfileScreen() {
                       size={20}
                       color="#10B981"
                     />
-                    <Text style={[styles.premiumFeatureText, { color: colors.text }]}>Unlimited daily habits</Text>
+                    <Text style={[styles.premiumFeatureText, { color: colors.text }]}>Track up to 10 active habits</Text>
                   </View>
                   <View style={styles.premiumFeature}>
                     <IconSymbol
@@ -498,7 +525,7 @@ export default function ProfileScreen() {
                       size={20}
                       color="#10B981"
                     />
-                    <Text style={[styles.premiumFeatureText, { color: colors.text }]}>Journal & habit reminders</Text>
+                    <Text style={[styles.premiumFeatureText, { color: colors.text }]}>Journal and individual habit reminders</Text>
                   </View>
                   <View style={styles.premiumFeature}>
                     <IconSymbol
@@ -507,11 +534,11 @@ export default function ProfileScreen() {
                       size={20}
                       color="#10B981"
                     />
-                    <Text style={[styles.premiumFeatureText, { color: colors.text }]}>All future features included</Text>
+                    <Text style={[styles.premiumFeatureText, { color: colors.text }]}>Export journals to PDF</Text>
                   </View>
                 </View>
-                <TouchableOpacity style={styles.premiumButton} onPress={handleUnlockPremium}>
-                  <Text style={styles.premiumButtonText}>Subscribe for {priceText}</Text>
+                <TouchableOpacity style={styles.premiumButton} onPress={handleUnlockPremium} disabled={!selectedPackage}>
+                  <Text style={styles.premiumButtonText}>{selectedPackage ? `Continue · ${getPackagePriceLabel(selectedPackage)}` : 'Plans unavailable'}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.restoreButton} onPress={handleRestorePurchases}>
                   <Text style={styles.restoreButtonText}>Restore Purchases</Text>

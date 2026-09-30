@@ -38,6 +38,7 @@ import { getColors } from "@/styles/commonStyles";
 import { ALL_DAYS, WEEKDAYS, getAllHabitSchedules, getAffirmationSchedules, saveHabitSchedule, removeHabitSchedule, saveAffirmationSchedule, removeAffirmationSchedule, HabitSchedule, AffirmationSchedule, formatTime, normalizeTime, sortTimes, timeToMinutes, getIntervalTimes } from "@/utils/planner";
 import { scheduleAffirmationReminders, cancelAffirmationReminders, scheduleHabitReminder, cancelHabitReminder } from "@/utils/notifications";
 import TimePickerField from "@/components/TimePickerField";
+import { usePremium } from "@/hooks/usePremium";
 
 interface Habit {
   id: string;
@@ -81,6 +82,7 @@ export default function HabitsScreen() {
   const params = useLocalSearchParams<{ editAffirmation?: string; scheduleAffirmation?: string }>();
   const { isDark } = useTheme();
   const themeColors = getColors(isDark);
+  const { isPro, loading: premiumLoading } = usePremium();
   const [activeTab, setActiveTab] = useState<"habits" | "affirmations">("habits");
   const [habits, setHabits] = useState<Habit[]>([]);
   const [affirmations, setAffirmations] = useState<Affirmation[]>([]);
@@ -121,10 +123,11 @@ export default function HabitsScreen() {
       
       // If no habits exist, create default ones
       if (dbHabits.length === 0) {
-        console.log(`Creating ${DEFAULT_HABITS.length} default habits...`);
+        const initialHabits = isPro ? DEFAULT_HABITS : DEFAULT_HABITS.slice(0, 3);
+        console.log(`Creating ${initialHabits.length} default habits...`);
         
-        for (let i = 0; i < DEFAULT_HABITS.length; i++) {
-          const defaultHabit = DEFAULT_HABITS[i];
+        for (let i = 0; i < initialHabits.length; i++) {
+          const defaultHabit = initialHabits[i];
           const newHabit = {
             id: `habit_${Date.now()}_${i}`,
             title: defaultHabit.title,
@@ -161,7 +164,7 @@ export default function HabitsScreen() {
     } catch (error) {
       console.error("Error loading habits:", error);
     }
-  }, []);
+  }, [isPro]);
 
   const loadAffirmations = useCallback(async () => {
     try {
@@ -175,6 +178,7 @@ export default function HabitsScreen() {
   }, []);
 
   const loadData = useCallback(async () => {
+    if (premiumLoading) return;
     try {
       setLoading(true);
       await Promise.all([
@@ -187,7 +191,7 @@ export default function HabitsScreen() {
     } finally {
       setLoading(false);
     }
-  }, [loadHabits, loadAffirmations]);
+  }, [loadHabits, loadAffirmations, premiumLoading]);
 
   useEffect(() => {
     loadData();
@@ -212,6 +216,19 @@ export default function HabitsScreen() {
   };
 
   const handleAddHabit = async () => {
+    if (premiumLoading) {
+      Alert.alert("Checking subscription", "Please wait while Indigo Habits verifies your subscription.");
+      return;
+    }
+    const habitLimit = isPro ? 10 : 3;
+    if (habits.filter((habit) => habit.isActive === 1).length >= habitLimit) {
+      Alert.alert(
+        isPro ? "Habit limit reached" : "Free plan limit reached",
+        isPro ? "Premium supports up to 10 active habits." : "The free plan includes up to 3 active habits. Premium supports up to 10.",
+        isPro ? [{ text: "OK" }] : [{ text: "Not now", style: "cancel" }, { text: "View Premium", onPress: () => router.push("/(tabs)/profile" as any) }],
+      );
+      return;
+    }
     if (!habitTitle.trim()) {
       Alert.alert("Error", "Please enter a habit title");
       return;
@@ -321,6 +338,13 @@ export default function HabitsScreen() {
 
   const saveHabitScheduleChanges = async () => {
     if (!scheduleHabit) return;
+    if (scheduleReminder && !isPro) {
+      Alert.alert("Premium reminder", "Individual habit notifications are included with Premium.", [
+        { text: "Not now", style: "cancel" },
+        { text: "View Premium", onPress: () => router.push("/(tabs)/profile" as any) },
+      ]);
+      return;
+    }
     if (!schedulePaused && scheduleDays.length === 0) {
       Alert.alert("Choose days", "Select at least one day, or pause this habit.");
       return;
@@ -839,7 +863,7 @@ export default function HabitsScreen() {
             <View style={{flexDirection:'row',gap:8,marginVertical:8}}>{[{label:'Daily',days:ALL_DAYS},{label:'Weekdays',days:WEEKDAYS},{label:'Weekend',days:[0,6]}].map(p=><TouchableOpacity key={p.label} onPress={()=>{setScheduleDays(p.days);setSchedulePaused(false)}} style={{padding:10,borderRadius:12,backgroundColor:'#E9EDFF'}}><Text style={{color:'#315CDF',fontWeight:'700'}}>{p.label}</Text></TouchableOpacity>)}</View>
             <View style={{flexDirection:'row',justifyContent:'space-between',marginVertical:12}}>{['S','M','T','W','T','F','S'].map((d,i)=><TouchableOpacity key={i} onPress={()=>setScheduleDays(prev=>prev.includes(i)?prev.filter(x=>x!==i):[...prev,i].sort())} style={{width:38,height:38,borderRadius:19,alignItems:'center',justifyContent:'center',backgroundColor:scheduleDays.includes(i)?'#426CFF':'#EEF1FA'}}><Text style={{color:scheduleDays.includes(i)?'white':'#65708F',fontWeight:'700'}}>{d}</Text></TouchableOpacity>)}</View>
             <Text style={[styles.label,{color:themeColors.text}]}>Time (optional)</Text><TimePickerField value={scheduleTime} onChange={setScheduleTime} placeholder="Choose a time" textColor={themeColors.text} backgroundColor={isDark?themeColors.border:'#F3F4F6'} borderColor={themeColors.border} darkMode={isDark} />
-            <View style={{flexDirection:'row',justifyContent:'space-between',alignItems:'center',paddingVertical:14}}><Text style={{color:themeColors.text,fontWeight:'600'}}>Reminder notification</Text><Switch value={scheduleReminder} onValueChange={setScheduleReminder} /></View>
+            <View style={{flexDirection:'row',justifyContent:'space-between',alignItems:'center',paddingVertical:14}}><Text style={{color:themeColors.text,fontWeight:'600'}}>Reminder notification{!isPro?' · Premium':''}</Text><Switch value={scheduleReminder} onValueChange={value=>{if(value&&!isPro){Alert.alert("Premium reminder","Individual habit notifications are included with Premium.",[{text:"Not now",style:"cancel"},{text:"View Premium",onPress:()=>router.push("/(tabs)/profile" as any)}]);return;}setScheduleReminder(value);}} /></View>
             <View style={{flexDirection:'row',justifyContent:'space-between',alignItems:'center',paddingVertical:12}}><Text style={{color:themeColors.text,fontWeight:'600'}}>Pause this habit</Text><Switch value={schedulePaused} onValueChange={setSchedulePaused} /></View>
           </ScrollView>
         </View>

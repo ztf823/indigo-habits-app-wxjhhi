@@ -18,4 +18,4 @@ jobs:
       build_id: ${{ needs.build_ios.outputs.build_id }}
       profile: production
       submit_beta_review: false
-      changelog: "Build 82: text-first day planning, selectable reminder sounds, editable profile quote, journal time correction, and Indigo theme refinements."
+      changelog: "Build 83: RevenueCat subscription access, verified entitlement gating, dynamic App Store pricing, and updated Free and Premium limits."

@@ -13,7 +13,24 @@ const REVENUECAT_APPLE_API_KEY: string =
   Constants.expoConfig?.extra?.revenueCatApple ?? '';
 
 // Product identifiers
-export const PREMIUM_MONTHLY_PRODUCT_ID = 'premium_monthly'; // $4.99/month
+export const PREMIUM_MONTHLY_PRODUCT_ID = 'com.indigohabits.pro.monthly';
+export const PREMIUM_ENTITLEMENT_ID = 'Indigo Habits Pro';
+
+const hasPremiumEntitlement = (customerInfo: { entitlements: { active: Record<string, unknown> } }): boolean =>
+  typeof customerInfo.entitlements.active[PREMIUM_ENTITLEMENT_ID] !== 'undefined';
+
+export function getPackagePeriodLabel(packageType: string): string {
+  const labels: Record<string, string> = {
+    WEEKLY: 'week', MONTHLY: 'month', TWO_MONTH: '2 months', THREE_MONTH: '3 months',
+    SIX_MONTH: '6 months', ANNUAL: 'year', LIFETIME: 'once',
+  };
+  return labels[packageType] ?? 'subscription period';
+}
+
+export function getPackagePriceLabel(subscriptionPackage: { product: { priceString: string }; packageType: string }): string {
+  const period = getPackagePeriodLabel(subscriptionPackage.packageType);
+  return period === 'once' ? subscriptionPackage.product.priceString : `${subscriptionPackage.product.priceString} / ${period}`;
+}
 
 // Module-level guard: track whether RevenueCat ever initialized successfully.
 let rcReady = false;
@@ -82,6 +99,13 @@ export async function initializeRevenueCat(): Promise<void> {
   }
 }
 
+export async function addCustomerInfoUpdateListener(listener: (isPro: boolean) => void): Promise<() => void> {
+  if (!(await ensureRevenueCatReady()) || !rcModule) return () => undefined;
+  const update = (customerInfo: any) => listener(hasPremiumEntitlement(customerInfo));
+  rcModule.addCustomerInfoUpdateListener(update);
+  return () => { rcModule?.removeCustomerInfoUpdateListener(update); };
+}
+
 /**
  * Get current customer info including subscription status
  */
@@ -93,8 +117,7 @@ export async function getCustomerInfo() {
     console.log('[RevenueCat] Fetching customer info...');
     const customerInfo = await rcModule.getCustomerInfo();
     
-    // Check for 'pro' entitlement
-    const isPro = typeof customerInfo.entitlements.active['pro'] !== 'undefined';
+    const isPro = hasPremiumEntitlement(customerInfo);
     console.log('[RevenueCat] Customer info retrieved. Pro status:', isPro);
     
     return {
@@ -148,6 +171,9 @@ export async function getOfferings(): Promise<PurchasesOffering | null> {
  */
 export async function purchasePackage(packageToPurchase: any) {
   try {
+    if (Platform.OS === 'ios' && packageToPurchase?.product?.identifier !== PREMIUM_MONTHLY_PRODUCT_ID) {
+      return { success: false, cancelled: false, error: 'The configured App Store subscription product does not match this app.' };
+    }
     console.log('[RevenueCat] Initiating purchase for package:', packageToPurchase.identifier);
     console.log('[RevenueCat] Product ID:', packageToPurchase.product.identifier);
     console.log('[RevenueCat] Price:', packageToPurchase.product.priceString);
@@ -157,7 +183,7 @@ export async function purchasePackage(packageToPurchase: any) {
     }
     const { customerInfo } = await rcModule.purchasePackage(packageToPurchase);
     
-    const isPro = typeof customerInfo.entitlements.active['pro'] !== 'undefined';
+    const isPro = hasPremiumEntitlement(customerInfo);
     console.log('[RevenueCat] Purchase completed successfully! Pro status:', isPro);
     
     return {
@@ -198,7 +224,7 @@ export async function restorePurchases() {
     }
     const customerInfo = await rcModule.restorePurchases();
     
-    const isPro = typeof customerInfo.entitlements.active['pro'] !== 'undefined';
+    const isPro = hasPremiumEntitlement(customerInfo);
     console.log('[RevenueCat] Purchases restored. Pro status:', isPro);
     
     return {

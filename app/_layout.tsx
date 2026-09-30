@@ -3,7 +3,7 @@ import { StatusBar } from "expo-status-bar";
 import { WidgetProvider } from "@/contexts/WidgetContext";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import React, { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, Pressable, Text, View } from "react-native";
+import { ActivityIndicator, AppState, Pressable, Text, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import {
   DarkTheme,
@@ -15,7 +15,10 @@ import { useTheme } from "@/contexts/ThemeContext";
 import * as Notifications from "expo-notifications";
 import { useRouter } from "expo-router";
 import { setHabitCompletion } from "@/utils/database";
+import { updateProfile } from "@/utils/database";
 import { getLocalDateKey, setPlannedItemCompleted } from "@/utils/planner";
+import { initializeRevenueCat, addCustomerInfoUpdateListener, getCustomerInfo } from "@/utils/revenueCat";
+import { disablePremiumOnlyReminders } from "@/utils/premiumAccess";
 
 export default function RootLayout() {
   const [isReady, setIsReady] = useState(false);
@@ -23,6 +26,8 @@ export default function RootLayout() {
   const [isRetrying, setIsRetrying] = useState(false);
 
   useEffect(() => {
+    // Configure RevenueCat once during app startup; billing failures must not block launch.
+    void initializeRevenueCat();
     let active = true;
     async function prepare() {
       try {
@@ -93,6 +98,32 @@ export default function RootLayout() {
 function AppNavigator() {
   const { isDark } = useTheme();
   const router = useRouter();
+  useEffect(() => {
+    let active = true;
+    let removeListener: (() => void) | undefined;
+    const applyEntitlement = (isPro: boolean) => {
+      if (!active) return;
+      void updateProfile({ isPremium: isPro }).catch((error) => console.warn("[RevenueCat] Could not sync profile status:", error));
+      if (!isPro) void disablePremiumOnlyReminders().catch((error) => console.warn("[RevenueCat] Could not disable expired Premium reminders:", error));
+    };
+    const refreshEntitlement = async () => {
+      const { isPro } = await getCustomerInfo();
+      if (isPro !== null) applyEntitlement(isPro);
+    };
+    void refreshEntitlement();
+    void addCustomerInfoUpdateListener(applyEntitlement).then((remove) => {
+      if (active) removeListener = remove;
+      else remove();
+    });
+    const appStateSubscription = AppState.addEventListener("change", (state) => {
+      if (state === "active") void refreshEntitlement();
+    });
+    return () => {
+      active = false;
+      removeListener?.();
+      appStateSubscription.remove();
+    };
+  }, []);
   useEffect(() => {
     const subscription = Notifications.addNotificationResponseReceivedListener(async (response) => {
       const data = response.notification.request.content.data as { type?: string; habitId?: string; taskId?: string; route?: string; date?: string };

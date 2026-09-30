@@ -42,6 +42,7 @@ import { playChime } from "@/utils/sounds";
 import { getHabitReminderTime } from "@/utils/notifications";
 import { useTheme } from "@/contexts/ThemeContext";
 import { getColors } from "@/styles/commonStyles";
+import { usePremium } from "@/hooks/usePremium";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 const AFFIRMATION_CARD_WIDTH = 300;
@@ -98,7 +99,7 @@ export default function HomeScreen() {
   const [affirmations, setAffirmations] = useState<Affirmation[]>([]);
   const [habits, setHabits] = useState<Habit[]>([]);
   const [loading, setLoading] = useState(true);
-  const [isPremium, setIsPremium] = useState(false);
+  const { isPro: isPremium } = usePremium();
 
   const [journalModalVisible, setJournalModalVisible] = useState(false);
   const [journalContent, setJournalContent] = useState("");
@@ -115,17 +116,6 @@ export default function HomeScreen() {
     y: number;
     height: number;
   } | null>(null);
-
-  const loadPremiumStatus = useCallback(async () => {
-    try {
-      // Use the last verified entitlement locally at launch. RevenueCat refresh
-      // happens when Profile opens so StoreKit is not called in the cold-start path.
-      const profile = await getProfile();
-      setIsPremium((profile as any)?.isPremium === 1);
-    } catch (error) {
-      console.error("Error loading premium status:", error);
-    }
-  }, []);
 
   const loadAffirmations = useCallback(async () => {
     try {
@@ -172,10 +162,11 @@ export default function HomeScreen() {
 
       // Only seed defaults on first install; an all-paused list is intentional.
       if (dbHabits.length === 0) {
-        console.log(`Creating ${DEFAULT_HABITS.length} default habits...`);
+        const defaultHabits = isPremium ? DEFAULT_HABITS : DEFAULT_HABITS.slice(0, 3);
+        console.log(`Creating ${defaultHabits.length} default habits...`);
         
-        for (let i = 0; i < DEFAULT_HABITS.length; i++) {
-          const defaultHabit = DEFAULT_HABITS[i];
+        for (let i = 0; i < defaultHabits.length; i++) {
+          const defaultHabit = defaultHabits[i];
           const newHabit = {
             id: `habit_${Date.now()}_${i}`,
             title: defaultHabit.title,
@@ -216,7 +207,7 @@ export default function HomeScreen() {
     } catch (error) {
       console.error("Error loading habits:", error);
     }
-  }, []);
+  }, [isPremium]);
 
   const loadTodayJournal = useCallback(async () => {
     try {
@@ -247,14 +238,13 @@ export default function HomeScreen() {
       console.log("Loading home screen data from SQLite...");
       setLoading(true);
 
-      await loadPremiumStatus();
     } catch (error) {
       console.error("Error loading home screen data:", error);
       Alert.alert("Error", "Failed to load data. Please try again.");
     } finally {
       setLoading(false);
     }
-  }, [loadPremiumStatus]);
+  }, []);
 
   useFocusEffect(
     useCallback(() => {

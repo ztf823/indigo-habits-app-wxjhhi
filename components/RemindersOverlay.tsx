@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -55,13 +55,7 @@ export function RemindersOverlay({ visible, onClose, isPremium }: RemindersOverl
 
   const effectiveIsPremium = isPremium;
 
-  useEffect(() => {
-    if (visible) {
-      loadSettings();
-    }
-  }, [visible]);
-
-  const loadSettings = async () => {
+  const loadSettings = useCallback(async () => {
     try {
       setLoading(true);
       console.log('[RemindersOverlay] Loading reminder settings...');
@@ -77,7 +71,11 @@ export function RemindersOverlay({ visible, onClose, isPremium }: RemindersOverl
       setDailyHabitsTime(dhDate);
       
       const journalSettings = await getJournalReminderSettings();
-      setJournalEnabled(journalSettings.enabled);
+      const journalAllowed = effectiveIsPremium && journalSettings.enabled;
+      if (journalSettings.enabled && !effectiveIsPremium) {
+        await saveJournalReminderSettings({ ...journalSettings, enabled: false });
+      }
+      setJournalEnabled(journalAllowed);
       const [jHours, jMinutes] = journalSettings.time.split(':').map(Number);
       const jDate = new Date();
       jDate.setHours(jHours, jMinutes, 0, 0);
@@ -90,7 +88,11 @@ export function RemindersOverlay({ visible, onClose, isPremium }: RemindersOverl
     } finally {
       setLoading(false);
     }
-  };
+  }, [effectiveIsPremium]);
+
+  useEffect(() => {
+    if (visible) void loadSettings();
+  }, [visible, loadSettings]);
 
   const handleDailyHabitsToggle = async (value: boolean) => {
     try {
@@ -138,6 +140,13 @@ export function RemindersOverlay({ visible, onClose, isPremium }: RemindersOverl
   };
 
   const handleJournalToggle = async (value: boolean) => {
+    if (value && !effectiveIsPremium) {
+      Alert.alert("Premium reminder", "Journal reminders are included with Premium.", [
+        { text: "Not now", style: "cancel" },
+        { text: "OK", onPress: () => onClose() },
+      ]);
+      return;
+    }
     try {
       console.log('[RemindersOverlay] Toggling journal reminder:', value);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -162,6 +171,7 @@ export function RemindersOverlay({ visible, onClose, isPremium }: RemindersOverl
   };
 
   const handleJournalTimeChange = async (event: any, selectedDate?: Date) => {
+    if (!effectiveIsPremium) return;
     setShowJournalTimePicker(Platform.OS === 'ios');
     
     if (selectedDate) {

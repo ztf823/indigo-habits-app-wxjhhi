@@ -1,10 +1,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
-import { getCustomerInfo, checkProStatus } from '@/utils/revenueCat';
-
-const PREMIUM_KEY = '@indigo_habits_premium';
+import { checkProStatus, addCustomerInfoUpdateListener } from '@/utils/revenueCat';
 
 export function usePremium() {
   const [isPro, setIsPro] = useState(false);
@@ -15,35 +12,19 @@ export function usePremium() {
       setLoading(true);
       console.log('[usePremium] Loading premium status...');
       
-      // On web, check AsyncStorage only
+      // Web has no verified store entitlement in this app.
       if (Platform.OS === 'web') {
-        const stored = await AsyncStorage.getItem(PREMIUM_KEY);
-        const isProStored = stored === 'true';
-        setIsPro(isProStored);
-        console.log('[usePremium] Web platform - Premium status from storage:', isProStored);
+        setIsPro(false);
+        console.log('[usePremium] Web platform has no verified store entitlement');
         return;
       }
       
-      // On native platforms, check RevenueCat
-      try {
-        const revenueCatStatus = await checkProStatus();
-        console.log('[usePremium] RevenueCat premium status:', revenueCatStatus);
-        if (revenueCatStatus !== null) {
-          await AsyncStorage.setItem(PREMIUM_KEY, revenueCatStatus.toString());
-          setIsPro(revenueCatStatus);
-        } else {
-          const stored = await AsyncStorage.getItem(PREMIUM_KEY);
-          setIsPro(stored === 'true');
-        }
-      } catch (error) {
-        console.error('[usePremium] Error checking RevenueCat status:', error);
-        
-        // Fallback to local storage if RevenueCat fails
-        const stored = await AsyncStorage.getItem(PREMIUM_KEY);
-        const isProStored = stored === 'true';
-        setIsPro(isProStored);
-        console.log('[usePremium] Using fallback storage value:', isProStored);
-      }
+      // Native entitlement access is determined only by RevenueCat. A saved local
+      // flag must never unlock Premium when the store entitlement cannot be verified.
+      const revenueCatStatus = await checkProStatus();
+      const verifiedPremium = revenueCatStatus === true;
+      setIsPro(verifiedPremium);
+      console.log('[usePremium] RevenueCat premium status:', revenueCatStatus);
     } catch (error) {
       console.error('[usePremium] Error loading premium status:', error);
       setIsPro(false);
@@ -53,7 +34,22 @@ export function usePremium() {
   }, []);
 
   useEffect(() => {
-    loadPremiumStatus();
+    let mounted = true;
+    let removeListener: (() => void) | undefined;
+    void loadPremiumStatus();
+    if (Platform.OS !== 'web') {
+      void addCustomerInfoUpdateListener((verifiedPremium) => {
+        if (!mounted) return;
+        setIsPro(verifiedPremium);
+      }).then((remove) => {
+        if (mounted) removeListener = remove;
+        else remove();
+      });
+    }
+    return () => {
+      mounted = false;
+      removeListener?.();
+    };
   }, [loadPremiumStatus]);
 
   const checkProStatusCallback = useCallback(async () => {
@@ -62,13 +58,8 @@ export function usePremium() {
 
   const upgradeToPro = async () => {
     try {
-      console.log('[usePremium] Upgrading to pro...');
-      
-      // This will be called after successful purchase
-      await AsyncStorage.setItem(PREMIUM_KEY, 'true');
-      setIsPro(true);
-      
-      console.log('[usePremium] Pro status updated');
+      // Kept for API compatibility; only a verified store entitlement can unlock.
+      await loadPremiumStatus();
     } catch (error) {
       console.error('[usePremium] Error upgrading to pro:', error);
     }
