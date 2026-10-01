@@ -271,7 +271,7 @@ export const scheduleHabitReminder = async (habitId: string, habitTitle: string,
     const permission = await Notifications.getPermissionsAsync();
     if (permission.status !== 'granted' && (await Notifications.requestPermissionsAsync()).status !== 'granted') return false;
     await Notifications.setNotificationCategoryAsync('habit-reminder-actions', [
-      { identifier: 'complete', buttonTitle: 'Mark complete', options: { opensAppToForeground: true } },
+      { identifier: 'complete', buttonTitle: 'Mark complete', options: { opensAppToForeground: false } },
       { identifier: 'snooze', buttonTitle: 'Snooze 10 min', options: { opensAppToForeground: false } },
     ]);
     const times = [...new Set(Array.isArray(time) ? time : [time])];
@@ -358,7 +358,7 @@ export const scheduleTaskReminder = async (taskId: string, title: string, date: 
   const permission = await Notifications.getPermissionsAsync();
   if (permission.status !== 'granted' && (await Notifications.requestPermissionsAsync()).status !== 'granted') return false;
   await Notifications.setNotificationCategoryAsync('task-reminder-actions', [
-    { identifier: 'complete', buttonTitle: 'Mark complete', options: { opensAppToForeground: true } },
+    { identifier: 'complete', buttonTitle: 'Mark complete', options: { opensAppToForeground: false } },
     { identifier: 'snooze', buttonTitle: 'Snooze 10 min', options: { opensAppToForeground: false } },
   ]);
   await cancelTaskReminder(taskId);

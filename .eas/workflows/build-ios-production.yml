@@ -18,4 +18,4 @@ jobs:
       build_id: ${{ needs.build_ios.outputs.build_id }}
       profile: production
       submit_beta_review: false
-      changelog: "Build 84: Free and Premium limits, affirmation rotation, completion sync, haptics, and Indigo visual refinements."
+      changelog: "Build 85: Home affirmations shown one at a time, background Mark Complete actions, and subscription access verification."

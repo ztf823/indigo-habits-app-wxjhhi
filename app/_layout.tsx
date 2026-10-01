@@ -142,6 +142,9 @@ function AppNavigator() {
       const date = typeof data.date === "string" ? data.date : getLocalDateKey();
       if (action === "complete" && data.habitId) await setHabitCompletion(data.habitId, date, true);
       if (action === "complete" && data.taskId) await setPlannedItemCompleted(data.taskId, date, true);
+      // Complete from the notification action in the background; only tapping
+      // the notification itself should take the user into the app.
+      if (action === "complete") return;
       if (data.type === "journal" || data.route === "/reflection") router.push("/reflection" as any);
       else if (data.habitId || data.taskId) router.push({ pathname: "/(tabs)/calendar", params: { date, item: data.habitId || data.taskId } } as any);
       else if (data.type === "affirmation") router.push("/(tabs)" as any);
