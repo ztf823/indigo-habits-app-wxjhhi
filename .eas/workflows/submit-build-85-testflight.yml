@@ -1,0 +1,17 @@
+name: Submit Build 85 to TestFlight
+
+on:
+  workflow_dispatch: {}
+
+defaults:
+  tools:
+    node: 22.23.1
+
+jobs:
+  submit_build_85:
+    type: testflight
+    params:
+      build_id: 5188d170-3f11-4b68-b9e8-923135c7547d
+      profile: production
+      submit_beta_review: false
+      changelog: "Build 85: Home affirmations shown one at a time, background Mark Complete actions, and subscription access verification."
