@@ -102,7 +102,7 @@ export default function EntryDetailScreen() {
   if (!entry) {
     return (
       <LinearGradient
-        colors={isDark ? [themeColors.gradientStart, themeColors.gradientEnd] : ["#6366F1", "#87CEEB"]}
+        colors={isDark ? [themeColors.gradientStart, themeColors.gradientEnd] : ["#5B70D5", "#1455D9", "#23B9EB"]}
         style={styles.container}
       >
         <SafeAreaView style={styles.safeArea}>
@@ -132,7 +132,7 @@ export default function EntryDetailScreen() {
 
   return (
     <LinearGradient
-      colors={isDark ? [themeColors.gradientStart, themeColors.gradientEnd] : ["#6366F1", "#87CEEB"]}
+      colors={isDark ? [themeColors.gradientStart, themeColors.gradientEnd] : ["#5B70D5", "#1455D9", "#23B9EB"]}
       style={styles.container}
     >
       <SafeAreaView style={styles.safeArea}>

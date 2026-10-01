@@ -1,23 +1,26 @@
 import React, { useCallback, useState } from "react";
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from "react-native";
+import * as Haptics from "expo-haptics";
 import { useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import { useTheme } from "@/contexts/ThemeContext";
-import { createHabit } from "@/utils/database";
-import { addPlannedItem, ALL_DAYS, HabitSchedule, makeId, normalizeTime, saveHabitSchedule } from "@/utils/planner";
+import { createHabit, getAllHabits } from "@/utils/database";
+import { addPlannedItem, ALL_DAYS, HabitSchedule, makeId, normalizeTime, saveHabitSchedule, getActivePlannedTaskCount } from "@/utils/planner";
 import { parseVoicePlan, parseVoiceRecurrence, VoicePlanDraft } from "@/utils/voicePlanner";
 import TimePickerField from "@/components/TimePickerField";
 import { scheduleHabitReminder, scheduleTaskReminder } from "@/utils/notifications";
+import { usePremium } from "@/hooks/usePremium";
 
 export default function VoicePlanScreen() {
   const router = useRouter();
   const { isDark } = useTheme();
+  const { isPro, loading: premiumLoading } = usePremium();
   const [transcript, setTranscript] = useState("");
   const [drafts, setDrafts] = useState<VoicePlanDraft[]>([]);
   const [saving, setSaving] = useState(false);
   const [remind, setRemind] = useState(false);
   const colors = {
-    background: isDark ? ["#070B20", "#0A102C", "#101C3D"] : ["#111A78", "#1455D9", "#23B9EB"],
+    background: isDark ? ["#070B20", "#0A102C", "#101C3D"] : ["#5B70D5", "#1455D9", "#23B9EB"],
     card: isDark ? "#141D42" : "#FFFFFF",
     text: isDark ? "#F4F6FF" : "#151C45",
     muted: isDark ? "#AEB9D5" : "#7480A6",
@@ -44,8 +47,26 @@ export default function VoicePlanScreen() {
       Alert.alert("Check the plan", "Each item needs a title, a YYYY-MM-DD date, and a valid time.");
       return;
     }
+    if (premiumLoading) {
+      Alert.alert("Checking subscription", "Please wait while Indigo Habits verifies your subscription.");
+      return;
+    }
+    if (!isPro) {
+      const [habits, taskCount] = await Promise.all([getAllHabits() as Promise<any[]>, getActivePlannedTaskCount()]);
+      const newHabits = drafts.filter(draft => draft.kind === "habit").length;
+      const newTasks = drafts.filter(draft => draft.kind === "task").length;
+      const activeHabits = habits.filter(habit => habit.isActive === 1).length;
+      if (activeHabits + newHabits > 5 || taskCount + newTasks > 5) {
+        Alert.alert("Free plan limit reached", "The free plan includes up to 5 active habits and 5 active tasks. Upgrade to Indigo Premium for unlimited items.", [
+          { text: "Not now", style: "cancel" },
+          { text: "View Premium", onPress: () => router.push("/(tabs)/profile" as any) },
+        ]);
+        return;
+      }
+    }
     setSaving(true);
     try {
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       for (const draft of drafts) {
         const id = makeId(draft.kind === "habit" ? "habit" : "task");
         const time = normalizeTime(draft.time) || "";
@@ -100,7 +121,7 @@ export default function VoicePlanScreen() {
             value={transcript}
             onChangeText={setTranscript}
             multiline
-            placeholder="Use your keyboard dictation to describe your plan. Example: Tomorrow, work out at 7 AM and journal at 9 PM."
+            placeholder="Use your keyboard dictation to describe your plan. Example: Tomorrow work out at 7 AM and journal at 9 PM."
             placeholderTextColor={colors.muted}
             style={[styles.transcript, { color: colors.text, backgroundColor: colors.input }]}
           />

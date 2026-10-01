@@ -192,7 +192,7 @@ export default function HistoryScreen() {
 
   return (
     <LinearGradient
-      colors={isDark ? ["#070B20", "#0A102C", "#101C3D"] : ["#111A78", "#1455D9", "#23B9EB"]}
+      colors={isDark ? ["#070B20", "#0A102C", "#101C3D"] : ["#5B70D5", "#1455D9", "#23B9EB"]}
       style={styles.container}
       start={{ x: 0, y: 0 }}
       end={{ x: 0, y: 1 }}

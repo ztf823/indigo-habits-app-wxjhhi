@@ -220,11 +220,11 @@ export default function HabitsScreen() {
       Alert.alert("Checking subscription", "Please wait while Indigo Habits verifies your subscription.");
       return;
     }
-    const habitLimit = isPro ? 10 : 3;
+    const habitLimit = isPro ? Number.POSITIVE_INFINITY : 5;
     if (habits.filter((habit) => habit.isActive === 1).length >= habitLimit) {
       Alert.alert(
-        isPro ? "Habit limit reached" : "Free plan limit reached",
-        isPro ? "Premium supports up to 10 active habits." : "The free plan includes up to 3 active habits. Premium supports up to 10.",
+        "Free plan limit reached",
+        "The free plan includes up to 5 active habits. Upgrade to Indigo Premium for unlimited habits.",
         isPro ? [{ text: "OK" }] : [{ text: "Not now", style: "cancel" }, { text: "View Premium", onPress: () => router.push("/(tabs)/profile" as any) }],
       );
       return;
@@ -236,7 +236,7 @@ export default function HabitsScreen() {
 
     try {
       console.log("User adding new habit:", habitTitle);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
       const newHabit = {
         id: `habit_${Date.now()}`,
@@ -395,14 +395,32 @@ export default function HabitsScreen() {
 
   const saveAffirmationScheduleChanges = async () => {
     if (!scheduleAffirmation) return;
+    if (premiumLoading) {
+      Alert.alert("Checking subscription", "Please wait while Indigo Habits verifies your subscription.");
+      return;
+    }
     const times = sortTimes(affirmationTimes);
     if (!affirmationDays.length || !times.length) {
       Alert.alert("Check the schedule", "Choose at least one day and one time.");
       return;
     }
+    if (!premiumLoading && !isPro) {
+      const existing = (await getAffirmationSchedules()).filter(item => item.enabled && item.affirmationId !== scheduleAffirmation.id);
+      const exceedsLimit = affirmationDays.some(day =>
+        new Set([...existing.filter(item => item.days.includes(day)).map(item => item.affirmationId), scheduleAffirmation.id]).size > 3
+      );
+      if (exceedsLimit) {
+        Alert.alert("Free plan limit reached", "You can have up to 3 Daily Affirmations on any day. Upgrade to Indigo Premium to schedule more.", [
+          { text: "Not now", style: "cancel" },
+          { text: "View Premium", onPress: () => router.push("/(tabs)/profile" as any) },
+        ]);
+        return;
+      }
+    }
     try {
       const schedule: AffirmationSchedule = { enabled: true, affirmationId: scheduleAffirmation.id, days: affirmationDays, times };
       await saveAffirmationSchedule(schedule);
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       const notified = await scheduleAffirmationReminders(scheduleAffirmation.id, scheduleAffirmation.text, schedule.days, schedule.times);
       if (!notified) Alert.alert("Reminder not enabled", "The affirmation is scheduled in your plan, but notification permission is off.");
       setAffirmationSchedules(prev => [...prev.filter(item => item.affirmationId !== schedule.affirmationId), schedule]);
@@ -428,7 +446,7 @@ export default function HabitsScreen() {
     }
 
     try {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
       if (editingAffirmation) {
         const text = affirmationText.trim();
@@ -530,7 +548,7 @@ export default function HabitsScreen() {
   if (loading) {
     return (
       <LinearGradient
-        colors={isDark ? ["#070B20", "#0A102C", "#101C3D"] : ["#111A78", "#1455D9", "#23B9EB"]}
+        colors={isDark ? ["#070B20", "#0A102C", "#101C3D"] : ["#5B70D5", "#1455D9", "#23B9EB"]}
         style={styles.gradient}
         start={{ x: 0, y: 0 }}
         end={{ x: 0, y: 1 }}
@@ -548,7 +566,7 @@ export default function HabitsScreen() {
 
   return (
     <LinearGradient
-      colors={isDark ? ["#070B20", "#0A102C", "#101C3D"] : ["#111A78", "#1455D9", "#23B9EB"]}
+        colors={isDark ? ["#070B20", "#0A102C", "#101C3D"] : ["#5B70D5", "#1455D9", "#23B9EB"]}
       style={styles.gradient}
       start={{ x: 0, y: 0 }}
       end={{ x: 0, y: 1 }}
@@ -756,7 +774,7 @@ export default function HabitsScreen() {
               setAffirmationText("");
               setAffirmationModalVisible(true);
             }
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
           }}
         >
           <IconSymbol
@@ -872,7 +890,7 @@ export default function HabitsScreen() {
         <View style={[styles.modalContainer,{backgroundColor:themeColors.card}]}><View style={[styles.modalHeader,{borderBottomColor:themeColors.border}]}><TouchableOpacity onPress={()=>setAffirmationScheduleModalVisible(false)}><Text style={styles.modalCancel}>Cancel</Text></TouchableOpacity><Text style={[styles.modalTitle,{color:themeColors.text}]}>Schedule Affirmation</Text><TouchableOpacity onPress={saveAffirmationScheduleChanges}><Text style={styles.modalSave}>Save</Text></TouchableOpacity></View>
           <ScrollView style={styles.modalContent}><Text style={[styles.affirmationText,{color:themeColors.text}]}>{scheduleAffirmation?.text}</Text><Text style={[styles.label,{color:themeColors.text,marginTop:22}]}>Repeat on</Text><View style={{flexDirection:'row',justifyContent:'space-between',marginVertical:12}}>{['S','M','T','W','T','F','S'].map((d,i)=><TouchableOpacity key={i} onPress={()=>setAffirmationDays(prev=>prev.includes(i)?prev.filter(x=>x!==i):[...prev,i].sort())} style={{width:38,height:38,borderRadius:19,alignItems:'center',justifyContent:'center',backgroundColor:affirmationDays.includes(i)?'#426CFF':'#EEF1FA'}}><Text style={{color:affirmationDays.includes(i)?'white':'#65708F',fontWeight:'700'}}>{d}</Text></TouchableOpacity>)}</View><Text style={[styles.label,{color:themeColors.text}]}>Reminder times</Text>
           {affirmationTimes.map((time,index)=><View key={`${time}-${index}`} style={{flexDirection:'row',alignItems:'center',gap:10,marginTop:9}}><View style={{flex:1}}><TimePickerField value={time} onChange={next=>setAffirmationTimes(prev=>sortTimes(prev.map((item,i)=>i===index?next:item)))} textColor={themeColors.text} backgroundColor={isDark?themeColors.border:'#F3F4F6'} borderColor={themeColors.border} darkMode={isDark}/></View><TouchableOpacity accessibilityRole="button" accessibilityLabel={`Remove ${formatTime(time)} reminder`} onPress={()=>setAffirmationTimes(prev=>prev.filter((_,i)=>i!==index))} style={{paddingHorizontal:9,paddingVertical:12}}><Text style={{color:'#D8445B',fontWeight:'700'}}>Remove</Text></TouchableOpacity></View>)}
-          <View style={{flexDirection:'row',alignItems:'center',gap:10,marginTop:12}}><View style={{flex:1}}><TimePickerField value={newAffirmationTime} onChange={setNewAffirmationTime} textColor={themeColors.text} backgroundColor={isDark?themeColors.border:'#F3F4F6'} borderColor={themeColors.border} darkMode={isDark}/></View><TouchableOpacity onPress={()=>{if(affirmationTimes.includes(newAffirmationTime)){Alert.alert('Time already added','Choose a different time.');return}setAffirmationTimes(prev=>sortTimes([...prev,newAffirmationTime]));}} style={{paddingHorizontal:9,paddingVertical:12}}><Text style={{color:'#4057DD',fontWeight:'700'}}>＋ Add</Text></TouchableOpacity></View>
+          <View style={{flexDirection:'row',alignItems:'center',gap:10,marginTop:12}}><View style={{flex:1}}><TimePickerField value={newAffirmationTime} onChange={setNewAffirmationTime} textColor={themeColors.text} backgroundColor={isDark?themeColors.border:'#F3F4F6'} borderColor={themeColors.border} darkMode={isDark}/></View><TouchableOpacity onPress={()=>{if(affirmationTimes.includes(newAffirmationTime)){Alert.alert('Time already added','Choose a different time.');return}setAffirmationTimes(prev=>sortTimes([...prev,newAffirmationTime]));Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);}} style={{paddingHorizontal:9,paddingVertical:12}}><Text style={{color:'#4057DD',fontWeight:'700'}}>＋ Add</Text></TouchableOpacity></View>
           <Text style={styles.repeatHint}>Times are sorted automatically from earliest to latest.</Text>
           {affirmationSchedules.some(item=>item.affirmationId===scheduleAffirmation?.id)&&<TouchableOpacity style={{paddingVertical:18}} onPress={removeAffirmationScheduleChanges}><Text style={{color:'#D8445B',fontWeight:'700'}}>Remove schedule</Text></TouchableOpacity>}</ScrollView></View>
       </Modal>

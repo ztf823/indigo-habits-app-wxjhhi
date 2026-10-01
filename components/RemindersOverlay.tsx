@@ -220,7 +220,7 @@ export function RemindersOverlay({ visible, onClose, isPremium }: RemindersOverl
       await saveReminderSound(sound);
     } catch (error) {
       console.error('[RemindersOverlay] Could not save notification sound:', error);
-      Alert.alert('Could not save sound', 'Please try again.');
+      Alert.alert('Could not update reminder sound', 'The selected sound could not be saved and applied to your scheduled reminders. Please try again.');
       const savedSound = await getReminderSound();
       setSelectedSound(savedSound);
     }

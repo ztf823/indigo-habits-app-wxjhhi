@@ -51,7 +51,8 @@ const AFFIRMATION_SCHEDULE_KEY = "@indigo_habits/affirmation_schedules_v2";
 const AFFIRMATION_USAGE_KEY = "@indigo_habits/affirmation_usage_v1";
 const AFFIRMATION_PLAN_COMPLETIONS_KEY = "@indigo_habits/affirmation_plan_completions_v1";
 const CURRENT_AFFIRMATION_KEY = "@indigo_habits/current_affirmation_v1";
-const DAILY_AFFIRMATIONS_KEY = "@indigo_habits/daily_affirmations_v1";
+const DAILY_AFFIRMATIONS_KEY = "@indigo_habits/daily_affirmations_v2";
+const LEGACY_DAILY_AFFIRMATIONS_KEY = "@indigo_habits/daily_affirmations_v1";
 
 export const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6];
 export const WEEKDAYS = [1, 2, 3, 4, 5];
@@ -163,6 +164,10 @@ export const getPlannedItems = async (): Promise<PlannedItem[]> =>
 export const getPlannedItemsForDate = async (date: string) =>
   (await getPlannedItems()).filter(item => item.date === date);
 
+/** Completed tasks stay in history but no longer count against the active Free plan limit. */
+export const getActivePlannedTaskCount = async () =>
+  (await getPlannedItems()).filter(item => !item.completed).length;
+
 export const addPlannedItem = async (input: Omit<PlannedItem, "createdAt" | "completed">) => {
   const items = await getPlannedItems();
   const item: PlannedItem = {
@@ -233,15 +238,19 @@ export const removeAffirmationSchedule = async (affirmationId: string) => {
 
 export const getCurrentAffirmationId = () => AsyncStorage.getItem(CURRENT_AFFIRMATION_KEY);
 export const setCurrentAffirmationId = (id: string) => AsyncStorage.setItem(CURRENT_AFFIRMATION_KEY, id);
-export const getDailyAffirmationId = async (date = getLocalDateKey()) => {
-  const daily = parseJson<Record<string, string>>(await AsyncStorage.getItem(DAILY_AFFIRMATIONS_KEY), {});
-  return daily[date] || null;
+export const getDailyAffirmationIds = async (date = getLocalDateKey()): Promise<string[]> => {
+  const current = parseJson<Record<string, string[]>>(await AsyncStorage.getItem(DAILY_AFFIRMATIONS_KEY), {});
+  if (Array.isArray(current[date])) return [...new Set(current[date])];
+  const legacy = parseJson<Record<string, string>>(await AsyncStorage.getItem(LEGACY_DAILY_AFFIRMATIONS_KEY), {});
+  return legacy[date] ? [legacy[date]] : [];
 };
-export const setDailyAffirmationId = async (id: string, date = getLocalDateKey()) => {
-  const daily = parseJson<Record<string, string>>(await AsyncStorage.getItem(DAILY_AFFIRMATIONS_KEY), {});
-  daily[date] = id;
+export const setDailyAffirmationIds = async (ids: string[], date = getLocalDateKey()) => {
+  const daily = parseJson<Record<string, string[]>>(await AsyncStorage.getItem(DAILY_AFFIRMATIONS_KEY), {});
+  daily[date] = [...new Set(ids)];
   await AsyncStorage.setItem(DAILY_AFFIRMATIONS_KEY, JSON.stringify(daily));
 };
+export const getDailyAffirmationId = async (date = getLocalDateKey()) => (await getDailyAffirmationIds(date))[0] || null;
+export const setDailyAffirmationId = async (id: string, date = getLocalDateKey()) => setDailyAffirmationIds([id], date);
 
 export const getAffirmationUsage = async (date = getLocalDateKey()): Promise<number> => {
   const usage = parseJson<Record<string, number>>(await AsyncStorage.getItem(AFFIRMATION_USAGE_KEY), {});

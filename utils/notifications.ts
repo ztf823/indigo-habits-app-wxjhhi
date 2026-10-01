@@ -271,7 +271,7 @@ export const scheduleHabitReminder = async (habitId: string, habitTitle: string,
     const permission = await Notifications.getPermissionsAsync();
     if (permission.status !== 'granted' && (await Notifications.requestPermissionsAsync()).status !== 'granted') return false;
     await Notifications.setNotificationCategoryAsync('habit-reminder-actions', [
-      { identifier: 'complete', buttonTitle: 'Mark complete', options: { opensAppToForeground: false } },
+      { identifier: 'complete', buttonTitle: 'Mark complete', options: { opensAppToForeground: true } },
       { identifier: 'snooze', buttonTitle: 'Snooze 10 min', options: { opensAppToForeground: false } },
     ]);
     const times = [...new Set(Array.isArray(time) ? time : [time])];
@@ -357,11 +357,15 @@ export const cancelAffirmationReminders = async (id: string) => {
 export const scheduleTaskReminder = async (taskId: string, title: string, date: string, time: string) => {
   const permission = await Notifications.getPermissionsAsync();
   if (permission.status !== 'granted' && (await Notifications.requestPermissionsAsync()).status !== 'granted') return false;
+  await Notifications.setNotificationCategoryAsync('task-reminder-actions', [
+    { identifier: 'complete', buttonTitle: 'Mark complete', options: { opensAppToForeground: true } },
+    { identifier: 'snooze', buttonTitle: 'Snooze 10 min', options: { opensAppToForeground: false } },
+  ]);
   await cancelTaskReminder(taskId);
   const [year, month, day] = date.split('-').map(Number); const [hour, minute] = time.split(':').map(Number);
   const triggerDate = new Date(year, month - 1, day, hour, minute, 0, 0);
   if (triggerDate.getTime() <= Date.now()) return false;
-  await Notifications.scheduleNotificationAsync({ identifier: `task-${taskId}`, content: { title, body: '', ...(await currentSoundContent()), data: { type: 'task', taskId, date, route: '/(tabs)/calendar' } }, trigger: { ...(await currentSoundTrigger()), type: Notifications.SchedulableTriggerInputTypes.DATE, date: triggerDate } });
+  await Notifications.scheduleNotificationAsync({ identifier: `task-${taskId}`, content: { title, body: '', ...(await currentSoundContent()), data: { type: 'task', taskId, date, route: '/(tabs)/calendar' }, categoryIdentifier: 'task-reminder-actions' }, trigger: { ...(await currentSoundTrigger()), type: Notifications.SchedulableTriggerInputTypes.DATE, date: triggerDate } });
   return true;
 };
 export const cancelTaskReminder = async (taskId: string) => { try { await Notifications.cancelScheduledNotificationAsync(`task-${taskId}`); } catch {} };

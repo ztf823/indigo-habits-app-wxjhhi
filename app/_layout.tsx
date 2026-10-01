@@ -125,7 +125,11 @@ function AppNavigator() {
     };
   }, []);
   useEffect(() => {
-    const subscription = Notifications.addNotificationResponseReceivedListener(async (response) => {
+    const processedResponses = new Set<string>();
+    const handleResponse = async (response: Notifications.NotificationResponse) => {
+      const responseKey = `${response.notification.request.identifier}:${response.actionIdentifier}`;
+      if (processedResponses.has(responseKey)) return;
+      processedResponses.add(responseKey);
       const data = response.notification.request.content.data as { type?: string; habitId?: string; taskId?: string; route?: string; date?: string };
       const action = response.actionIdentifier;
       if (action === "snooze") {
@@ -142,7 +146,13 @@ function AppNavigator() {
       else if (data.habitId || data.taskId) router.push({ pathname: "/(tabs)/calendar", params: { date, item: data.habitId || data.taskId } } as any);
       else if (data.type === "affirmation") router.push("/(tabs)" as any);
       else if (data.route) router.push(data.route as any);
-    });
+    };
+    const subscription = Notifications.addNotificationResponseReceivedListener((response) => { void handleResponse(response); });
+    void Notifications.getLastNotificationResponseAsync().then(async response => {
+      if (!response) return;
+      await handleResponse(response);
+      await Notifications.clearLastNotificationResponseAsync();
+    }).catch(error => console.warn("[Notifications] Could not restore the last notification action:", error));
     return () => subscription.remove();
   }, [router]);
   return (

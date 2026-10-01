@@ -413,7 +413,7 @@ export default function ProfileScreen() {
   if (isLoading) {
     return (
       <LinearGradient 
-        colors={isDark ? ["#070B20", "#0A102C", "#101C3D"] : ["#111A78", "#1455D9", "#23B9EB"]}
+        colors={isDark ? ["#070B20", "#0A102C", "#101C3D"] : ["#5B70D5", "#1455D9", "#23B9EB"]}
         style={styles.container}
       >
         <View style={styles.loadingContainer}>
@@ -428,7 +428,7 @@ export default function ProfileScreen() {
 
   return (
     <LinearGradient 
-      colors={isDark ? ["#070B20", "#0A102C", "#101C3D"] : ["#111A78", "#1455D9", "#23B9EB"]}
+      colors={isDark ? ["#070B20", "#0A102C", "#101C3D"] : ["#5B70D5", "#1455D9", "#23B9EB"]}
       style={styles.container}
     >
       <ScrollView contentContainerStyle={styles.scrollContent}>
@@ -507,11 +507,11 @@ export default function ProfileScreen() {
               <Text style={[styles.premiumTitle, { color: colors.text }]}>Unlock Premium</Text>
             </View>
             <Text style={[styles.premiumDescription, { color: colors.textSecondary }]}>
-              Get up to 10 active habits, unlimited affirmation refreshes, personal reminders, and journal PDF export.
+              Unlimited habits, tasks, and saved affirmations, plus personal reminders and journal PDF export.
             </Text>
             {subscriptionPackages.map((pkg) => (
               <TouchableOpacity key={pkg.identifier} onPress={() => setSelectedPackageId(pkg.identifier)} style={{ padding: 12, marginTop: 8, borderRadius: 12, borderWidth: 2, borderColor: selectedPackage?.identifier === pkg.identifier ? colors.primary : colors.border, backgroundColor: selectedPackage?.identifier === pkg.identifier ? `${colors.primary}18` : colors.card }}>
-                <Text style={{ color: colors.text, fontWeight: '700' }}>{pkg.product.localizedTitle || pkg.identifier}</Text>
+                <Text style={{ color: colors.text, fontWeight: '700' }}>{pkg.product.localizedTitle && !/^rc_[a-z0-9_]+$/i.test(pkg.product.localizedTitle.trim()) ? pkg.product.localizedTitle : 'Indigo Premium'}</Text>
                 <Text style={{ color: colors.textSecondary }}>{getPackagePriceLabel(pkg)}</Text>
               </TouchableOpacity>
             ))}
@@ -523,7 +523,7 @@ export default function ProfileScreen() {
                   size={20}
                   color="#10B981"
                 />
-                <Text style={[styles.premiumFeatureText, { color: colors.text }]}>Unlimited affirmation refreshes</Text>
+                <Text style={[styles.premiumFeatureText, { color: colors.text }]}>Unlimited saved and scheduled affirmations</Text>
               </View>
               <View style={styles.premiumFeature}>
                 <IconSymbol
@@ -532,7 +532,7 @@ export default function ProfileScreen() {
                   size={20}
                   color="#10B981"
                 />
-                <Text style={[styles.premiumFeatureText, { color: colors.text }]}>Track up to 10 active habits</Text>
+                <Text style={[styles.premiumFeatureText, { color: colors.text }]}>Unlimited active habits and tasks</Text>
               </View>
               <View style={styles.premiumFeature}>
                 <IconSymbol
