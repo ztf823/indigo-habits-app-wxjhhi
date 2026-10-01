@@ -354,7 +354,7 @@ export const getIntervalTimes = (startTime: string, endTime: string, intervalMin
 };
 
 export const getDayCompletion = (items: PlanEntry[]) => {
-  const trackable = items.filter(item => item.kind !== "affirmation");
+  const trackable = items;
   return {
     completed: trackable.filter(item => item.completed).length,
     total: trackable.length,

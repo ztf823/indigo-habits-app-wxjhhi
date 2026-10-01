@@ -18,4 +18,4 @@ jobs:
       build_id: ${{ needs.build_ios.outputs.build_id }}
       profile: production
       submit_beta_review: false
-      changelog: "Build 85: Home affirmations shown one at a time, background Mark Complete actions, and subscription access verification."
+      changelog: "Build 86: Home affirmation cards remain display-only and scheduled affirmations count toward Today’s Progress."

@@ -7,7 +7,7 @@ import { useRouter, useFocusEffect } from 'expo-router';
 import { createAffirmation, deleteAffirmation, getAllAffirmations, setHabitCompletion, updateAffirmation } from '@/utils/database';
 import { usePremium } from '@/hooks/usePremium';
 import { DEFAULT_AFFIRMATIONS } from '@/utils/affirmations';
-import { getPlanForDate, getDayCompletion, getLocalDateKey, PlanEntry, getAffirmationUsage, recordAffirmationRefresh, getDailyAffirmationIds, setDailyAffirmationIds, getAffirmationSchedules, formatTime, setPlannedItemCompleted, setAffirmationPlanEntryCompleted } from '@/utils/planner';
+import { getPlanForDate, getDayCompletion, getLocalDateKey, PlanEntry, getAffirmationUsage, recordAffirmationRefresh, getDailyAffirmationIds, setDailyAffirmationIds, getAffirmationSchedules, formatTime, setPlannedItemCompleted } from '@/utils/planner';
 import { useTheme } from '@/contexts/ThemeContext';
 
 type AffirmationCard = { id: string; text: string; favorite: boolean; scheduled?: PlanEntry[] };
@@ -137,14 +137,6 @@ export default function TodayScreen() {
     setAffirmations(current => current.map(item => item.id === card.id ? { ...item, favorite } : item));
   };
 
-  const completeScheduledAffirmation = async (card: AffirmationCard) => {
-    if (!card.scheduled?.length) return;
-    const completed = !card.scheduled.every(item => item.completed);
-    await Promise.all(card.scheduled.map(item => setAffirmationPlanEntryCompleted(item.id, date, completed)));
-    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    await load();
-  };
-
   const advanceAffirmation = () => {
     if (affirmations.length < 2) return;
     setActiveAffirmationIndex(index => (index + 1) % affirmations.length);
@@ -178,7 +170,7 @@ export default function TodayScreen() {
         <View style={s.quickLinks}><Pressable onPress={() => router.push({ pathname: '/(tabs)/calendar', params: { date } } as any)} style={s.quickButton}><Text style={s.quickText}>Calendar</Text></Pressable><Pressable onPress={() => router.push('/(tabs)/habits' as any)} style={s.quickButton}><Text style={s.quickText}>Manage habits</Text></Pressable></View>
         <Pressable accessibilityRole="button" onPress={() => router.push('/voice-plan' as any)} style={s.voicePlanButton}><Text style={s.quickText}>Plan Your Day (Voice)</Text></Pressable>
         <View style={s.rowHead}><Text style={s.section}>Speak Out Loud</Text><Pressable accessibilityRole="button" onPress={refreshAffirmation} hitSlop={8}><Text style={s.link}>{scheduledAffirmationsComplete ? 'Replay scheduled affirmations' : isPro ? 'New affirmation' : `New · ${Math.max(0, 3 - used)} left`}</Text></Pressable></View>
-        {activeAffirmation ? <View key={activeAffirmation.id} style={[s.affirm, { backgroundColor: surface }]}><View style={s.affirmHead}><Text style={[s.affirmFoot, { color: secondary }]}>{activeAffirmation.scheduled ? 'SCHEDULED AFFIRMATION' : 'YOUR DAILY AFFIRMATION'}</Text><View style={s.cardActions}><Pressable accessibilityRole="button" accessibilityLabel={activeAffirmation.favorite ? 'Remove from favorites' : 'Add to favorites'} onPress={() => void toggleFavorite(activeAffirmation)} hitSlop={8}><Text style={{ fontSize: 20, color: '#E4A900' }}>{activeAffirmation.favorite ? '★' : '☆'}</Text></Pressable>{activeAffirmation.scheduled && <Pressable accessibilityRole="button" accessibilityLabel={activeAffirmation.scheduled.every(item => item.completed) ? 'Mark affirmation incomplete' : 'Mark affirmation complete'} onPress={() => void completeScheduledAffirmation(activeAffirmation)} hitSlop={8}><Text style={[s.completeMark, { color: activeAffirmation.scheduled.every(item => item.completed) ? '#20B987' : secondary }]}>{activeAffirmation.scheduled.every(item => item.completed) ? '✓' : '○'}</Text></Pressable>}</View></View><Pressable accessibilityRole="button" accessibilityLabel={`Affirmation ${activeAffirmationIndex + 1} of ${affirmations.length}. Tap to see the next affirmation.`} onPress={advanceAffirmation} disabled={affirmations.length < 2}><Text style={[s.affirmText, { color: primary, textDecorationLine: activeAffirmation.scheduled?.every(item => item.completed) ? 'line-through' : 'none' }]}>{activeAffirmation.text}</Text>{affirmations.length > 1 && <Text style={[s.affirmHint, { color: secondary }]}>{activeAffirmationIndex + 1} of {affirmations.length} · Tap for next</Text>}</Pressable></View> : <View style={[s.affirm, { backgroundColor: surface }]}><Text style={[s.affirmText, { color: primary }]}>Add affirmations to your library to fill today’s slots.</Text></View>}
+        {activeAffirmation ? <View key={activeAffirmation.id} style={[s.affirm, { backgroundColor: surface }]}><View style={s.affirmHead}><Text style={[s.affirmFoot, { color: secondary }]}>{activeAffirmation.scheduled ? 'SCHEDULED AFFIRMATION' : 'YOUR DAILY AFFIRMATION'}</Text><View style={s.cardActions}><Pressable accessibilityRole="button" accessibilityLabel={activeAffirmation.favorite ? 'Remove from favorites' : 'Add to favorites'} onPress={() => void toggleFavorite(activeAffirmation)} hitSlop={8}><Text style={{ fontSize: 20, color: '#E4A900' }}>{activeAffirmation.favorite ? '★' : '☆'}</Text></Pressable></View></View><Pressable accessibilityRole="button" accessibilityLabel={`Affirmation ${activeAffirmationIndex + 1} of ${affirmations.length}. Tap to see the next affirmation.`} onPress={advanceAffirmation} disabled={affirmations.length < 2}><Text style={[s.affirmText, { color: primary }]}>{activeAffirmation.text}</Text>{affirmations.length > 1 && <Text style={[s.affirmHint, { color: secondary }]}>{activeAffirmationIndex + 1} of {affirmations.length} · Tap for next</Text>}</Pressable></View> : <View style={[s.affirm, { backgroundColor: surface }]}><Text style={[s.affirmText, { color: primary }]}>Add affirmations to your library to fill today’s slots.</Text></View>}
         <View style={s.rowHead}><Text style={s.section}>Write an Entry</Text></View>
         <Pressable accessibilityRole="button" onPress={() => router.push('/reflection' as any)} style={[s.journalCard, { backgroundColor: surface }]}><Text style={[s.journalText, { color: primary }]}>Take a moment to reflect on your day.</Text><Text style={{ color: tint, fontWeight: '700' }}>Open journal  ›</Text></Pressable>
       </ScrollView>
