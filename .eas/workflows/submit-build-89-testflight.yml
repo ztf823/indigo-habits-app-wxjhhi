@@ -1,0 +1,17 @@
+name: Submit Build 89 to TestFlight
+
+on:
+  workflow_dispatch: {}
+
+defaults:
+  tools:
+    node: 22.23.1
+
+jobs:
+  submit_build_89:
+    type: testflight
+    params:
+      build_id: e87af9c9-2853-4b56-95f3-3bec4102b8b1
+      profile: production
+      submit_beta_review: false
+      changelog: "Build 89: Fixed affirmation notification completion and snooze, task input visibility, and dark-mode Next Up color."
