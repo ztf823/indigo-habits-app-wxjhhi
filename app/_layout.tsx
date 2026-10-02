@@ -16,7 +16,7 @@ import * as Notifications from "expo-notifications";
 import { useRouter } from "expo-router";
 import { setHabitCompletion } from "@/utils/database";
 import { updateProfile } from "@/utils/database";
-import { getLocalDateKey, setPlannedItemCompleted, setAffirmationPlanEntryCompleted } from "@/utils/planner";
+import { getLocalDateKey, getPlanForDate, normalizeTime, setPlannedItemCompleted, setAffirmationPlanEntryCompleted } from "@/utils/planner";
 import { initializeRevenueCat, addCustomerInfoUpdateListener, getCustomerInfo } from "@/utils/revenueCat";
 import { disablePremiumOnlyReminders } from "@/utils/premiumAccess";
 
@@ -146,17 +146,25 @@ function AppNavigator() {
       if (action === "complete" && data.habitId) await setHabitCompletion(data.habitId, date, true);
       if (action === "complete" && data.taskId) await setPlannedItemCompleted(data.taskId, date, true);
       if (action === "complete" && data.type === "affirmation") {
-        const affirmationEntryId = data.affirmationEntryId ?? (data.affirmationId && data.affirmationTime
-          ? `affirmation:${data.affirmationId}:${data.affirmationTime}:${data.affirmationTimeIndex ?? 0}`
-          : undefined);
-        if (affirmationEntryId) {
-          await setAffirmationPlanEntryCompleted(affirmationEntryId, date, true);
+        const plan = await getPlanForDate(date);
+        const payloadTime = normalizeTime(data.affirmationTime);
+        const affirmationEntry = plan.find(entry => entry.kind === "affirmation" && entry.id === data.affirmationEntryId)
+          ?? plan.find(entry => entry.kind === "affirmation"
+            && entry.affirmationId === data.affirmationId
+            && payloadTime !== null
+            && normalizeTime(entry.time) === payloadTime);
+        if (affirmationEntry) {
+          await setAffirmationPlanEntryCompleted(affirmationEntry.id, date, true);
           // Dismiss this delivered occurrence from Notification Center while
           // leaving the recurring reminder scheduled for future days.
           try { await Notifications.dismissNotificationAsync(response.notification.request.identifier); }
           catch (error) { console.warn("[Notifications] Could not dismiss completed affirmation reminder:", error); }
         } else {
-          console.warn("[Notifications] Affirmation completion response had no matching plan entry identifier.");
+          console.warn("[Notifications] Affirmation completion response did not match a scheduled plan entry.", {
+            affirmationId: data.affirmationId,
+            time: data.affirmationTime,
+            date,
+          });
         }
       }
       // Complete from the notification action in the background; only tapping
