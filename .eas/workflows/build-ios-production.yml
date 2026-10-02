@@ -18,4 +18,4 @@ jobs:
       build_id: ${{ needs.build_ios.outputs.build_id }}
       profile: production
       submit_beta_review: false
-      changelog: "Build 90: Registered affirmation notification actions at launch, repaired completion lookup, lifted task entry above the keyboard, and aligned dark-mode Next Up color."
+      changelog: "Build 91: Show task times in Next Up, persist affirmation notification completion from background actions, and schedule task reminders by default."
