@@ -18,4 +18,4 @@ jobs:
       build_id: ${{ needs.build_ios.outputs.build_id }}
       profile: production
       submit_beta_review: false
-      changelog: "Build 91: Show task times in Next Up, persist affirmation notification completion from background actions, and schedule task reminders by default."
+      changelog: "Build 92: Show task times in Next Up, persist affirmation notification completion from background actions, refresh Calendar and Home on return, and schedule task reminders by default."
