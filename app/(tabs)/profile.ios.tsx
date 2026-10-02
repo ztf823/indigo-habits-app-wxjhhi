@@ -22,6 +22,7 @@ export default function ProfileScreen() {
   
   const [profileImage, setProfileImage] = useState<string | null>(null);
   const [userName, setUserName] = useState<string>("User");
+  const [nameCustomized, setNameCustomized] = useState(false);
   const [profileQuote, setProfileQuote] = useState("Small steps every day.");
   const [quoteCustomized, setQuoteCustomized] = useState(false);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
@@ -49,6 +50,7 @@ export default function ProfileScreen() {
         
         if ((profile as any).name) {
           setUserName((profile as any).name);
+          setNameCustomized((profile as any).name !== 'User');
           console.log("[Profile] Loaded user name from database:", (profile as any).name);
         }
         
@@ -162,6 +164,7 @@ export default function ProfileScreen() {
           try {
             await updateProfile({ name: text.trim() });
             setUserName(text.trim());
+            setNameCustomized(true);
             console.log("[Profile] User name updated:", text.trim());
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
           } catch (error) {
@@ -432,7 +435,7 @@ export default function ProfileScreen() {
       style={styles.container}
     >
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        <Text style={[styles.title, { color: colors.text }]}>More</Text>
+        <Text style={[styles.title, { color: '#FFFFFF' }]}>More</Text>
 
         <View style={[styles.profileCard, { backgroundColor: colors.card }]}>
           <TouchableOpacity 
@@ -462,12 +465,12 @@ export default function ProfileScreen() {
           
           <TouchableOpacity onPress={handleEditName} style={styles.editableField}>
             <Text style={[styles.name, { color: colors.text }]}>{userName}</Text>
-            <IconSymbol 
+            {!nameCustomized && <IconSymbol
               ios_icon_name="pencil" 
               android_material_icon_name="edit" 
               size={16} 
               color={colors.textSecondary} 
-            />
+            />}
           </TouchableOpacity>
           
           <TouchableOpacity accessibilityRole="button" accessibilityLabel="Edit profile quote" onPress={handleEditQuote} style={styles.editableField}>
@@ -490,7 +493,7 @@ export default function ProfileScreen() {
         </View>
 
         <View style={styles.progressSection}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>Progress & achievements</Text>
+          <Text style={[styles.sectionTitle, { color: '#FFFFFF' }]}>Progress & achievements</Text>
           <ProgressScreen embedded />
         </View>
 

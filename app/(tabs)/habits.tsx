@@ -562,7 +562,13 @@ export default function HabitsScreen() {
   }
 
   const repeatingHabits = habits.filter(h => h.isRepeating === 1).length;
-  const repeatingAffirmations = affirmations.filter(a => a.isRepeating === 1).length;
+  const todaysAffirmationSchedules = new Set(affirmationSchedules
+    .filter(schedule => schedule.enabled && schedule.days.includes(new Date().getDay()))
+    .map(schedule => schedule.affirmationId));
+  const scheduledAffirmationsForHome = affirmations.filter(affirmation => todaysAffirmationSchedules.has(affirmation.id)).length;
+  const automaticAffirmationSlots = isPro ? 3 : Math.max(0, 3 - scheduledAffirmationsForHome);
+  const availableAutomaticAffirmations = affirmations.filter(affirmation => !todaysAffirmationSchedules.has(affirmation.id)).length;
+  const homeAffirmationRotationCount = scheduledAffirmationsForHome + Math.min(automaticAffirmationSlots, availableAutomaticAffirmations);
 
   return (
     <LinearGradient
@@ -580,7 +586,7 @@ export default function HabitsScreen() {
           <Text style={styles.headerSubtitle}>
             {activeTab === "habits" 
               ? `${habits.length} total • ${repeatingHabits} on home screen`
-              : `${affirmations.length} total • ${repeatingAffirmations} on home screen`
+              : `${affirmations.length} total • ${homeAffirmationRotationCount} in today’s rotation`
             }
           </Text>
         </View>
@@ -717,7 +723,7 @@ export default function HabitsScreen() {
           ) : (
             <>
               <View style={{flexDirection:"row",gap:8,marginBottom:12}}>
-                {[false,true].map(favorites => <TouchableOpacity key={String(favorites)} onPress={()=>setShowFavoritesOnly(favorites)} style={{paddingHorizontal:15,paddingVertical:9,borderRadius:18,backgroundColor:showFavoritesOnly===favorites?"#426CFF":"rgba(255,255,255,.25)"}}><Text style={{color:"white",fontWeight:"700"}}>{favorites?"Favorites":"All"}</Text></TouchableOpacity>)}
+                {[false,true].map(favorites => <TouchableOpacity key={String(favorites)} onPress={()=>setShowFavoritesOnly(favorites)} style={{paddingHorizontal:15,paddingVertical:9,borderRadius:18,backgroundColor:showFavoritesOnly===favorites?"#426CFF":"rgba(255,255,255,.34)"}}><Text style={{color:"white",fontWeight:"700"}}>{favorites?"Favorites":"All"}</Text></TouchableOpacity>)}
               </View>
               {affirmations.length === 0 ? (
                 <View style={styles.emptyState}>
@@ -931,7 +937,7 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 12,
     borderRadius: 12,
-    backgroundColor: "rgba(255, 255, 255, 0.25)",
+    backgroundColor: "rgba(255, 255, 255, 0.34)",
     alignItems: "center",
   },
   activeTab: {

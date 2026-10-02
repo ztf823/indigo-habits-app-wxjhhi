@@ -16,7 +16,7 @@ import * as Notifications from "expo-notifications";
 import { useRouter } from "expo-router";
 import { setHabitCompletion } from "@/utils/database";
 import { updateProfile } from "@/utils/database";
-import { getLocalDateKey, setPlannedItemCompleted } from "@/utils/planner";
+import { getLocalDateKey, setPlannedItemCompleted, setAffirmationPlanEntryCompleted } from "@/utils/planner";
 import { initializeRevenueCat, addCustomerInfoUpdateListener, getCustomerInfo } from "@/utils/revenueCat";
 import { disablePremiumOnlyReminders } from "@/utils/premiumAccess";
 
@@ -130,7 +130,7 @@ function AppNavigator() {
       const responseKey = `${response.notification.request.identifier}:${response.actionIdentifier}`;
       if (processedResponses.has(responseKey)) return;
       processedResponses.add(responseKey);
-      const data = response.notification.request.content.data as { type?: string; habitId?: string; taskId?: string; route?: string; date?: string };
+      const data = response.notification.request.content.data as { type?: string; habitId?: string; taskId?: string; affirmationEntryId?: string; route?: string; date?: string };
       const action = response.actionIdentifier;
       if (action === "snooze") {
         const original = response.notification.request.content;
@@ -139,9 +139,13 @@ function AppNavigator() {
         await Notifications.scheduleNotificationAsync({ content: { title: original.title ?? "Reminder", body: original.body ?? "", data: original.data ?? {}, sound: original.sound ?? "default", categoryIdentifier: original.categoryIdentifier ?? undefined }, trigger: { ...(channelId ? { channelId } : {}), type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL, seconds: 600, repeats: false } });
         return;
       }
-      const date = typeof data.date === "string" ? data.date : getLocalDateKey();
+      const deliveredDate = new Date(response.notification.date);
+      const date = typeof data.date === "string" ? data.date : data.type === "affirmation" && Number.isFinite(deliveredDate.getTime())
+        ? getLocalDateKey(deliveredDate)
+        : getLocalDateKey();
       if (action === "complete" && data.habitId) await setHabitCompletion(data.habitId, date, true);
       if (action === "complete" && data.taskId) await setPlannedItemCompleted(data.taskId, date, true);
+      if (action === "complete" && data.affirmationEntryId) await setAffirmationPlanEntryCompleted(data.affirmationEntryId, date, true);
       // Complete from the notification action in the background; only tapping
       // the notification itself should take the user into the app.
       if (action === "complete") return;
