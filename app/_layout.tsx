@@ -130,7 +130,7 @@ function AppNavigator() {
       const responseKey = `${response.notification.request.identifier}:${response.actionIdentifier}`;
       if (processedResponses.has(responseKey)) return;
       processedResponses.add(responseKey);
-      const data = response.notification.request.content.data as { type?: string; habitId?: string; taskId?: string; affirmationEntryId?: string; route?: string; date?: string };
+      const data = response.notification.request.content.data as { type?: string; habitId?: string; taskId?: string; affirmationId?: string; affirmationEntryId?: string; affirmationTime?: string; affirmationTimeIndex?: number; route?: string; date?: string };
       const action = response.actionIdentifier;
       if (action === "snooze") {
         const original = response.notification.request.content;
@@ -145,7 +145,20 @@ function AppNavigator() {
         : getLocalDateKey();
       if (action === "complete" && data.habitId) await setHabitCompletion(data.habitId, date, true);
       if (action === "complete" && data.taskId) await setPlannedItemCompleted(data.taskId, date, true);
-      if (action === "complete" && data.affirmationEntryId) await setAffirmationPlanEntryCompleted(data.affirmationEntryId, date, true);
+      if (action === "complete" && data.type === "affirmation") {
+        const affirmationEntryId = data.affirmationEntryId ?? (data.affirmationId && data.affirmationTime
+          ? `affirmation:${data.affirmationId}:${data.affirmationTime}:${data.affirmationTimeIndex ?? 0}`
+          : undefined);
+        if (affirmationEntryId) {
+          await setAffirmationPlanEntryCompleted(affirmationEntryId, date, true);
+          // Dismiss this delivered occurrence from Notification Center while
+          // leaving the recurring reminder scheduled for future days.
+          try { await Notifications.dismissNotificationAsync(response.notification.request.identifier); }
+          catch (error) { console.warn("[Notifications] Could not dismiss completed affirmation reminder:", error); }
+        } else {
+          console.warn("[Notifications] Affirmation completion response had no matching plan entry identifier.");
+        }
+      }
       // Complete from the notification action in the background; only tapping
       // the notification itself should take the user into the app.
       if (action === "complete") return;
