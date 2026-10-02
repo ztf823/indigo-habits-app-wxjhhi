@@ -335,10 +335,7 @@ export const scheduleAffirmationReminders = async (id: string, text: string, day
   const permission = await Notifications.getPermissionsAsync();
   if (permission.status !== 'granted' && (await Notifications.requestPermissionsAsync()).status !== 'granted') return false;
   await cancelAffirmationReminders(id);
-  await Notifications.setNotificationCategoryAsync('affirmation-actions', [
-    { identifier: 'complete', buttonTitle: 'Mark complete', options: { opensAppToForeground: false } },
-    { identifier: 'snooze', buttonTitle: 'Snooze 10 min', options: { opensAppToForeground: false } },
-  ]);
+  await registerAffirmationNotificationActions();
   for (const day of days) for (const [timeIndex, time] of times.entries()) {
     const [hour, minute] = time.split(':').map(Number);
     await Notifications.scheduleNotificationAsync({
@@ -348,6 +345,14 @@ export const scheduleAffirmationReminders = async (id: string, text: string, day
     });
   }
   return true;
+};
+
+/** Register actions on launch too, so existing repeating reminders gain Snooze. */
+export const registerAffirmationNotificationActions = async () => {
+  await Notifications.setNotificationCategoryAsync('affirmation-actions', [
+    { identifier: 'complete', buttonTitle: 'Mark complete', options: { opensAppToForeground: false } },
+    { identifier: 'snooze', buttonTitle: 'Snooze 10 min', options: { opensAppToForeground: false } },
+  ]);
 };
 
 export const cancelAffirmationReminders = async (id: string) => {
