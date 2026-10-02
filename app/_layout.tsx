@@ -19,6 +19,7 @@ import { updateProfile } from "@/utils/database";
 import { getLocalDateKey, getPlanForDate, normalizeTime, setPlannedItemCompleted, setAffirmationPlanEntryCompleted } from "@/utils/planner";
 import { initializeRevenueCat, addCustomerInfoUpdateListener, getCustomerInfo } from "@/utils/revenueCat";
 import { disablePremiumOnlyReminders } from "@/utils/premiumAccess";
+import { registerAffirmationNotificationActions } from "@/utils/notifications";
 
 export default function RootLayout() {
   const [isReady, setIsReady] = useState(false);
@@ -31,6 +32,9 @@ export default function RootLayout() {
     let active = true;
     async function prepare() {
       try {
+        await registerAffirmationNotificationActions().catch((error) => {
+          console.warn("[Notifications] Could not refresh affirmation notification actions:", error);
+        });
         await initDatabase();
         if (!isDatabaseReady()) {
           await retryDatabaseInit();
@@ -146,15 +150,23 @@ function AppNavigator() {
       if (action === "complete" && data.habitId) await setHabitCompletion(data.habitId, date, true);
       if (action === "complete" && data.taskId) await setPlannedItemCompleted(data.taskId, date, true);
       if (action === "complete" && data.type === "affirmation") {
-        const plan = await getPlanForDate(date);
         const payloadTime = normalizeTime(data.affirmationTime);
-        const affirmationEntry = plan.find(entry => entry.kind === "affirmation" && entry.id === data.affirmationEntryId)
-          ?? plan.find(entry => entry.kind === "affirmation"
-            && entry.affirmationId === data.affirmationId
-            && payloadTime !== null
-            && normalizeTime(entry.time) === payloadTime);
-        if (affirmationEntry) {
-          await setAffirmationPlanEntryCompleted(affirmationEntry.id, date, true);
+        const planDates = [...new Set([date, getLocalDateKey()])];
+        let completedEntry: { id: string; date: string } | undefined;
+        for (const planDate of planDates) {
+          const plan = await getPlanForDate(planDate);
+          const entry = plan.find(item => item.kind === "affirmation" && item.id === data.affirmationEntryId)
+            ?? plan.find(item => item.kind === "affirmation"
+              && item.affirmationId === data.affirmationId
+              && payloadTime !== null
+              && normalizeTime(item.time) === payloadTime);
+          if (entry) {
+            completedEntry = { id: entry.id, date: planDate };
+            break;
+          }
+        }
+        if (completedEntry) {
+          await setAffirmationPlanEntryCompleted(completedEntry.id, completedEntry.date, true);
           // Dismiss this delivered occurrence from Notification Center while
           // leaving the recurring reminder scheduled for future days.
           try { await Notifications.dismissNotificationAsync(response.notification.request.identifier); }
