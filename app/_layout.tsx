@@ -16,10 +16,62 @@ import * as Notifications from "expo-notifications";
 import { useRouter } from "expo-router";
 import { setHabitCompletion } from "@/utils/database";
 import { updateProfile } from "@/utils/database";
-import { getLocalDateKey, getPlanForDate, normalizeTime, setPlannedItemCompleted, setAffirmationPlanEntryCompleted } from "@/utils/planner";
+import { getAffirmationSchedules, getLocalDateKey, getPlanForDate, normalizeTime, setPlannedItemCompleted, setAffirmationPlanEntryCompleted } from "@/utils/planner";
 import { initializeRevenueCat, addCustomerInfoUpdateListener, getCustomerInfo } from "@/utils/revenueCat";
 import { disablePremiumOnlyReminders } from "@/utils/premiumAccess";
 import { registerAffirmationNotificationActions } from "@/utils/notifications";
+
+const earlyHandledNotificationResponses = new Set<string>();
+const notificationResponseKey = (response: Notifications.NotificationResponse) =>
+  `${response.notification.request.identifier}:${response.actionIdentifier}:${response.notification.date}`;
+
+const completeScheduledAffirmation = async (response: Notifications.NotificationResponse) => {
+  const data = response.notification.request.content.data as {
+    affirmationId?: string;
+    affirmationEntryId?: string;
+    affirmationTime?: string;
+    affirmationTimeIndex?: number;
+  };
+  const idParts = response.notification.request.identifier.match(/^affirmation-(.+)-([0-6])-(\d{4})$/);
+  const affirmationId = data.affirmationId ?? idParts?.[1];
+  const idTime = idParts?.[3] ? `${idParts[3].slice(0, 2)}:${idParts[3].slice(2)}` : undefined;
+  const time = normalizeTime(data.affirmationTime) ?? normalizeTime(idTime);
+  const schedules = await getAffirmationSchedules().catch(() => []);
+  const schedule = schedules.find(item => item.affirmationId === affirmationId);
+  const slotIndex = time && schedule
+    ? schedule.times.findIndex(item => normalizeTime(item) === time)
+    : -1;
+  const entryId = affirmationId && time && slotIndex >= 0
+    ? `affirmation:${affirmationId}:${time}:${slotIndex}`
+    : data.affirmationEntryId ?? (affirmationId && time
+      ? `affirmation:${affirmationId}:${time}:${Number(data.affirmationTimeIndex) || 0}`
+      : undefined);
+  if (!entryId) {
+    console.warn("[Notifications] Could not identify the scheduled affirmation to complete.", response.notification.request.identifier);
+    return;
+  }
+  const deliveredDate = new Date(response.notification.date);
+  const date = Number.isFinite(deliveredDate.getTime()) ? getLocalDateKey(deliveredDate) : getLocalDateKey();
+  await setAffirmationPlanEntryCompleted(entryId, date, true);
+  try {
+    await Notifications.dismissNotificationAsync(response.notification.request.identifier);
+  } catch (error) {
+    console.warn("[Notifications] Could not dismiss completed affirmation reminder:", error);
+  }
+};
+
+// Register at module load, before React or SQLite startup, so a background
+// action on a cold launch can persist the plan completion immediately.
+Notifications.addNotificationResponseReceivedListener(response => {
+  const data = response.notification.request.content.data as { type?: string };
+  if (response.actionIdentifier !== "complete" || data.type !== "affirmation") return;
+  const key = notificationResponseKey(response);
+  if (earlyHandledNotificationResponses.has(key)) return;
+  earlyHandledNotificationResponses.add(key);
+  void completeScheduledAffirmation(response).catch(error => {
+    console.warn("[Notifications] Could not complete scheduled affirmation:", error);
+  });
+});
 
 export default function RootLayout() {
   const [isReady, setIsReady] = useState(false);
@@ -131,7 +183,8 @@ function AppNavigator() {
   useEffect(() => {
     const processedResponses = new Set<string>();
     const handleResponse = async (response: Notifications.NotificationResponse) => {
-      const responseKey = `${response.notification.request.identifier}:${response.actionIdentifier}`;
+      const responseKey = notificationResponseKey(response);
+      if (earlyHandledNotificationResponses.has(responseKey)) return;
       if (processedResponses.has(responseKey)) return;
       processedResponses.add(responseKey);
       const data = response.notification.request.content.data as { type?: string; habitId?: string; taskId?: string; affirmationId?: string; affirmationEntryId?: string; affirmationTime?: string; affirmationTimeIndex?: number; route?: string; date?: string };
@@ -150,34 +203,7 @@ function AppNavigator() {
       if (action === "complete" && data.habitId) await setHabitCompletion(data.habitId, date, true);
       if (action === "complete" && data.taskId) await setPlannedItemCompleted(data.taskId, date, true);
       if (action === "complete" && data.type === "affirmation") {
-        const payloadTime = normalizeTime(data.affirmationTime);
-        const planDates = [...new Set([date, getLocalDateKey()])];
-        let completedEntry: { id: string; date: string } | undefined;
-        for (const planDate of planDates) {
-          const plan = await getPlanForDate(planDate);
-          const entry = plan.find(item => item.kind === "affirmation" && item.id === data.affirmationEntryId)
-            ?? plan.find(item => item.kind === "affirmation"
-              && item.affirmationId === data.affirmationId
-              && payloadTime !== null
-              && normalizeTime(item.time) === payloadTime);
-          if (entry) {
-            completedEntry = { id: entry.id, date: planDate };
-            break;
-          }
-        }
-        if (completedEntry) {
-          await setAffirmationPlanEntryCompleted(completedEntry.id, completedEntry.date, true);
-          // Dismiss this delivered occurrence from Notification Center while
-          // leaving the recurring reminder scheduled for future days.
-          try { await Notifications.dismissNotificationAsync(response.notification.request.identifier); }
-          catch (error) { console.warn("[Notifications] Could not dismiss completed affirmation reminder:", error); }
-        } else {
-          console.warn("[Notifications] Affirmation completion response did not match a scheduled plan entry.", {
-            affirmationId: data.affirmationId,
-            time: data.affirmationTime,
-            date,
-          });
-        }
+        await completeScheduledAffirmation(response);
       }
       // Complete from the notification action in the background; only tapping
       // the notification itself should take the user into the app.
