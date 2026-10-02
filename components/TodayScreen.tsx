@@ -80,14 +80,6 @@ export default function TodayScreen() {
       setAffirmations(limitedCards);
       setActiveAffirmationIndex(index => limitedCards.length ? index % limitedCards.length : 0);
       setUsed(count);
-      if (scheduled.length && scheduled.every(item => item.completed) && completionNoticeShownFor.current !== date) {
-        completionNoticeShownFor.current = date;
-        const completionKey = `@indigo_habits/affirmations_completed_notice/${date}`;
-        if (await AsyncStorage.getItem(completionKey) !== 'shown') {
-          await AsyncStorage.setItem(completionKey, 'shown');
-          Alert.alert('Affirmations complete', 'You completed all of today’s scheduled affirmations. You can keep revisiting them.');
-        }
-      }
     } catch (error) {
       console.warn('[Today] load failed', error);
     } finally {
@@ -138,9 +130,17 @@ export default function TodayScreen() {
     setAffirmations(current => current.map(item => item.id === card.id ? { ...item, favorite } : item));
   };
 
-  const advanceAffirmation = () => {
+  const advanceAffirmation = async () => {
     if (affirmations.length < 2) return;
+    const isCyclingPastLast = activeAffirmationIndex === affirmations.length - 1;
     setActiveAffirmationIndex(index => (index + 1) % affirmations.length);
+    const scheduled = items.filter(item => item.kind === 'affirmation');
+    if (!isCyclingPastLast || !scheduled.length || !scheduled.every(item => item.completed) || completionNoticeShownFor.current === date) return;
+    const completionKey = `@indigo_habits/affirmations_completed_notice/${date}`;
+    completionNoticeShownFor.current = date;
+    if (await AsyncStorage.getItem(completionKey) === 'shown') return;
+    await AsyncStorage.setItem(completionKey, 'shown');
+    Alert.alert('Affirmations complete', 'You completed all of today’s scheduled affirmations. You can keep revisiting them.');
   };
 
   const counts = getDayCompletion(items);
@@ -183,5 +183,5 @@ const s = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' }, content: { paddingHorizontal: 20, paddingTop: 18, paddingBottom: 110 }, eyebrow: { color: '#DCE8FF', fontSize: 11, fontWeight: '800', letterSpacing: 1.5 }, title: { color: 'white', fontSize: 28, fontWeight: '800', marginTop: 7 }, subtitle: { color: '#DCE8FF', fontSize: 13, marginTop: 3, marginBottom: 16 },
   progress: { borderRadius: 24, padding: 20, minHeight: 160, flexDirection: 'row', alignItems: 'center', marginBottom: 18 }, progressLabel: { fontSize: 10, fontWeight: '800', letterSpacing: 1.2 }, progressNum: { fontSize: 23, fontWeight: '800', marginTop: 8 }, progressTotal: { fontSize: 16, fontWeight: '700' }, progressTrack: { height: 7, borderRadius: 5, marginTop: 13, overflow: 'hidden' }, progressFill: { height: 7, backgroundColor: '#4F5BE7', borderRadius: 5 }, progressFoot: { fontSize: 12, marginTop: 4 }, progressButton: { borderRadius: 12, padding: 11, alignItems: 'center', marginTop: 13 }, percent: { width: 54, height: 54, borderRadius: 27, alignItems: 'center', justifyContent: 'center', marginLeft: 9 },
   rowHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8, marginBottom: 10 }, section: { color: 'white', fontSize: 19, fontWeight: '800' }, link: { color: '#DCE8FF', fontWeight: '700', fontSize: 13 }, nextCard: { borderRadius: 18, padding: 15, flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 10 }, nextIcon: { width: 42, height: 42, borderRadius: 22 }, cardTitle: { color: 'white', fontSize: 15, fontWeight: '700' }, meta: { color: '#DFE9FF', fontSize: 12, marginTop: 4 }, tapForNext: { color: '#DBE5FF99', fontSize: 10, fontWeight: '600' },
-  quickLinks: { flexDirection: 'row', gap: 10, marginBottom: 8 }, quickButton: { flex: 1, backgroundColor: '#2B62CE', borderRadius: 14, paddingVertical: 13, alignItems: 'center' }, quickText: { color: 'white', fontSize: 13, fontWeight: '800' }, voicePlanButton: { backgroundColor: '#2B62CE', borderRadius: 14, paddingVertical: 13, alignItems: 'center', marginBottom: 8 }, affirm: { borderRadius: 22, padding: 18, marginBottom: 12 }, affirmHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, cardActions: { flexDirection: 'row', alignItems: 'center', gap: 14 }, affirmFoot: { fontSize: 10, letterSpacing: 1.1, fontWeight: '800' }, affirmText: { fontSize: 18, lineHeight: 25, fontWeight: '700', marginTop: 10 }, affirmHint: { fontSize: 11, fontWeight: '600', marginTop: 9 }, completeMark: { fontSize: 22, lineHeight: 24 }, journalCard: { borderRadius: 18, padding: 18, marginBottom: 12, gap: 12 }, journalText: { fontSize: 15, fontWeight: '600' },
+  quickLinks: { flexDirection: 'row', gap: 10, marginBottom: 8 }, quickButton: { flex: 1, backgroundColor: '#3779E8', borderRadius: 14, paddingVertical: 13, alignItems: 'center' }, quickText: { color: 'white', fontSize: 13, fontWeight: '800' }, voicePlanButton: { backgroundColor: '#3779E8', borderRadius: 14, paddingVertical: 13, alignItems: 'center', marginBottom: 8 }, affirm: { borderRadius: 22, padding: 18, marginBottom: 12 }, affirmHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, cardActions: { flexDirection: 'row', alignItems: 'center', gap: 14 }, affirmFoot: { fontSize: 10, letterSpacing: 1.1, fontWeight: '800' }, affirmText: { fontSize: 18, lineHeight: 25, fontWeight: '700', marginTop: 10 }, affirmHint: { fontSize: 11, fontWeight: '600', marginTop: 9 }, completeMark: { fontSize: 22, lineHeight: 24 }, journalCard: { borderRadius: 18, padding: 18, marginBottom: 12, gap: 12 }, journalText: { fontSize: 15, fontWeight: '600' },
 });
