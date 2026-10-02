@@ -336,13 +336,13 @@ export const scheduleAffirmationReminders = async (id: string, text: string, day
   if (permission.status !== 'granted' && (await Notifications.requestPermissionsAsync()).status !== 'granted') return false;
   await cancelAffirmationReminders(id);
   await Notifications.setNotificationCategoryAsync('affirmation-actions', [
-    { identifier: 'complete', buttonTitle: 'Acknowledge', options: { opensAppToForeground: false } },
+    { identifier: 'complete', buttonTitle: 'Mark complete', options: { opensAppToForeground: false } },
   ]);
   for (const day of days) for (const [timeIndex, time] of times.entries()) {
     const [hour, minute] = time.split(':').map(Number);
     await Notifications.scheduleNotificationAsync({
       identifier: `affirmation-${id}-${day}-${time.replace(':','')}`,
-      content: { title: 'A thought for you', body: text, ...(await currentSoundContent()), data: { type: 'affirmation', affirmationId: id, affirmationEntryId: `affirmation:${id}:${time}:${timeIndex}`, route: '/(tabs)' }, categoryIdentifier: 'affirmation-actions' },
+      content: { title: 'A thought for you', body: text, ...(await currentSoundContent()), data: { type: 'affirmation', affirmationId: id, affirmationEntryId: `affirmation:${id}:${time}:${timeIndex}`, affirmationTime: time, affirmationTimeIndex: timeIndex, weekday: day, route: '/(tabs)' }, categoryIdentifier: 'affirmation-actions' },
       trigger: { ...(await currentSoundTrigger()), type: Notifications.SchedulableTriggerInputTypes.CALENDAR, weekday: day + 1, hour, minute, repeats: true },
     });
   }
