@@ -1,6 +1,6 @@
 import React, { useCallback, useRef, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, AppState, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter, useFocusEffect } from 'expo-router';
@@ -88,6 +88,12 @@ export default function TodayScreen() {
   }, [date, isPro]);
 
   useFocusEffect(useCallback(() => { void load(); }, [load]));
+  React.useEffect(() => {
+    const subscription = AppState.addEventListener('change', state => {
+      if (state === 'active') void load();
+    });
+    return () => subscription.remove();
+  }, [load]);
 
   const completeNext = async () => {
     if (!next) return;
@@ -167,7 +173,7 @@ export default function TodayScreen() {
           <View style={[s.percent, { backgroundColor: isDark ? '#27325C' : '#EEF0FF' }]}><Text style={{ fontSize: 13, fontWeight: '800', color: tint }}>{percent}%</Text></View>
         </View>
         <View style={s.rowHead}><Text style={s.section}>Next up</Text></View>
-        {next ? <Pressable accessibilityRole="button" accessibilityLabel={`Mark ${next.title} complete`} onPress={completeNext} style={[s.nextCard, { backgroundColor: '#3779E8' }]}><View style={[s.nextIcon, { backgroundColor: next.color || '#6895F0' }]} /><View style={{ flex: 1 }}><Text style={s.cardTitle}>{next.title}</Text><Text style={s.meta}>{next.kind === 'task' ? 'One-time task' : next.time ? `Today · ${formatTime(next.time)}` : 'Today'}</Text></View><Text style={s.tapForNext}>Tap for next</Text></Pressable> : <View style={[s.nextCard, { backgroundColor: '#3779E8' }]}><Text style={s.cardTitle}>You’re all caught up ✨</Text></View>}
+        {next ? <Pressable accessibilityRole="button" accessibilityLabel={`Mark ${next.title} complete`} onPress={completeNext} style={[s.nextCard, { backgroundColor: '#3779E8' }]}><View style={[s.nextIcon, { backgroundColor: next.color || '#6895F0' }]} /><View style={{ flex: 1 }}><Text style={s.cardTitle}>{next.title}</Text><Text style={s.meta}>{next.kind === 'task' ? (next.time ? `One-time task · Today · ${formatTime(next.time)}` : 'One-time task · Choose a time') : next.time ? `Today · ${formatTime(next.time)}` : 'Today'}</Text></View><Text style={s.tapForNext}>Tap for next</Text></Pressable> : <View style={[s.nextCard, { backgroundColor: '#3779E8' }]}><Text style={s.cardTitle}>You’re all caught up ✨</Text></View>}
         <View style={s.quickLinks}><Pressable onPress={() => router.push({ pathname: '/(tabs)/calendar', params: { date } } as any)} style={s.quickButton}><Text style={s.quickText}>Calendar</Text></Pressable><Pressable onPress={() => router.push('/(tabs)/habits' as any)} style={s.quickButton}><Text style={s.quickText}>Manage habits</Text></Pressable></View>
         <Pressable accessibilityRole="button" onPress={() => router.push('/voice-plan' as any)} style={s.voicePlanButton}><Text style={s.quickText}>Plan Your Day (Voice)</Text></Pressable>
         <View style={s.rowHead}><Text style={s.section}>Speak Out Loud</Text><Pressable accessibilityRole="button" onPress={refreshAffirmation} hitSlop={8}><Text style={s.link}>{scheduledAffirmationsComplete ? 'Replay scheduled affirmations' : isPro ? 'New affirmation' : `New · ${Math.max(0, 3 - used)} left`}</Text></Pressable></View>
