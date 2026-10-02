@@ -337,6 +337,7 @@ export const scheduleAffirmationReminders = async (id: string, text: string, day
   await cancelAffirmationReminders(id);
   await Notifications.setNotificationCategoryAsync('affirmation-actions', [
     { identifier: 'complete', buttonTitle: 'Mark complete', options: { opensAppToForeground: false } },
+    { identifier: 'snooze', buttonTitle: 'Snooze 10 min', options: { opensAppToForeground: false } },
   ]);
   for (const day of days) for (const [timeIndex, time] of times.entries()) {
     const [hour, minute] = time.split(':').map(Number);
