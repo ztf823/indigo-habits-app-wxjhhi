@@ -9,7 +9,7 @@ import * as Haptics from "expo-haptics";
 import { LinearGradient } from "expo-linear-gradient";
 import React, { useState, useEffect, useCallback } from "react";
 import * as ImagePicker from "expo-image-picker";
-import { getOfferings, purchasePackage, restorePurchases, getCustomerInfo, addCustomerInfoUpdateListener, getPackagePriceLabel } from "@/utils/revenueCat";
+import { getOfferings, purchasePackage, restorePurchases, getCustomerInfo, addCustomerInfoUpdateListener, getPackagePriceLabel, getPackageTitle } from "@/utils/revenueCat";
 import { RemindersOverlay } from "@/components/RemindersOverlay";
 import { initializeNotifications } from "@/utils/notifications";
 import { exportJournalsToPdf, getExportPreview } from "@/utils/pdfExport";
@@ -351,6 +351,10 @@ export default function ProfileScreen() {
         await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         Alert.alert('Success', 'Premium restored successfully!');
       } else {
+        if (result.success) {
+          setIsPremium(false);
+          await updateProfile({ isPremium: false });
+        }
         Alert.alert('No Purchases Found', 'No previous purchases were found to restore.');
       }
     } catch (error) {
@@ -491,11 +495,11 @@ export default function ProfileScreen() {
                   <Text style={[styles.premiumBadgeText, { color: colors.text }]}>Unlock Premium</Text>
                 </View>
                 <Text style={[styles.premiumDescription, { color: colors.textSecondary }]}>
-                  Unlimited habits, tasks, and saved affirmations, plus personal reminders and journal PDF export.
+                  Unlimited active Habits and Tasks, expanded affirmation scheduling, and unlimited saved/custom affirmations. Free includes 5 active Habits, 5 active Tasks, and 3 Daily Affirmations on Home.
                 </Text>
                 {subscriptionPackages.map((pkg) => (
                   <TouchableOpacity key={pkg.identifier} onPress={() => setSelectedPackageId(pkg.identifier)} style={{ padding: 12, marginTop: 8, borderRadius: 12, borderWidth: 2, borderColor: selectedPackage?.identifier === pkg.identifier ? colors.primary : colors.border, backgroundColor: selectedPackage?.identifier === pkg.identifier ? `${colors.primary}18` : colors.card }}>
-                    <Text style={{ color: colors.text, fontWeight: '700' }}>{pkg.product.localizedTitle && !/^rc_[a-z0-9_]+$/i.test(pkg.product.localizedTitle.trim()) ? pkg.product.localizedTitle : 'Indigo Premium'}</Text>
+                    <Text style={{ color: colors.text, fontWeight: '700' }}>{getPackageTitle(pkg)}</Text>
                     <Text style={{ color: colors.textSecondary }}>{getPackagePriceLabel(pkg)}</Text>
                   </TouchableOpacity>
                 ))}
@@ -507,7 +511,7 @@ export default function ProfileScreen() {
                       size={20}
                       color="#10B981"
                     />
-                    <Text style={[styles.premiumFeatureText, { color: colors.text }]}>Unlimited saved and scheduled affirmations</Text>
+                    <Text style={[styles.premiumFeatureText, { color: colors.text }]}>Expanded scheduling and unlimited saved/custom affirmations</Text>
                   </View>
                   <View style={styles.premiumFeature}>
                     <IconSymbol

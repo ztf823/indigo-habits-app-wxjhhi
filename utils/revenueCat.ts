@@ -2,7 +2,7 @@
 // NOTE: react-native-purchases is imported LAZILY (inside try/catch) so a native
 // module failure cannot crash the app on launch (which caused App Store rejection).
 import type Purchases from 'react-native-purchases';
-import type { PurchasesOffering } from 'react-native-purchases';
+import type { CustomerInfo, PurchasesOffering } from 'react-native-purchases';
 import { Platform } from 'react-native';
 
 // RevenueCat API Keys — loaded from app.json extra (never hardcode secrets)
@@ -16,8 +16,20 @@ const REVENUECAT_APPLE_API_KEY: string =
 export const PREMIUM_MONTHLY_PRODUCT_ID = 'com.indigohabits.pro.monthly';
 export const PREMIUM_ENTITLEMENT_ID = 'Indigo Habits Pro';
 
-const hasPremiumEntitlement = (customerInfo: { entitlements: { active: Record<string, unknown> } }): boolean =>
-  typeof customerInfo.entitlements.active[PREMIUM_ENTITLEMENT_ID] !== 'undefined';
+export function hasPremiumEntitlement(customerInfo: CustomerInfo): boolean {
+  const entitlement = customerInfo?.entitlements?.active?.[PREMIUM_ENTITLEMENT_ID];
+  if (entitlement?.isActive !== true) return false;
+  // This app sells a monthly subscription. Reject expired cached entitlements
+  // and promotional grants that have no matching store subscription.
+  if (Platform.OS === 'ios' &&
+      (entitlement.productIdentifier !== PREMIUM_MONTHLY_PRODUCT_ID || entitlement.store !== 'APP_STORE')) return false;
+  const expiresAt = entitlement.expirationDate ? Date.parse(entitlement.expirationDate) : NaN;
+  return Number.isFinite(expiresAt) && expiresAt > Date.now();
+}
+
+export function getPackageTitle(subscriptionPackage: { packageType: string }): string {
+  return subscriptionPackage.packageType === 'MONTHLY' ? 'Indigo Premium Monthly' : 'Indigo Premium';
+}
 
 export function getPackagePeriodLabel(packageType: string): string {
   const labels: Record<string, string> = {
@@ -115,6 +127,9 @@ export async function getCustomerInfo() {
       return { isPro: null, customerInfo: null };
     }
     console.log('[RevenueCat] Fetching customer info...');
+    // Reinstall IDs can retain prior sandbox purchases. Ask RevenueCat for the
+    // current entitlement rather than trusting the persisted SDK cache.
+    await rcModule.invalidateCustomerInfoCache();
     const customerInfo = await rcModule.getCustomerInfo();
     
     const isPro = hasPremiumEntitlement(customerInfo);
