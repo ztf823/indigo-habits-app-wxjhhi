@@ -14,7 +14,6 @@ Use this as the release procedure for Indigo Habits. This is the established EAS
 ## Release safeguards
 
 - The bundle identifier is `com.indigohabits.journal2026`; preserve it.
-- The production build and the workflow's TestFlight job must use Node `22.23.1`. The submission job needs this because the current dependency tree requires Node 22.
 - Do not start a second build if the build already succeeded and only submission failed. Inspect the failure first and reuse that build when the established EAS flow permits.
 - Do not add a pinned `submit-build-NN` workflow for an individual release. Keep the existing combined workflow as the single build-and-submit path.
 - Do not switch to terminal login or Transporter; use the signed-in Expo dashboard workflow.
