@@ -7,14 +7,15 @@ Use this as the release procedure for Indigo Habits. This is the established EAS
 1. Finish and verify the intended source changes.
 2. Increment `expo.ios.buildNumber` in `app.json` for every new iOS binary. Increment the marketing version only when appropriate.
 3. Commit and push the exact release source to the GitHub branch used for the release.
-4. In the signed-in Expo dashboard, open Indigo Habits → Workflows and run the existing **Build iOS production and submit to TestFlight** workflow against that exact commit.
+4. For a normal new release, leave `existing_build_id` empty. In the signed-in Expo dashboard, open Indigo Habits → Workflows and run the existing **Build iOS production and submit to TestFlight** workflow against that exact commit.
 5. Let the workflow build with the production profile, then submit that same build to App Store Connect using the existing submission credentials and app ID `6759208557`.
 6. Verify both workflow jobs succeeded, then check App Store Connect → TestFlight until Apple finishes processing the build. Install that build in TestFlight for the final device check.
 
 ## Release safeguards
 
 - The bundle identifier is `com.indigohabits.journal2026`; preserve it.
-- Do not start a second build if the build already succeeded and only submission failed. Inspect the failure first and reuse that build when the established EAS flow permits.
+- Do not start a second build if the build already succeeded and only submission failed. Inspect the failure first. Re-run this same workflow with `existing_build_id` set to the successful EAS build UUID; the build job skips and the existing TestFlight job submits that binary.
+- Keep the workflow runner on Node 22.23.1 as well as the production build profile. The upload job also installs dependencies and cannot use Node 20 with the current lockfile.
 - Do not add a pinned `submit-build-NN` workflow for an individual release. Keep the existing combined workflow as the single build-and-submit path.
 - Do not switch to terminal login or Transporter; use the signed-in Expo dashboard workflow.
 - Do not submit for Beta App Review or App Store review unless specifically requested.
