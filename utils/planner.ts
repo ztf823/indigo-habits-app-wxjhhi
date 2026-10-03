@@ -266,13 +266,11 @@ export const recordAffirmationRefresh = async (date = getLocalDateKey()) => {
 
 export const getPlanForDate = async (date: string): Promise<PlanEntry[]> => {
   const weekday = getWeekdayForDateKey(date);
-  const [habits, completions, schedules, tasks, affirmationSchedules, affirmationCompletions] = await Promise.all([
+  const [habits, completions, schedules, tasks] = await Promise.all([
     getAllHabits() as Promise<any[]>,
     getHabitCompletionsForDate(date) as Promise<any[]>,
     readHabitSchedules(),
     getPlannedItemsForDate(date),
-    getAffirmationSchedules(),
-    getAffirmationPlanCompletions(date),
   ]);
 
   const completedHabitIds = new Set(
@@ -315,25 +313,10 @@ export const getPlanForDate = async (date: string): Promise<PlanEntry[]> => {
     reminderEnabled: task.reminderEnabled,
   }));
 
-  const affirmationEntries: PlanEntry[] = [];
-  const database = await import("@/utils/database");
-  for (const schedule of affirmationSchedules) {
-    if (!schedule.enabled || !schedule.days.includes(weekday)) continue;
-    const affirmation = await database.getAffirmationById(schedule.affirmationId);
-    if (!affirmation) continue;
-    for (const [index, time] of schedule.times.entries()) affirmationEntries.push({
-      id: `affirmation:${schedule.affirmationId}:${time}:${index}`,
-      affirmationId: schedule.affirmationId,
-      title: affirmation.text,
-      date,
-      time,
-      kind: "affirmation",
-      completed: affirmationCompletions.includes(`affirmation:${schedule.affirmationId}:${time}:${index}`),
-      reminderEnabled: true,
-    });
-  }
-
-  return [...habitEntries, ...taskEntries, ...affirmationEntries].sort((a, b) => {
+  // Affirmations are shown and managed in Speak Out Loud, not as plan items.
+  // Keeping them out here also keeps Calendar and daily progress focused on
+  // habits and tasks while their own schedules continue to drive reminders.
+  return [...habitEntries, ...taskEntries].sort((a, b) => {
     const aTime = timeToMinutes(a.time);
     const bTime = timeToMinutes(b.time);
     if (aTime === null && bTime !== null) return 1;

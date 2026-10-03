@@ -1,5 +1,4 @@
-import React, { useCallback, useRef, useState } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import React, { useCallback, useState } from 'react';
 import { ActivityIndicator, Alert, AppState, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -7,10 +6,10 @@ import { useRouter, useFocusEffect } from 'expo-router';
 import { createAffirmation, deleteAffirmation, getAllAffirmations, setHabitCompletion, updateAffirmation } from '@/utils/database';
 import { usePremium } from '@/hooks/usePremium';
 import { DEFAULT_AFFIRMATIONS } from '@/utils/affirmations';
-import { getPlanForDate, getDayCompletion, getLocalDateKey, PlanEntry, getAffirmationUsage, recordAffirmationRefresh, getDailyAffirmationIds, setDailyAffirmationIds, getAffirmationSchedules, formatTime, setPlannedItemCompleted, setAffirmationPlanEntryCompleted } from '@/utils/planner';
+import { getPlanForDate, getDayCompletion, getLocalDateKey, getWeekdayForDateKey, PlanEntry, getAffirmationUsage, recordAffirmationRefresh, getDailyAffirmationIds, setDailyAffirmationIds, getAffirmationSchedules, formatTime, setPlannedItemCompleted } from '@/utils/planner';
 import { useTheme } from '@/contexts/ThemeContext';
 
-type AffirmationCard = { id: string; text: string; favorite: boolean; scheduled?: PlanEntry[] };
+type AffirmationCard = { id: string; text: string; favorite: boolean; scheduled?: boolean };
 
 export default function TodayScreen() {
   const router = useRouter();
@@ -21,7 +20,6 @@ export default function TodayScreen() {
   const [activeAffirmationIndex, setActiveAffirmationIndex] = useState(0);
   const [used, setUsed] = useState(0);
   const [loading, setLoading] = useState(true);
-  const completionNoticeShownFor = useRef<string | null>(null);
   const date = getLocalDateKey();
 
   const load = useCallback(async () => {
@@ -29,6 +27,7 @@ export default function TodayScreen() {
       const [plan, count, schedules] = await Promise.all([
         getPlanForDate(date), getAffirmationUsage(date), getAffirmationSchedules(),
       ]);
+      const weekday = getWeekdayForDateKey(date);
       const savedTodayIds = new Set(await getDailyAffirmationIds(date));
       const scheduledLibraryIds = new Set(schedules.filter(schedule => schedule.enabled).map(schedule => schedule.affirmationId));
       let library = await getAllAffirmations() as any[];
@@ -46,11 +45,9 @@ export default function TodayScreen() {
         }
         library = await getAllAffirmations() as any[];
       }
-      const scheduled = plan.filter(item => item.kind === 'affirmation');
-      const scheduledById = new Map<string, PlanEntry[]>();
-      for (const item of scheduled) {
-        if (!item.affirmationId) continue;
-        scheduledById.set(item.affirmationId, [...(scheduledById.get(item.affirmationId) || []), item]);
+      const scheduledById = new Map<string, true>();
+      for (const schedule of schedules) {
+        if (schedule.enabled && schedule.days.includes(weekday)) scheduledById.set(schedule.affirmationId, true);
       }
       const scheduledIds = [...scheduledById.keys()];
       const automaticLimit = isPro ? 3 : Math.max(0, 3 - scheduledIds.length);
@@ -68,7 +65,7 @@ export default function TodayScreen() {
       const cards: AffirmationCard[] = [
         ...scheduledIds.flatMap(id => {
           const row = library.find(candidate => candidate.id === id);
-          return row ? [{ id, text: row.text, favorite: row.isFavorite === 1, scheduled: scheduledById.get(id) }] : [];
+          return row ? [{ id, text: row.text, favorite: row.isFavorite === 1, scheduled: true }] : [];
         }),
         ...selectedIds.flatMap(id => {
           const row = library.find(candidate => candidate.id === id);
@@ -100,7 +97,6 @@ export default function TodayScreen() {
     try {
       if (next.kind === 'habit' && next.habitId) await setHabitCompletion(next.habitId, date, true);
       if (next.kind === 'task' && next.taskId) await setPlannedItemCompleted(next.taskId, date, true);
-      if (next.kind === 'affirmation') await setAffirmationPlanEntryCompleted(next.id, date, true);
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       await load();
     } catch {
@@ -136,17 +132,9 @@ export default function TodayScreen() {
     setAffirmations(current => current.map(item => item.id === card.id ? { ...item, favorite } : item));
   };
 
-  const advanceAffirmation = async () => {
+  const advanceAffirmation = () => {
     if (affirmations.length < 2) return;
-    const isCyclingPastLast = activeAffirmationIndex === affirmations.length - 1;
     setActiveAffirmationIndex(index => (index + 1) % affirmations.length);
-    const scheduled = items.filter(item => item.kind === 'affirmation');
-    if (!isCyclingPastLast || !scheduled.length || !scheduled.every(item => item.completed) || completionNoticeShownFor.current === date) return;
-    const completionKey = `@indigo_habits/affirmations_completed_notice/${date}`;
-    completionNoticeShownFor.current = date;
-    if (await AsyncStorage.getItem(completionKey) === 'shown') return;
-    await AsyncStorage.setItem(completionKey, 'shown');
-    Alert.alert('Affirmations complete', 'You completed all of today’s scheduled affirmations. You can keep revisiting them.');
   };
 
   const counts = getDayCompletion(items);
@@ -156,8 +144,6 @@ export default function TodayScreen() {
   const secondary = isDark ? '#AEB9D5' : '#7480A6';
   const tint = isDark ? '#C6D7FF' : '#4057DD';
   const percent = counts.total ? Math.round(counts.completed / counts.total * 100) : 0;
-  const scheduledAffirmations = items.filter(item => item.kind === 'affirmation');
-  const scheduledAffirmationsComplete = scheduledAffirmations.length > 0 && scheduledAffirmations.every(item => item.completed);
   const activeAffirmation = affirmations[activeAffirmationIndex];
 
   if (loading) return <View style={[s.center, { backgroundColor: isDark ? '#0A102C' : '#F4F6FF' }]}><ActivityIndicator color="#3869FF" /></View>;
@@ -176,7 +162,7 @@ export default function TodayScreen() {
         {next ? <Pressable accessibilityRole="button" accessibilityLabel={`Mark ${next.title} complete`} onPress={completeNext} style={[s.nextCard, { backgroundColor: '#3779E8' }]}><View style={[s.nextIcon, { backgroundColor: next.color || '#6895F0' }]} /><View style={{ flex: 1 }}><Text style={s.cardTitle}>{next.title}</Text><Text style={s.meta}>{next.kind === 'task' ? (next.time ? `One-time task · Today · ${formatTime(next.time)}` : 'One-time task · Choose a time') : next.time ? `Today · ${formatTime(next.time)}` : 'Today'}</Text></View><Text style={s.tapForNext}>Tap for next</Text></Pressable> : <View style={[s.nextCard, { backgroundColor: '#3779E8' }]}><Text style={s.cardTitle}>You’re all caught up ✨</Text></View>}
         <View style={s.quickLinks}><Pressable onPress={() => router.push({ pathname: '/(tabs)/calendar', params: { date } } as any)} style={s.quickButton}><Text style={s.quickText}>Calendar</Text></Pressable><Pressable onPress={() => router.push('/(tabs)/habits' as any)} style={s.quickButton}><Text style={s.quickText}>Manage habits</Text></Pressable></View>
         <Pressable accessibilityRole="button" onPress={() => router.push('/voice-plan' as any)} style={s.voicePlanButton}><Text style={s.quickText}>Plan Your Day (Voice)</Text></Pressable>
-        <View style={s.rowHead}><Text style={s.section}>Speak Out Loud</Text><Pressable accessibilityRole="button" onPress={refreshAffirmation} hitSlop={8}><Text style={s.link}>{scheduledAffirmationsComplete ? 'Replay scheduled affirmations' : isPro ? 'New affirmation' : `New · ${Math.max(0, 3 - used)} left`}</Text></Pressable></View>
+        <View style={s.rowHead}><Text style={s.section}>Speak Out Loud</Text><Pressable accessibilityRole="button" onPress={refreshAffirmation} hitSlop={8}><Text style={s.link}>{isPro ? 'New affirmation' : `New · ${Math.max(0, 3 - used)} left`}</Text></Pressable></View>
         {activeAffirmation ? <View key={activeAffirmation.id} style={[s.affirm, { backgroundColor: surface }]}><View style={s.affirmHead}><Text style={[s.affirmFoot, { color: secondary }]}>{activeAffirmation.scheduled ? 'SCHEDULED AFFIRMATION' : 'YOUR DAILY AFFIRMATION'}</Text><View style={s.cardActions}><Pressable accessibilityRole="button" accessibilityLabel={activeAffirmation.favorite ? 'Remove from favorites' : 'Add to favorites'} onPress={() => void toggleFavorite(activeAffirmation)} hitSlop={8}><Text style={{ fontSize: 20, color: '#E4A900' }}>{activeAffirmation.favorite ? '★' : '☆'}</Text></Pressable></View></View><Pressable accessibilityRole="button" accessibilityLabel={`Affirmation ${activeAffirmationIndex + 1} of ${affirmations.length}. Tap to see the next affirmation.`} onPress={advanceAffirmation} disabled={affirmations.length < 2}><Text style={[s.affirmText, { color: primary }]}>{activeAffirmation.text}</Text>{affirmations.length > 1 && <Text style={[s.affirmHint, { color: secondary }]}>{activeAffirmationIndex + 1} of {affirmations.length} · Tap for next</Text>}</Pressable></View> : <View style={[s.affirm, { backgroundColor: surface }]}><Text style={[s.affirmText, { color: primary }]}>Add affirmations to your library to fill today’s slots.</Text></View>}
         <View style={s.rowHead}><Text style={s.section}>Write an Entry</Text></View>
         <Pressable accessibilityRole="button" onPress={() => router.push('/reflection' as any)} style={[s.journalCard, { backgroundColor: surface }]}><Text style={[s.journalText, { color: primary }]}>Take a moment to reflect on your day.</Text><Text style={{ color: tint, fontWeight: '700' }}>Open journal  ›</Text></Pressable>
