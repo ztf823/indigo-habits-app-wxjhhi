@@ -2,6 +2,7 @@
 import React from "react";
 import {
   View,
+  Image,
   Text,
   StyleSheet,
   TouchableOpacity,
@@ -44,11 +45,10 @@ export default function WelcomeScreen() {
       >
         <View style={styles.content}>
           <View style={styles.iconContainer}>
-            <IconSymbol
-              ios_icon_name="sparkles"
-              android_material_icon_name="auto-awesome"
-              size={80}
-              color="white"
+            <Image
+              source={require("@/assets/images/blue-flame-icon.png")}
+              style={styles.brandLogo}
+              accessibilityLabel="Indigo Habits blue flame logo"
             />
           </View>
 
@@ -147,6 +147,11 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
+  },
+  brandLogo: {
+    width: 80,
+    height: 80,
+    borderRadius: 18,
   },
   iconContainer: {
     marginBottom: 24,

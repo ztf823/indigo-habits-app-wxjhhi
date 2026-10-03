@@ -11,7 +11,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.indigohabits.journal2026",
-      "buildNumber": "94",
+      "buildNumber": "95",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NSPhotoLibraryUsageDescription": "Indigo Habits needs access to your photos to add images to your journal entries.",
@@ -63,7 +63,9 @@
         {
           "microphonePermission": "Allow Indigo Habits to dictate optional journal entries.",
           "speechRecognitionPermission": "Allow speech recognition for optional journal dictation.",
-          "androidSpeechServicePackages": ["com.google.android.googlequicksearchbox"]
+          "androidSpeechServicePackages": [
+            "com.google.android.googlequicksearchbox"
+          ]
         }
       ],
       [
@@ -79,7 +81,11 @@
           "icon": "./assets/images/blue-flame-icon.png",
           "color": "#0B5FFF",
           "defaultChannel": "habits-reminders",
-          "sounds": ["./assets/sounds/indigo-chime.wav", "./assets/sounds/indigo-bell.wav", "./assets/sounds/indigo-gentle.wav"]
+          "sounds": [
+            "./assets/sounds/indigo-chime.wav",
+            "./assets/sounds/indigo-bell.wav",
+            "./assets/sounds/indigo-gentle.wav"
+          ]
         }
       ]
     ],

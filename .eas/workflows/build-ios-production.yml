@@ -30,4 +30,4 @@ jobs:
       build_id: ${{ inputs.existing_build_id || after.build_ios.outputs.build_id }}
       profile: production
       submit_beta_review: false
-      changelog: "Build 94: Verify current subscription entitlements and refresh Premium plan presentation."
+      changelog: "Build 95: Use the blue flame logo consistently across welcome and app assets."
