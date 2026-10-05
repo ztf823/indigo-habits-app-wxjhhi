@@ -8,7 +8,7 @@ permissions:
   contents: read
 jobs:
   capture:
-    runs-on: macos-15
+    runs-on: macos-26-intel
     timeout-minutes: 55
     env:
       CI: "1"
@@ -43,7 +43,7 @@ jobs:
           python3 - <<'PY'
           import json, os
           devices=json.load(open('devices.json'))['devices']
-          candidates=[d for runtime, entries in devices.items() if 'iOS' in runtime for d in entries if 'iPad Pro 13' in d['name'] or 'iPad Pro (12.9-inch)' in d['name']]
+          candidates=[d for runtime, entries in sorted(devices.items(), reverse=True) if 'iOS' in runtime for d in entries if 'iPad Pro 13' in d['name'] or 'iPad Pro (12.9-inch)' in d['name']]
           if not candidates: raise SystemExit('No 13-inch iPad simulator available')
           device=candidates[0]
           open('capture-device.txt','w').write(device['udid'])
