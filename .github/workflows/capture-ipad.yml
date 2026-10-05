@@ -1,0 +1,98 @@
+name: Capture Build 95 iPad screenshots
+on:
+  push:
+    branches: [build95-ipad-screenshots]
+    paths: [.github/workflows/capture-ipad.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  capture:
+    runs-on: macos-15
+    timeout-minutes: 55
+    env:
+      CI: "1"
+      EXPO_NO_TELEMETRY: "1"
+      MAESTRO_CLI_NO_ANALYTICS: "1"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 2de04a273031d07c5c1a1315d8f74cdfa90d154b
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.23.1
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Install exact dependencies
+        run: |
+          npm install --global pnpm@11.19.0
+          pnpm install --frozen-lockfile
+      - name: Generate iOS project
+        run: npx expo prebuild --platform ios --clean
+      - name: Build unsigned simulator app from Build 95
+        run: |
+          set -o pipefail
+          xcodebuild -workspace ios/IndigoHabits.xcworkspace -scheme IndigoHabits -configuration Release -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath simulator-build CODE_SIGNING_ALLOWED=NO build > xcodebuild.log 2>&1
+      - name: Boot 13-inch iPad and install
+        run: |
+          set -e
+          xcrun simctl list devices available -j > devices.json
+          python3 - <<'PY'
+          import json, os
+          devices=json.load(open('devices.json'))['devices']
+          candidates=[d for runtime, entries in devices.items() if 'iOS' in runtime for d in entries if 'iPad Pro 13' in d['name'] or 'iPad Pro (12.9-inch)' in d['name']]
+          if not candidates: raise SystemExit('No 13-inch iPad simulator available')
+          device=candidates[0]
+          open('capture-device.txt','w').write(device['udid'])
+          with open(os.environ['GITHUB_ENV'],'a') as f: f.write('CAPTURE_DEVICE='+device['udid']+'\n')
+          print(device['name'])
+          PY
+          xcrun simctl boot "$(cat capture-device.txt)"
+          xcrun simctl bootstatus "$(cat capture-device.txt)" -b
+          open -a Simulator
+          xcrun simctl ui "$(cat capture-device.txt)" appearance light
+          xcrun simctl status_bar "$(cat capture-device.txt)" override --time 9:41 --batteryState charged --batteryLevel 100
+          xcrun simctl install "$(cat capture-device.txt)" simulator-build/Build/Products/Release-iphonesimulator/IndigoHabits.app
+      - name: Capture actual app UI
+        run: |
+          set -e
+          curl -fsSL "https://get.maestro.mobile.dev" | bash
+          mkdir -p screenshots
+          cat > capture.yaml <<'YAML'
+          appId: com.indigohabits.journal2026
+          ---
+          - launchApp:
+              clearState: true
+          - tapOn:
+              text: "Allow"
+              optional: true
+          - extendedWaitUntil:
+              visible: "Let's Get Started"
+              timeout: 60000
+          - takeScreenshot: screenshots/Indigo_Habits_iPad_01_Welcome
+          - tapOn: "Let's Get Started"
+          - tapOn:
+              text: "Allow"
+              optional: true
+          - extendedWaitUntil:
+              visible: "Speak Out Loud"
+              timeout: 60000
+          - waitForAnimationToEnd
+          - takeScreenshot: screenshots/Indigo_Habits_iPad_02_Home
+          - tapOn: "Calendar"
+          - waitForAnimationToEnd
+          - takeScreenshot: screenshots/Indigo_Habits_iPad_03_Calendar
+          YAML
+          "$HOME/.maestro/bin/maestro" --udid "$CAPTURE_DEVICE" test capture.yaml
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Build95-iPad-capture
+          path: |
+            screenshots/
+            xcodebuild.log
+            devices.json
+          retention-days: 7
