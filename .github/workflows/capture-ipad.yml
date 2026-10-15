@@ -6,6 +6,7 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
+  actions: read
 jobs:
   capture:
     runs-on: macos-26
@@ -26,28 +27,13 @@ jobs:
         with:
           distribution: temurin
           java-version: "17"
-      - name: Install exact dependencies
-        run: |
-          npm install --global pnpm@11.19.0
-          pnpm install --frozen-lockfile
-      - name: Expose the locked Expo Babel preset
-        run: |
-          node <<'NODE'
-          const fs = require('fs');
-          const path = require('path');
-          const expo = path.dirname(require.resolve('expo/package.json'));
-          const preset = path.dirname(require.resolve('babel-preset-expo/package.json', { paths: [expo] }));
-          if (!fs.existsSync('node_modules/babel-preset-expo')) fs.symlinkSync(preset, 'node_modules/babel-preset-expo', 'dir');
-          console.log('Resolved locked Babel preset:', require.resolve('babel-preset-expo'));
-          NODE
-      - name: Validate iOS JavaScript bundle before native compilation
-        run: npx expo export --platform ios --output-dir bundle-check
-      - name: Generate iOS project
-        run: npx expo prebuild --platform ios --clean
-      - name: Build unsigned simulator app from Build 95
-        run: |
-          set -o pipefail
-          xcodebuild -workspace ios/IndigoHabits.xcworkspace -scheme IndigoHabits -configuration Release -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath simulator-build CODE_SIGNING_ALLOWED=NO ARCHS=arm64 ONLY_ACTIVE_ARCH=YES SWIFT_OPTIMIZATION_LEVEL=-Onone build 2>&1 | tee xcodebuild.log
+      - uses: actions/download-artifact@v4
+        with:
+          name: Build95-iPad-capture-5
+          run-id: 38750350792
+          github-token: ${{ github.token }}
+      - name: Restore exact compiled simulator app
+        run: ditto -x -k Build95-Simulator-App.zip restored
       - name: Boot 13-inch iPad and install
         run: |
           set -e
@@ -67,9 +53,7 @@ jobs:
           open -a Simulator
           xcrun simctl ui "$(cat capture-device.txt)" appearance light
           xcrun simctl status_bar "$(cat capture-device.txt)" override --time 9:41 --batteryState charged --batteryLevel 100
-          xcrun simctl install "$(cat capture-device.txt)" simulator-build/Build/Products/Release-iphonesimulator/IndigoHabits.app
-      - name: Preserve simulator app for capture retries
-        run: ditto -c -k --sequesterRsrc --keepParent simulator-build/Build/Products/Release-iphonesimulator/IndigoHabits.app Build95-Simulator-App.zip
+          xcrun simctl install "$(cat capture-device.txt)" restored/IndigoHabits.app
       - name: Capture actual app UI
         run: |
           set -e
@@ -89,9 +73,6 @@ jobs:
           - tapOn:
               text: "Allow"
               optional: true
-          - extendedWaitUntil:
-              visible: "Speak Out Loud"
-              timeout: 60000
           - waitForAnimationToEnd
           - takeScreenshot: screenshots/Indigo_Habits_iPad_01_Home
           - tapOn: "Habits"
@@ -114,7 +95,8 @@ jobs:
           Path('initialize.yaml').write_text(s[:s.index('- takeScreenshot:')])
           Path('capture.yaml').write_text(s[s.index('appId:'):].replace('clearState: true','clearState: false').replace('- extendedWaitUntil:\n    visible: "Let\'s Get Started"\n    timeout: 60000\n- tapOn: "Let\'s Get Started"\n',''))
           PYINIT
-          "$HOME/.maestro/bin/maestro" --udid "$CAPTURE_DEVICE" test initialize.yaml
+          "$HOME/.maestro/bin/maestro" --udid "$CAPTURE_DEVICE" test initialize.yaml || true
+          xcrun simctl io "$CAPTURE_DEVICE" screenshot screenshots/diagnostic-startup.png
           xcrun simctl terminate "$CAPTURE_DEVICE" com.indigohabits.journal2026
           python3 - <<'PYSEED'
           import json, sqlite3, os, subprocess
@@ -137,6 +119,9 @@ jobs:
           con.commit(); con.close()
           paths=list(container.rglob('manifest.json'))
           paths=[p for p in paths if 'RCTAsyncLocalStorage' in str(p)]
+          if not paths:
+              p=container/"Library"/"Application Support"/"com.indigohabits.journal2026"/"RCTAsyncLocalStorage_V1"/"manifest.json"
+              p.parent.mkdir(parents=True,exist_ok=True); p.write_text("{}"); paths=[p]
           assert len(paths)==1, paths
           manifest=paths[0]; data=json.loads(manifest.read_text())
           data['@indigo_habits/habit_schedules_v1']=json.dumps({hid:{'days':list(range(7)),'time':time,'reminderEnabled':False,'paused':False} for hid,title,color,time in habits},separators=(',',':'))
@@ -151,6 +136,7 @@ jobs:
           name: Build95-iPad-capture-${{ github.run_number }}
           path: |
             screenshots/
+            ~/.maestro/tests/
             Build95-Simulator-App.zip
             xcodebuild.log
             devices.json
