@@ -35,7 +35,7 @@ jobs:
       - name: Build unsigned simulator app from Build 95
         run: |
           set -o pipefail
-          xcodebuild -workspace ios/IndigoHabits.xcworkspace -scheme IndigoHabits -configuration Release -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath simulator-build CODE_SIGNING_ALLOWED=NO build 2>&1 | tee xcodebuild.log
+          xcodebuild -workspace ios/IndigoHabits.xcworkspace -scheme IndigoHabits -configuration Release -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath simulator-build CODE_SIGNING_ALLOWED=NO ARCHS=arm64 ONLY_ACTIVE_ARCH=YES SWIFT_OPTIMIZATION_LEVEL=-Onone build 2>&1 | tee xcodebuild.log
       - name: Boot 13-inch iPad and install
         run: |
           set -e
@@ -56,6 +56,8 @@ jobs:
           xcrun simctl ui "$(cat capture-device.txt)" appearance light
           xcrun simctl status_bar "$(cat capture-device.txt)" override --time 9:41 --batteryState charged --batteryLevel 100
           xcrun simctl install "$(cat capture-device.txt)" simulator-build/Build/Products/Release-iphonesimulator/IndigoHabits.app
+      - name: Preserve simulator app for capture retries
+        run: ditto -c -k --sequesterRsrc --keepParent simulator-build/Build/Products/Release-iphonesimulator/IndigoHabits.app Build95-Simulator-App.zip
       - name: Capture actual app UI
         run: |
           set -e
@@ -69,10 +71,9 @@ jobs:
           - tapOn:
               text: "Allow"
               optional: true
-          - extendedWaitUntil:
-              visible: "Let's Get Started"
-              timeout: 60000
-          - tapOn: "Let's Get Started"
+          - tapOn:
+              text: "Let's Get Started"
+              optional: true
           - tapOn:
               text: "Allow"
               optional: true
@@ -138,6 +139,7 @@ jobs:
           name: Build95-iPad-capture-${{ github.run_number }}
           path: |
             screenshots/
+            Build95-Simulator-App.zip
             xcodebuild.log
             devices.json
           retention-days: 30
