@@ -30,6 +30,18 @@ jobs:
         run: |
           npm install --global pnpm@11.19.0
           pnpm install --frozen-lockfile
+      - name: Expose the locked Expo Babel preset
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const path = require('path');
+          const expo = path.dirname(require.resolve('expo/package.json'));
+          const preset = path.dirname(require.resolve('babel-preset-expo/package.json', { paths: [expo] }));
+          if (!fs.existsSync('node_modules/babel-preset-expo')) fs.symlinkSync(preset, 'node_modules/babel-preset-expo', 'dir');
+          console.log('Resolved locked Babel preset:', require.resolve('babel-preset-expo'));
+          NODE
+      - name: Validate iOS JavaScript bundle before native compilation
+        run: npx expo export --platform ios --output-dir bundle-check
       - name: Generate iOS project
         run: npx expo prebuild --platform ios --clean
       - name: Build unsigned simulator app from Build 95
