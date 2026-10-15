@@ -8,7 +8,7 @@ permissions:
   contents: read
 jobs:
   capture:
-    runs-on: macos-26-intel
+    runs-on: macos-26
     timeout-minutes: 55
     env:
       CI: "1"
@@ -35,7 +35,7 @@ jobs:
       - name: Build unsigned simulator app from Build 95
         run: |
           set -o pipefail
-          xcodebuild -workspace ios/IndigoHabits.xcworkspace -scheme IndigoHabits -configuration Release -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath simulator-build CODE_SIGNING_ALLOWED=NO build > xcodebuild.log 2>&1
+          xcodebuild -workspace ios/IndigoHabits.xcworkspace -scheme IndigoHabits -configuration Release -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath simulator-build CODE_SIGNING_ALLOWED=NO build 2>&1 | tee xcodebuild.log
       - name: Boot 13-inch iPad and install
         run: |
           set -e
@@ -72,7 +72,6 @@ jobs:
           - extendedWaitUntil:
               visible: "Let's Get Started"
               timeout: 60000
-          - takeScreenshot: screenshots/Indigo_Habits_iPad_01_Welcome
           - tapOn: "Let's Get Started"
           - tapOn:
               text: "Allow"
@@ -81,18 +80,64 @@ jobs:
               visible: "Speak Out Loud"
               timeout: 60000
           - waitForAnimationToEnd
-          - takeScreenshot: screenshots/Indigo_Habits_iPad_02_Home
+          - takeScreenshot: screenshots/Indigo_Habits_iPad_01_Home
+          - tapOn: "Habits"
+          - waitForAnimationToEnd
+          - takeScreenshot: screenshots/Indigo_Habits_iPad_02_Habits
           - tapOn: "Calendar"
           - waitForAnimationToEnd
           - takeScreenshot: screenshots/Indigo_Habits_iPad_03_Calendar
+          - tapOn: "History"
+          - waitForAnimationToEnd
+          - takeScreenshot: screenshots/Indigo_Habits_iPad_04_History
+          - tapOn: "Home"
+          - tapOn: "Open journal.*"
+          - waitForAnimationToEnd
+          - takeScreenshot: screenshots/Indigo_Habits_iPad_05_Journal
           YAML
+          python3 - <<'PYINIT'
+          from pathlib import Path
+          s=Path('capture.yaml').read_text()
+          Path('initialize.yaml').write_text(s[:s.index('- takeScreenshot:')])
+          Path('capture.yaml').write_text(s[s.index('appId:'):].replace('clearState: true','clearState: false').replace('- extendedWaitUntil:\n    visible: "Let\'s Get Started"\n    timeout: 60000\n- tapOn: "Let\'s Get Started"\n',''))
+          PYINIT
+          "$HOME/.maestro/bin/maestro" --udid "$CAPTURE_DEVICE" test initialize.yaml
+          xcrun simctl terminate "$CAPTURE_DEVICE" com.indigohabits.journal2026
+          python3 - <<'PYSEED'
+          import json, sqlite3, os, subprocess
+          from pathlib import Path
+          from datetime import date, timedelta
+          container=Path(subprocess.check_output(['xcrun','simctl','get_app_container',os.environ['CAPTURE_DEVICE'],'com.indigohabits.journal2026','data'],text=True).strip())
+          dbs=list(container.rglob('indigo_habits.db'))
+          assert len(dbs)==1, dbs
+          con=sqlite3.connect(dbs[0])
+          today=date.today().isoformat()
+          con.execute("INSERT OR REPLACE INTO profile (id,name,email,quote,isPremium) VALUES ('default','Alex','','Small steps every day',0)")
+          habits=[('water','Drink a glass of water','#06B6D4','07:00'),('walk','Take a morning walk','#6366F1','07:30'),('read','Read for 20 minutes','#8B5CF6','20:00')]
+          for i,(hid,title,color,time) in enumerate(habits):
+              con.execute('INSERT OR REPLACE INTO habits (id,title,color,isActive,isRepeating,orderIndex) VALUES (?,?,?,1,1,?)',(hid,title,color,i))
+              for back in range(7):
+                  d=(date.today()-timedelta(days=back)).isoformat()
+                  if back>0 or hid=='water': con.execute('INSERT OR REPLACE INTO habit_completions (id,habitId,date,completed) VALUES (?,?,?,1)',(hid+d,hid,d))
+          con.execute('INSERT OR REPLACE INTO journal_entries (id,content,date,createdAt) VALUES (?,?,?,?)',('demo-journal','I started the morning with a walk and a clear plan. Making time to read helped me slow down. Tomorrow I want to keep taking small steps toward my goals.',today,today+'T08:00:00.000Z'))
+          for i,t in enumerate(['I am building a life I love.','I follow through on my goals.','Small steps lead to lasting change.']): con.execute('INSERT OR REPLACE INTO affirmations (id,text,isCustom,isFavorite,orderIndex) VALUES (?,?,1,1,?)',('demo'+str(i),t,i))
+          con.commit(); con.close()
+          paths=list(container.rglob('manifest.json'))
+          paths=[p for p in paths if 'RCTAsyncLocalStorage' in str(p)]
+          assert len(paths)==1, paths
+          manifest=paths[0]; data=json.loads(manifest.read_text())
+          data['@indigo_habits/habit_schedules_v1']=json.dumps({hid:{'days':list(range(7)),'time':time,'reminderEnabled':False,'paused':False} for hid,title,color,time in habits},separators=(',',':'))
+          data['@indigo_habits/planned_items_v1']=json.dumps([{'id':'demo-task','title':'Plan tomorrow','date':today,'time':'18:00','completed':False,'reminderEnabled':False,'createdAt':today+'T08:00:00Z'}],separators=(',',':'))
+          manifest.write_text(json.dumps(data))
+          print('Seeded local simulator example data without changing app code')
+          PYSEED
           "$HOME/.maestro/bin/maestro" --udid "$CAPTURE_DEVICE" test capture.yaml
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: Build95-iPad-capture
+          name: Build95-iPad-capture-${{ github.run_number }}
           path: |
             screenshots/
             xcodebuild.log
             devices.json
-          retention-days: 7
+          retention-days: 30
